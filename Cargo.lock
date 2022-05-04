@@ -472,7 +472,7 @@ dependencies = [
 [[package]]
 name = "rs-hmc"
 version = "0.1.0"
-source = "git+https://github.com/nickmachnik/rs-hmc.git#dc0e674b408ea9058bfd275572d882ef3bb727bf"
+source = "git+https://github.com/nickmachnik/rs-hmc.git#c0303836cdfb44f5fbbeb2d9b0b53a20455db3e7"
 dependencies = [
  "approx 0.5.1",
  "blas-src",
