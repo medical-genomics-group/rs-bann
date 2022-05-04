@@ -1,12 +1,17 @@
 // TODO:
 // preprocess, train and predict subcommands
+extern crate blas_src;
+extern crate openblas_src;
+
+mod network;
+
 fn main() {}
 
 // TODO:
-// The preprocessing step should produce row major .bed files,
-// split into marker groups, following some annotations.
-// It is easier to pull random sets of individuals from a RM file.
-// Col stats should also be computed and stored.
+// Unless the groups get to large, I can do everything on col major files
+// and col major bedvecs.
+// the preprocessing routine only has to split the large .bed into groups
+// following some annotation input.
 fn preprocess() {
     unimplemented!();
 }

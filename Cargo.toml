@@ -6,3 +6,11 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+rs-bedvec = { git = "https://github.com/nickmachnik/bedvec.git" }
+rs-hmc = { git = "https://github.com/nickmachnik/rs-hmc.git" }
+rayon = "1.5"
+statrs = "0.15"
+rand = "0.8.4"
+ndarray = { version = "0.15", features = ["blas", "approx"] }
+blas-src = { version = "*",  default-features=false, features=["netlib"] }
+openblas-src = { version = "*", default-features = false, features = ["cblas"] }
