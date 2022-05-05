@@ -26,11 +26,9 @@ struct MarkerGroup {
     w1: A,
     b1: f32,
     w2: f32,
-    b2: f32,
     lambda_w1: f32,
     lambda_b1: f32,
     lambda_w2: f32,
-    lambda_b2: f32,
     lambda_e: f32,
     bed_reader: BedReader,
     dim: usize,
@@ -45,7 +43,6 @@ impl MarkerGroup {
         w1: A,
         b1: f32,
         w2: f32,
-        b2: f32,
         bed_reader: BedReader,
         dim: usize,
     ) -> Self {
@@ -54,16 +51,14 @@ impl MarkerGroup {
             w1,
             b1,
             w2,
-            b2,
             lambda_w1: 1.,
             lambda_b1: 1.,
             lambda_w2: 1.,
-            lambda_b2: 1.,
             lambda_e: 1.,
             bed_reader,
             dim,
             rng: thread_rng(),
-            momentum_sampler: MultivariateStandardNormalMomentum::new(dim),
+            momentum_sampler: MultivariateStandardNormalMomentum::new(dim + 2),
             marker_data: None,
         }
     }
@@ -100,8 +95,8 @@ impl MarkerGroup {
         let w1_index_first = 1;
         let w1_index_last = self.dim;
         let w2_index = w1_index_last + 1;
-        let b1 = param_vec[0];
-        let mut w1 = param_vec.slice(s![w1_index_first..=w1_index_last]);
+        let b1 = param_vec[b1_index];
+        let w1 = param_vec.slice(s![w1_index_first..=w1_index_last]);
         let w2 = param_vec[w2_index];
         let b1_part = -self.lambda_b1 / 2. * b1 * b1;
         let w1_part = -self.lambda_w1 / 2. * w1.dot(&w1);
@@ -116,7 +111,7 @@ impl MarkerGroup {
         let w1_index_last = self.dim;
         let w2_index = w1_index_last + 1;
         let b1 = param_vec[0];
-        let mut w1 = param_vec.slice(s![w1_index_first..=w1_index_last]);
+        let w1 = param_vec.slice(s![w1_index_first..=w1_index_last]);
         let w2 = param_vec[w2_index];
         let x_times_w1 = self
             .marker_data
@@ -155,7 +150,8 @@ impl MarkerGroup {
     }
 
     // Take single sample using HMC
-    fn sample_params(&mut self, step_size: f32, integration_length: usize) {
+    // TODO: could to max tries and reduce step size if unsuccessful
+    fn sample_params(&mut self, step_size: f32, integration_length: usize) -> A {
         let start_position = self.param_vec();
         loop {
             let mut position = start_position.clone();
@@ -164,10 +160,15 @@ impl MarkerGroup {
             for _ in 0..integration_length {
                 self.leapfrog(&mut position, &mut momentum, step_size);
             }
+            let acc_prob =
+                self.acceptance_probability(&position, &momentum, &start_position, &start_momentum);
+            if self.accept(acc_prob) {
+                return position;
+            }
         }
     }
 
-    fn accepted(&mut self, acceptance_probability: f64) -> bool {
+    fn accept(&mut self, acceptance_probability: f32) -> bool {
         self.rng.gen_range(0.0..1.0) < acceptance_probability
     }
 
@@ -204,3 +205,13 @@ impl MarkerGroup {
 pub struct Net {}
 
 impl Net {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_marker_group_param_sampling() {
+        let mg = MarkerGroup::new(residual: arr1(&[0., 1., 2.,]), w1: [1., 1.], b1: 1., w2: 1., bed_reader: BedReader, dim: 2)
+    }
+}
