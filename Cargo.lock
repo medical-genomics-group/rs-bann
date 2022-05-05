@@ -460,7 +460,7 @@ dependencies = [
 [[package]]
 name = "rs-bedvec"
 version = "0.1.0"
-source = "git+https://github.com/nickmachnik/bedvec.git#4d11134e369de396103aa77b980aab40fba9deb2"
+source = "git+https://github.com/nickmachnik/bedvec.git#7e57197d6a123d7ad68c15cba698db1e047bb818"
 dependencies = [
  "blas-src",
  "ndarray",

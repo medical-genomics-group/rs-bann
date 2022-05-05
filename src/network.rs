@@ -31,7 +31,7 @@ struct MarkerGroup {
     lambda_w2: f32,
     lambda_e: f32,
     bed_reader: BedReader,
-    dim: usize,
+    num_markers: usize,
     rng: ThreadRng,
     momentum_sampler: MultivariateStandardNormalMomentum,
     marker_data: Option<BedVecCM>,
@@ -44,8 +44,13 @@ impl MarkerGroup {
         b1: f32,
         w2: f32,
         bed_reader: BedReader,
-        dim: usize,
+        num_markers: usize,
     ) -> Self {
+        assert_eq!(
+            w1.len(),
+            num_markers,
+            "num_markers has to equal length of w1!"
+        );
         Self {
             residual,
             w1,
@@ -56,9 +61,9 @@ impl MarkerGroup {
             lambda_w2: 1.,
             lambda_e: 1.,
             bed_reader,
-            dim,
+            num_markers,
             rng: thread_rng(),
-            momentum_sampler: MultivariateStandardNormalMomentum::new(dim + 2),
+            momentum_sampler: MultivariateStandardNormalMomentum::new(num_markers + 2),
             marker_data: None,
         }
     }
@@ -93,7 +98,7 @@ impl MarkerGroup {
     fn log_density(&self, param_vec: &A) -> f32 {
         let b1_index = 0;
         let w1_index_first = 1;
-        let w1_index_last = self.dim;
+        let w1_index_last = self.num_markers;
         let w2_index = w1_index_last + 1;
         let b1 = param_vec[b1_index];
         let w1 = param_vec.slice(s![w1_index_first..=w1_index_last]);
@@ -108,7 +113,7 @@ impl MarkerGroup {
     fn log_density_gradient(&self, param_vec: &A) -> A {
         let b1_index = 0;
         let w1_index_first = 1;
-        let w1_index_last = self.dim;
+        let w1_index_last = self.num_markers;
         let w2_index = w1_index_last + 1;
         let b1 = param_vec[0];
         let w1 = param_vec.slice(s![w1_index_first..=w1_index_last]);
@@ -120,7 +125,7 @@ impl MarkerGroup {
             .right_multiply_par(w1.as_slice().unwrap());
         let z = &x_times_w1 + b1;
         let a = (x_times_w1 + b1).mapv(activation_fn);
-        let y_hat = &a * &self.w1;
+        let y_hat = &a * self.w2;
         let h_prime_of_z = z.mapv(activation_fn_derivative);
         let drss_dyhat = -self.lambda_e * (y_hat - &self.residual);
         let mut gradient: A = Array1::zeros(2 + w1.len());
@@ -130,22 +135,23 @@ impl MarkerGroup {
             .slice_mut(s![w1_index_first..=w1_index_last])
             .assign(
                 &(-self.lambda_w1 * &w1
-                    + (&drss_dyhat
-                        * w2
-                        * self
-                            .marker_data
-                            .as_ref()
-                            .unwrap()
-                            .left_multiply_simd_v1_par(h_prime_of_z.as_slice().unwrap()))),
+                    + (self
+                        .marker_data
+                        .as_ref()
+                        .unwrap()
+                        .left_multiply_simd_v1_par(
+                            (&drss_dyhat * w2 * h_prime_of_z).as_slice().unwrap(),
+                        ))),
             );
         gradient[w2_index] = -self.lambda_w2 * w2 + drss_dyhat.dot(&a);
         gradient
     }
 
     fn param_vec(&self) -> A {
-        let mut p = Vec::with_capacity(self.w1.len() + 1);
+        let mut p = Vec::with_capacity(self.w1.len() + 2);
         p.push(self.b1);
         p.extend(&self.w1);
+        p.push(self.w2);
         arr1(&p)
     }
 
@@ -212,6 +218,11 @@ mod tests {
 
     #[test]
     fn test_marker_group_param_sampling() {
-        let mg = MarkerGroup::new(residual: arr1(&[0., 1., 2.,]), w1: [1., 1.], b1: 1., w2: 1., bed_reader: BedReader, dim: 2)
+        let reader = BedReader::new("resources/test/four_by_two.bed", 4, 2);
+        let mut mg = MarkerGroup::new(arr1(&[0., 1., 2., 4.]), arr1(&[1., 1.]), 1., 1., reader, 2);
+        mg.load_marker_data();
+        let res = mg.sample_params(0.1, 100);
+        mg.forget_marker_data();
+        assert_eq!(res, arr1(&[0., 0., 0., 0., 0.]));
     }
 }
