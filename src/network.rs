@@ -21,7 +21,7 @@ fn activation_fn_derivative(x: f32) -> f32 {
 }
 
 /// A group of markers
-struct MarkerGroup {
+pub struct MarkerGroup {
     residual: A,
     w1: A,
     b1: f32,
@@ -38,7 +38,7 @@ struct MarkerGroup {
 }
 
 impl MarkerGroup {
-    fn new(
+    pub fn new(
         residual: A,
         w1: A,
         b1: f32,
@@ -68,12 +68,36 @@ impl MarkerGroup {
         }
     }
 
-    fn load_marker_data(&mut self) {
+    pub fn set_params(&mut self, param_vec: &Array1<f32>) {
+        let b1_index = 0;
+        let w1_index_first = 1;
+        let w1_index_last = self.num_markers;
+        let w2_index = w1_index_last + 1;
+        self.b1 = param_vec[b1_index];
+        self.w1 = param_vec
+            .slice(s![w1_index_first..=w1_index_last])
+            .to_owned();
+        self.w2 = param_vec[w2_index];
+    }
+
+    pub fn load_marker_data(&mut self) {
         self.marker_data = Some(self.bed_reader.read_into_bedvec());
     }
 
-    fn forget_marker_data(&mut self) {
+    pub fn forget_marker_data(&mut self) {
         self.marker_data = None;
+    }
+
+    pub fn forward_feed_with_set_params(&self) -> A {
+        // this does not include b2, because it is not group specific
+        (self
+            .marker_data
+            .as_ref()
+            .unwrap()
+            .right_multiply_par(self.w1.as_slice().unwrap())
+            + self.b1)
+            .mapv(activation_fn)
+            * self.w2
     }
 
     fn forward_feed(&self, b1: f32, w1: &ArrayView1<f32>, w2: f32) -> A {
@@ -106,7 +130,7 @@ impl MarkerGroup {
         let b1_part = -self.lambda_b1 / 2. * b1 * b1;
         let w1_part = -self.lambda_w1 / 2. * w1.dot(&w1);
         let w2_part = -self.lambda_w2 / 2. * w2 * w2;
-        let rss_part = self.lambda_e / 2. * self.rss(b1, &w1, w2);
+        let rss_part = -self.lambda_e / 2. * self.rss(b1, &w1, w2);
         b1_part + w1_part + w2_part + rss_part
     }
 
@@ -147,7 +171,7 @@ impl MarkerGroup {
         gradient
     }
 
-    fn param_vec(&self) -> A {
+    pub fn param_vec(&self) -> A {
         let mut p = Vec::with_capacity(self.w1.len() + 2);
         p.push(self.b1);
         p.extend(&self.w1);
@@ -157,13 +181,25 @@ impl MarkerGroup {
 
     // Take single sample using HMC
     // TODO: could to max tries and reduce step size if unsuccessful
-    fn sample_params(&mut self, step_size: f32, integration_length: usize) -> A {
+    pub fn sample_params(&mut self, step_size: f32, integration_length: usize) -> A {
         let start_position = self.param_vec();
         loop {
             let mut position = start_position.clone();
             let start_momentum: A = self.momentum_sampler.sample();
             let mut momentum = start_momentum.clone();
-            for _ in 0..integration_length {
+            momentum.scaled_add(step_size * 0.5, &self.log_density_gradient(&position));
+            for _step in 0..integration_length {
+                let acc_prob = self.acceptance_probability(
+                    &position,
+                    &momentum,
+                    &start_position,
+                    &start_momentum,
+                );
+                dbg!(&position);
+                dbg!(self.log_density(&position));
+                dbg!(acc_prob);
+                let m_d = self.momentum_sampler.log_density(&momentum);
+                dbg!(m_d);
                 self.leapfrog(&mut position, &mut momentum, step_size);
             }
             let acc_prob =
@@ -198,10 +234,18 @@ impl MarkerGroup {
         self.log_density(position) + self.momentum_sampler.log_density(momentum)
     }
 
+    // TODO: make only one gradient computation here,
+    // do the half step before and after completing the integration length
     fn leapfrog(&self, position: &mut A, momentum: &mut A, step_size: f32) {
-        momentum.scaled_add(step_size / 2., &self.log_density_gradient(position));
         position.scaled_add(step_size, momentum);
-        momentum.scaled_add(step_size / 2., &self.log_density_gradient(position));
+        momentum.scaled_add(step_size, &self.log_density_gradient(position));
+    }
+
+    fn gradient_step(&mut self, step_size: f32) {
+        let mut param_vec = self.param_vec();
+        let gradient = self.log_density_gradient(&param_vec);
+        dbg!(&param_vec, &gradient);
+        self.set_params(&(param_vec + (gradient * step_size)));
     }
 }
 
@@ -219,10 +263,44 @@ mod tests {
     #[test]
     fn test_marker_group_param_sampling() {
         let reader = BedReader::new("resources/test/four_by_two.bed", 4, 2);
-        let mut mg = MarkerGroup::new(arr1(&[0., 1., 2., 4.]), arr1(&[1., 1.]), 1., 1., reader, 2);
+        let mut mg = MarkerGroup::new(
+            arr1(&[-0.587_430_3, 0.020_813_8, 0.346_810_51, 0.283_149_64]),
+            arr1(&[1., 1.]),
+            1.,
+            1.,
+            reader,
+            2,
+        );
         mg.load_marker_data();
-        let res = mg.sample_params(0.1, 100);
+        dbg!("starting loop");
+        for i in 0..3 {
+            dbg!(i);
+            let res = mg.sample_params(70., 100);
+            mg.set_params(&res);
+            dbg!(mg.forward_feed_with_set_params());
+        }
+
         mg.forget_marker_data();
-        assert_eq!(res, arr1(&[0., 0., 0., 0., 0.]));
+        assert_eq!(mg.param_vec(), arr1(&[0., 0., 0., 0., 0.]));
+    }
+
+    #[test]
+    fn test_marker_group_gradient() {
+        let reader = BedReader::new("resources/test/four_by_two.bed", 4, 2);
+        let mut mg = MarkerGroup::new(
+            arr1(&[-0.587_430_3, 0.020_813_8, 0.346_810_51, 0.283_149_64]),
+            arr1(&[0., 1.]),
+            0.,
+            1.,
+            reader,
+            2,
+        );
+        mg.load_marker_data();
+        let density_before_step = mg.log_density(&mg.param_vec());
+        mg.gradient_step(0.01);
+        let density_after_step = mg.log_density(&mg.param_vec());
+        mg.forget_marker_data();
+        dbg!(density_before_step, density_after_step);
+        assert!(density_before_step < density_after_step);
     }
 }

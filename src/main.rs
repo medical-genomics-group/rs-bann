@@ -3,9 +3,15 @@
 extern crate blas_src;
 extern crate openblas_src;
 
+use crate::network::MarkerGroup;
+use ndarray::arr1;
+use rs_bedvec::io::BedReader;
+
 mod network;
 
-fn main() {}
+fn main() {
+    test_crate();
+}
 
 // TODO:
 // Unless the groups get to large, I can do everything on col major files
@@ -27,4 +33,22 @@ fn train() {
 
 fn predict() {
     unimplemented!();
+}
+
+fn test_crate() {
+    let reader = BedReader::new("resources/test/four_by_two.bed", 4, 2);
+    let mut mg = MarkerGroup::new(
+        arr1(&[-0.587_430_3, 0.020_813_8, 0.346_810_51, 0.283_149_64]),
+        arr1(&[1., 1.]),
+        1.,
+        1.,
+        reader,
+        2,
+    );
+    mg.load_marker_data();
+    for _i in 0..1 {
+        let res = mg.sample_params(0.1, 10);
+        mg.set_params(&res);
+    }
+    mg.forget_marker_data();
 }
