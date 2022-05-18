@@ -11,6 +11,7 @@ rs-hmc = { git = "https://github.com/nickmachnik/rs-hmc.git" }
 rayon = "1.5"
 statrs = "0.15"
 rand = "0.8.4"
+rand_distr = "*"
 ndarray = { version = "0.15", features = ["blas", "approx"] }
 blas-src = { version = "*",  default-features=false, features=["netlib"] }
 openblas-src = { version = "*", default-features = false, features = ["cblas"] }
