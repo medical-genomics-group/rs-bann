@@ -42,11 +42,11 @@ impl MVNMomentum {
         res
     }
 
-    fn log_density<D>(&self, position: &ArrayBase<D, Ix1>) -> f32
+    fn log_density<D>(&self, momentum: &ArrayBase<D, Ix1>) -> f32
     where
         D: Data<Elem = f32>,
     {
-        -0.5 * position.dot(position)
+        -0.5 * momentum.dot(momentum)
     }
 }
 
@@ -102,20 +102,20 @@ impl MarkerGroup {
     // TODO: could to max tries and reduce step size if unsuccessful
     pub fn sample_params(&mut self, integration_length: usize) -> A {
         let start_position = self.param_vec();
-        let step_sizes = 0.1 * arr1(&self.heuristic_step_sizes_min());
+        let step_sizes = 0.0001 * arr1(&self.heuristic_step_sizes());
         let mut position = start_position.clone();
 
         let start_momentum: A = self.momentum_sampler.sample();
         let mut momentum = start_momentum.clone();
         for _step in 0..integration_length {
-            // dbg!(&position);
-            // dbg!(self.log_density(&position));
-            // dbg!(self.momentum_sampler.log_density(&momentum));
-            // dbg!(self.neg_hamiltonian(&position, &momentum));
-            // let acc_prob =
-            //     self.acceptance_probability(&position, &momentum, &start_position, &start_momentum);
-            // dbg!(acc_prob);
-            // dbg!(self.is_u_turn(&position, &momentum, &start_position));
+            dbg!(&position);
+            dbg!(self.log_density(&position));
+            dbg!(self.momentum_sampler.log_density(&momentum));
+            dbg!(self.neg_hamiltonian(&position, &momentum));
+            let acc_prob =
+                self.acceptance_probability(&position, &momentum, &start_position, &start_momentum);
+            dbg!(acc_prob);
+            dbg!(self.is_u_turn(&position, &momentum, &start_position));
             self.leapfrog(&mut position, &mut momentum, &step_sizes);
         }
         let acc_prob =
@@ -176,24 +176,22 @@ impl MarkerGroup {
         r.dot(&r)
     }
 
-    // // Sets step sizes to 1 / sqrt(- second order gradient of log density)
-    // fn heuristic_step_sizes(&self) -> Vec<f32> {
-    //     let mut param_vec = self.prior_param_vec();
-    //     dbg!(&param_vec);
-    //     let density = self.log_density(&param_vec);
-    //     let gradient = self.log_density_gradient(&param_vec);
-    //     let mut step_sizes: Vec<f32> = vec![0.0; param_vec.len()];
-    //     for param_ix in 0..param_vec.len() {
-    //         param_vec[param_ix] += DELTA_APPROX;
-    //         let second_derivative = 2.
-    //             * (self.log_density(&param_vec) - density - gradient[param_ix] * DELTA_APPROX)
-    //             / DELTA_APPROX.powf(2.);
-    //         dbg!(second_derivative);
-    //         step_sizes[param_ix] = 1. / (-1. * second_derivative).sqrt();
-    //         param_vec[param_ix] -= DELTA_APPROX;
-    //     }
-    //     step_sizes
-    // }
+    // Sets step sizes to 1 / sqrt(- second order gradient of log density)
+    fn heuristic_step_sizes(&self) -> Vec<f32> {
+        let mut param_vec = self.prior_param_vec();
+        let density = self.log_density(&param_vec);
+        let gradient = self.log_density_gradient(&param_vec);
+        let mut step_sizes: Vec<f32> = vec![0.0; param_vec.len()];
+        for param_ix in 0..param_vec.len() {
+            param_vec[param_ix] += DELTA_APPROX;
+            let second_derivative = 2.
+                * (self.log_density(&param_vec) - density - gradient[param_ix] * DELTA_APPROX)
+                / DELTA_APPROX.powf(2.);
+            step_sizes[param_ix] = 1. / (-1. * second_derivative).sqrt();
+            param_vec[param_ix] -= DELTA_APPROX;
+        }
+        step_sizes
+    }
 
     // Sets step sizes to the min of 1 / sqrt(- second order gradient of log density)
     // over all params
