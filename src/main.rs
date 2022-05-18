@@ -46,8 +46,9 @@ fn test_crate() {
         2,
     );
     mg.load_marker_data();
-    for _i in 0..1 {
-        let res = mg.sample_params(1000);
+    for _i in 0..10000 {
+        let res = mg.sample_params(15);
+        println!("{:?}", res);
         mg.set_params(&res);
     }
     mg.forget_marker_data();

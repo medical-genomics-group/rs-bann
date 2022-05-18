@@ -1,6 +1,6 @@
 //! The network implementation
 
-use ndarray::{arr1, s, Array1, ArrayBase, ArrayView1, ArrayViewMut1, Data, DataMut, Ix1};
+use ndarray::{arr1, s, Array1, ArrayBase, ArrayView1, Data, DataMut, Ix1};
 use rand::prelude::ThreadRng;
 use rand::{thread_rng, Rng};
 use rand_distr::StandardNormal;
@@ -98,6 +98,35 @@ impl MarkerGroup {
         }
     }
 
+    // Take single sample using HMC
+    // TODO: could to max tries and reduce step size if unsuccessful
+    pub fn sample_params(&mut self, integration_length: usize) -> A {
+        let start_position = self.param_vec();
+        let step_sizes = 0.1 * arr1(&self.heuristic_step_sizes_min());
+        let mut position = start_position.clone();
+
+        let start_momentum: A = self.momentum_sampler.sample();
+        let mut momentum = start_momentum.clone();
+        for _step in 0..integration_length {
+            // dbg!(&position);
+            // dbg!(self.log_density(&position));
+            // dbg!(self.momentum_sampler.log_density(&momentum));
+            // dbg!(self.neg_hamiltonian(&position, &momentum));
+            // let acc_prob =
+            //     self.acceptance_probability(&position, &momentum, &start_position, &start_momentum);
+            // dbg!(acc_prob);
+            // dbg!(self.is_u_turn(&position, &momentum, &start_position));
+            self.leapfrog(&mut position, &mut momentum, &step_sizes);
+        }
+        let acc_prob =
+            self.acceptance_probability(&position, &momentum, &start_position, &start_momentum);
+        if self.accept(acc_prob) {
+            position.to_owned()
+        } else {
+            start_position
+        }
+    }
+
     pub fn set_params(&mut self, param_vec: &Array1<f32>) {
         let b1_index = 0;
         let w1_index_first = 1;
@@ -147,25 +176,59 @@ impl MarkerGroup {
         r.dot(&r)
     }
 
-    // Sets step sizes to 1 / sqrt(- second order gradient of log density)
-    fn heuristic_step_sizes(&self) -> Vec<f32> {
+    // // Sets step sizes to 1 / sqrt(- second order gradient of log density)
+    // fn heuristic_step_sizes(&self) -> Vec<f32> {
+    //     let mut param_vec = self.prior_param_vec();
+    //     dbg!(&param_vec);
+    //     let density = self.log_density(&param_vec);
+    //     let gradient = self.log_density_gradient(&param_vec);
+    //     let mut step_sizes: Vec<f32> = vec![0.0; param_vec.len()];
+    //     for param_ix in 0..param_vec.len() {
+    //         param_vec[param_ix] += DELTA_APPROX;
+    //         let second_derivative = 2.
+    //             * (self.log_density(&param_vec) - density - gradient[param_ix] * DELTA_APPROX)
+    //             / DELTA_APPROX.powf(2.);
+    //         dbg!(second_derivative);
+    //         step_sizes[param_ix] = 1. / (-1. * second_derivative).sqrt();
+    //         param_vec[param_ix] -= DELTA_APPROX;
+    //     }
+    //     step_sizes
+    // }
+
+    // Sets step sizes to the min of 1 / sqrt(- second order gradient of log density)
+    // over all params
+    fn heuristic_step_sizes_min(&self) -> Vec<f32> {
         let mut param_vec = self.prior_param_vec();
         let density = self.log_density(&param_vec);
         let gradient = self.log_density_gradient(&param_vec);
-        let mut step_sizes: Vec<f32> = vec![0.0; param_vec.len()];
+        let mut min_step_size: f32 = f32::INFINITY;
         for param_ix in 0..param_vec.len() {
             param_vec[param_ix] += DELTA_APPROX;
             let second_derivative = 2.
                 * (self.log_density(&param_vec) - density - gradient[param_ix] * DELTA_APPROX)
                 / DELTA_APPROX.powf(2.);
-            step_sizes[param_ix] = 1. / (-1. * second_derivative).sqrt();
+            let step_size = 1. / (-1. * second_derivative).sqrt();
+            if min_step_size > step_size {
+                min_step_size = step_size;
+            }
             param_vec[param_ix] -= DELTA_APPROX;
         }
-        step_sizes
+        vec![min_step_size; param_vec.len()]
+    }
+
+    fn numerical_log_density_gradient(&self, param_vec: &mut Array1<f32>) -> A {
+        let density = self.log_density(param_vec);
+        let mut res: Vec<f32> = vec![0.0; param_vec.len()];
+
+        for param_ix in 0..param_vec.len() {
+            param_vec[param_ix] += DELTA_APPROX;
+            res[param_ix] = (self.log_density(param_vec) - density) / DELTA_APPROX;
+            param_vec[param_ix] -= DELTA_APPROX;
+        }
+        arr1(&res)
     }
 
     // logarithm of the parameter density (-U)
-    // this has to accept a parameter vector
     fn log_density<D>(&self, param_vec: &ArrayBase<D, Ix1>) -> f32
     where
         D: Data<Elem = f32>,
@@ -224,6 +287,18 @@ impl MarkerGroup {
         gradient
     }
 
+    fn is_u_turn<D>(
+        &self,
+        new_position: &ArrayBase<D, Ix1>,
+        new_momentum: &ArrayBase<D, Ix1>,
+        initial_position: &Array1<f32>,
+    ) -> bool
+    where
+        D: Data<Elem = f32>,
+    {
+        (new_position - initial_position).dot(new_momentum) < 0.0
+    }
+
     pub fn param_vec(&self) -> A {
         let mut p = Vec::with_capacity(self.w1.len() + 2);
         p.push(self.b1);
@@ -236,38 +311,11 @@ impl MarkerGroup {
     fn prior_param_vec(&self) -> A {
         let mut p = Vec::with_capacity(self.w1.len() + 2);
         p.push(1. / self.lambda_b1);
-        p.extend(1. / &self.w1);
-        p.push(1. / self.w2);
+        for _ in 0..self.num_markers {
+            p.push(1. / &self.lambda_w1);
+        }
+        p.push(1. / self.lambda_w2);
         arr1(&p)
-    }
-
-    // Take single sample using HMC
-    // TODO: could to max tries and reduce step size if unsuccessful
-    pub fn sample_params(&mut self, integration_length: usize) -> A {
-        let start_position = self.param_vec();
-        let step_sizes = arr1(&self.heuristic_step_sizes());
-        let mut position = start_position.clone();
-        dbg!(&step_sizes);
-
-        let start_momentum: A = self.momentum_sampler.sample();
-        let mut momentum = start_momentum.clone();
-        for _step in 0..integration_length {
-            let acc_prob =
-                self.acceptance_probability(&position, &momentum, &start_position, &start_momentum);
-            dbg!(&position);
-            dbg!(self.log_density(&position));
-            dbg!(acc_prob);
-            let m_d = self.momentum_sampler.log_density(&momentum);
-            dbg!(m_d);
-            self.leapfrog(&mut position, &mut momentum, &step_sizes);
-        }
-        let acc_prob =
-            self.acceptance_probability(&position, &momentum, &start_position, &start_momentum);
-        if self.accept(acc_prob) {
-            position.to_owned()
-        } else {
-            start_position
-        }
     }
 
     fn accept(&mut self, acceptance_probability: f32) -> bool {
@@ -321,7 +369,6 @@ impl MarkerGroup {
     fn gradient_step(&mut self, step_size: f32) {
         let param_vec = self.param_vec();
         let gradient = self.log_density_gradient(&param_vec);
-        dbg!(&param_vec, &gradient);
         self.set_params(&(param_vec + (gradient * step_size)));
     }
 }
@@ -337,47 +384,73 @@ impl Net {}
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_marker_group_param_sampling() {
+    fn test_mg() -> MarkerGroup {
         let reader = BedReader::new("resources/test/four_by_two.bed", 4, 2);
-        let mut mg = MarkerGroup::new(
-            arr1(&[-0.587_430_3, 0.020_813_8, 0.346_810_51, 0.283_149_64]),
-            arr1(&[1., 1.]),
-            1.,
-            1.,
-            reader,
-            2,
-        );
-        mg.load_marker_data();
-        dbg!("starting loop");
-        for i in 0..3 {
-            dbg!(i);
-            let res = mg.sample_params(100);
-            mg.set_params(&res);
-            dbg!(mg.forward_feed_with_set_params());
-        }
-
-        mg.forget_marker_data();
-        assert_eq!(mg.param_vec(), arr1(&[0., 0., 0., 0., 0.]));
-    }
-
-    #[test]
-    fn test_marker_group_gradient() {
-        let reader = BedReader::new("resources/test/four_by_two.bed", 4, 2);
-        let mut mg = MarkerGroup::new(
+        MarkerGroup::new(
             arr1(&[-0.587_430_3, 0.020_813_8, 0.346_810_51, 0.283_149_64]),
             arr1(&[0., 1.]),
             0.,
             1.,
             reader,
             2,
-        );
+        )
+    }
+
+    // #[test]
+    // fn test_marker_group_param_sampling() {
+    //     let reader = BedReader::new("resources/test/four_by_two.bed", 4, 2);
+    //     let mut mg = MarkerGroup::new(
+    //         arr1(&[-0.587_430_3, 0.020_813_8, 0.346_810_51, 0.283_149_64]),
+    //         arr1(&[1., 1.]),
+    //         1.,
+    //         1.,
+    //         reader,
+    //         2,
+    //     );
+    //     mg.load_marker_data();
+    //     dbg!("starting loop");
+    //     for i in 0..3 {
+    //         dbg!(i);
+    //         let res = mg.sample_params(100);
+    //         mg.set_params(&res);
+    //         dbg!(mg.forward_feed_with_set_params());
+    //     }
+
+    //     mg.forget_marker_data();
+    //     assert_eq!(mg.param_vec(), arr1(&[0., 0., 0., 0., 0.]));
+    // }
+
+    #[test]
+    fn test_marker_group_gradient_sign() {
+        let mut mg = test_mg();
         mg.load_marker_data();
         let density_before_step = mg.log_density(&mg.param_vec());
         mg.gradient_step(0.01);
         let density_after_step = mg.log_density(&mg.param_vec());
         mg.forget_marker_data();
-        dbg!(density_before_step, density_after_step);
         assert!(density_before_step < density_after_step);
+    }
+
+    #[test]
+    fn test_marker_group_log_density() {
+        let mut mg = test_mg();
+        mg.load_marker_data();
+        let opt_param = arr1(&[0.0, 0.4, -0.1, 1.0]);
+        let close_to_opt_param = arr1(&[0.0, 0.6, -0.3, 1.0]);
+        assert!(mg.log_density(&opt_param) > mg.log_density(&close_to_opt_param));
+        mg.forget_marker_data();
+    }
+
+    // TODO: use approx here
+    #[test]
+    fn test_marker_group_gradient_magnitude() {
+        let mut mg = test_mg();
+        let mut pv = mg.param_vec();
+        mg.load_marker_data();
+        assert_eq!(
+            mg.numerical_log_density_gradient(&mut pv),
+            mg.log_density_gradient(&pv)
+        );
+        mg.forget_marker_data();
     }
 }
