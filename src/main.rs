@@ -50,7 +50,7 @@ fn test_crate() {
     let n_samples = 1;
     let mut n_rejected = 0;
     for _i in 0..n_samples {
-        let res = mg.sample_params(100000);
+        let res = mg.sample_params(100);
         if res == prev_res {
             n_rejected += 1;
         }

@@ -99,10 +99,9 @@ impl MarkerGroup {
     }
 
     // Take single sample using HMC
-    // TODO: could to max tries and reduce step size if unsuccessful
     pub fn sample_params(&mut self, integration_length: usize) -> A {
         let start_position = self.param_vec();
-        let step_sizes = 0.0001 * arr1(&self.heuristic_step_sizes());
+        let step_sizes = 0.1 * arr1(&self.heuristic_step_sizes());
         let mut position = start_position.clone();
 
         let start_momentum: A = self.momentum_sampler.sample();
@@ -214,14 +213,18 @@ impl MarkerGroup {
         vec![min_step_size; param_vec.len()]
     }
 
-    fn numerical_log_density_gradient(&self, param_vec: &mut Array1<f32>) -> A {
+    fn numerical_log_density_gradient<D>(&self, param_vec: &ArrayBase<D, Ix1>) -> A
+    where
+        D: Data<Elem = f32>,
+    {
         let density = self.log_density(param_vec);
         let mut res: Vec<f32> = vec![0.0; param_vec.len()];
+        let mut pvc = param_vec.to_owned();
 
         for param_ix in 0..param_vec.len() {
-            param_vec[param_ix] += DELTA_APPROX;
-            res[param_ix] = (self.log_density(param_vec) - density) / DELTA_APPROX;
-            param_vec[param_ix] -= DELTA_APPROX;
+            pvc[param_ix] += DELTA_APPROX;
+            res[param_ix] = (self.log_density(&pvc) - density) / DELTA_APPROX;
+            pvc[param_ix] -= DELTA_APPROX;
         }
         arr1(&res)
     }
@@ -359,9 +362,11 @@ impl MarkerGroup {
         MutD: DataMut<Elem = f32>,
         D: Data<Elem = f32>,
     {
-        *momentum += &(step_sizes * 0.5 * self.log_density_gradient(position));
+        // *momentum += &(step_sizes * 0.5 * self.log_density_gradient(position));
+        *momentum += &(step_sizes * 0.5 * self.numerical_log_density_gradient(position));
         *position += &(step_sizes * &momentum.view());
-        *momentum += &(step_sizes * 0.5 * self.log_density_gradient(position));
+        // *momentum += &(step_sizes * 0.5 * self.log_density_gradient(position));
+        *momentum += &(step_sizes * 0.5 * self.numerical_log_density_gradient(position));
     }
 
     fn gradient_step(&mut self, step_size: f32) {
@@ -443,10 +448,10 @@ mod tests {
     #[test]
     fn test_marker_group_gradient_magnitude() {
         let mut mg = test_mg();
-        let mut pv = mg.param_vec();
+        let pv = mg.param_vec();
         mg.load_marker_data();
         assert_eq!(
-            mg.numerical_log_density_gradient(&mut pv),
+            mg.numerical_log_density_gradient(&pv),
             mg.log_density_gradient(&pv)
         );
         mg.forget_marker_data();
