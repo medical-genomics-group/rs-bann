@@ -18,7 +18,7 @@ fn activation_fn(x: f32) -> f32 {
 
 #[inline(always)]
 fn activation_fn_derivative(x: f32) -> f32 {
-    1. - f32::tanh(x).powf(2.)
+    1. - f32::tanh(x).powi(2)
 }
 
 struct MVNMomentum {
@@ -185,7 +185,7 @@ impl MarkerGroup {
             param_vec[param_ix] += DELTA_APPROX;
             let second_derivative = 2.
                 * (self.log_density(&param_vec) - density - gradient[param_ix] * DELTA_APPROX)
-                / DELTA_APPROX.powf(2.);
+                / DELTA_APPROX.powi(2);
             step_sizes[param_ix] = 1. / (-1. * second_derivative).sqrt();
             param_vec[param_ix] -= DELTA_APPROX;
         }
@@ -203,7 +203,7 @@ impl MarkerGroup {
             param_vec[param_ix] += DELTA_APPROX;
             let second_derivative = 2.
                 * (self.log_density(&param_vec) - density - gradient[param_ix] * DELTA_APPROX)
-                / DELTA_APPROX.powf(2.);
+                / DELTA_APPROX.powi(2);
             let step_size = 1. / (-1. * second_derivative).sqrt();
             if min_step_size > step_size {
                 min_step_size = step_size;
@@ -265,7 +265,7 @@ impl MarkerGroup {
             .unwrap()
             .right_multiply_par(w1.as_slice().unwrap());
         let z = &x_times_w1 + b1;
-        let a = (x_times_w1 + b1).mapv(activation_fn);
+        let a = z.mapv(activation_fn);
         let y_hat = &a * self.w2;
         let h_prime_of_z = z.mapv(activation_fn_derivative);
         let drss_dyhat = -self.lambda_e * (y_hat - &self.residual);
