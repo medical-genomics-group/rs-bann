@@ -287,8 +287,8 @@ impl MarkerGroup {
         let y_hat = &a * self.w2;
         let h_prime_of_z = z.mapv(activation_fn_derivative);
         let drss_dyhat = -self.lambda_e * (y_hat - &self.residual);
-        let mut gradient: A = Array1::zeros(2 + w1.len());
 
+        let mut gradient: A = Array1::zeros(2 + w1.len());
         gradient[b1_index] = -self.lambda_b1 * b1 + w2 * drss_dyhat.dot(&h_prime_of_z);
         gradient
             .slice_mut(s![w1_index_first..=w1_index_last])
@@ -411,9 +411,9 @@ mod tests {
         let reader = BedReader::new("resources/test/four_by_two.bed", 4, 2);
         MarkerGroup::new(
             arr1(&[-0.587_430_3, 0.020_813_8, 0.346_810_51, 0.283_149_64]),
-            arr1(&[0., 1.]),
-            0.,
-            1.,
+            arr1(&[-0.2, 0.5]),
+            0.5,
+            0.1,
             reader,
             2,
         )
@@ -468,7 +468,7 @@ mod tests {
     fn test_no_side_effects_of_log_density_gradient_on_pv() {
         let mut mg = test_mg();
         mg.load_marker_data();
-        let exp = arr1(&[0., 0., 1., 1.]);
+        let exp = mg.param_vec();
         let pv = mg.param_vec();
         assert_eq!(exp, pv);
         mg.log_density_gradient(&pv);
@@ -486,16 +486,19 @@ mod tests {
         mg.load_marker_data();
         assert_eq!(
             mg.numerical_log_density_gradient_two_point(&pv),
-            mg.numerical_log_density_gradient(&pv),
-        );
-        assert_eq!(
-            mg.numerical_log_density_gradient_two_point(&pv),
-            mg.log_density_gradient(&pv)
-        );
-        assert_eq!(
-            mg.numerical_log_density_gradient(&pv),
             mg.log_density_gradient(&pv)
         );
         mg.forget_marker_data();
+    }
+
+    #[test]
+    fn test_num_gradient_precision() {
+        let mut mg = test_mg();
+        let pv = mg.param_vec();
+        mg.load_marker_data();
+        assert_eq!(
+            mg.numerical_log_density_gradient_two_point(&pv),
+            mg.numerical_log_density_gradient(&pv),
+        );
     }
 }
