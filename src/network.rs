@@ -286,8 +286,6 @@ impl MarkerGroup {
         let a = z.mapv(activation_fn);
         let y_hat = &a * self.w2;
         let h_prime_of_z = z.mapv(activation_fn_derivative);
-        dbg!(&h_prime_of_z);
-        dbg!(&a);
         let drss_dyhat = -self.lambda_e * (y_hat - &self.residual);
         let mut gradient: A = Array1::zeros(2 + w1.len());
 
