@@ -39,8 +39,8 @@ fn test_crate() {
     let reader = BedReader::new("resources/test/four_by_two.bed", 4, 2);
     let mut mg = MarkerGroup::new(
         arr1(&[-0.587_430_3, 0.020_813_8, 0.346_810_51, 0.283_149_64]),
-        arr1(&[0., 0.]),
-        0.,
+        arr1(&[1., 1.]),
+        1.,
         1.,
         reader,
         2,

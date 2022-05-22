@@ -39,7 +39,6 @@ impl MVNMomentum {
         // for ix in 0..self.ndim {
         //     res[ix] = self.rng.sample(StandardNormal);
         // }
-        // res
         Array1::ones(self.ndim)
     }
 
@@ -381,13 +380,13 @@ impl MarkerGroup {
         MutD: DataMut<Elem = f32>,
         D: Data<Elem = f32>,
     {
-        // *momentum += &(step_sizes * 0.5 * self.log_density_gradient(position));
+        *momentum += &(step_sizes * 0.5 * self.log_density_gradient(position));
         // *momentum += &(step_sizes * 0.5 * self.numerical_log_density_gradient(position));
-        *momentum += &(step_sizes * 0.5 * self.numerical_log_density_gradient_two_point(position));
+        // *momentum += &(step_sizes * 0.5 * self.numerical_log_density_gradient_two_point(position));
         *position += &(step_sizes * &momentum.view());
-        // *momentum += &(step_sizes * 0.5 * self.log_density_gradient(position));
+        *momentum += &(step_sizes * 0.5 * self.log_density_gradient(position));
         // *momentum += &(step_sizes * 0.5 * self.numerical_log_density_gradient(position));
-        *momentum += &(step_sizes * 0.5 * self.numerical_log_density_gradient_two_point(position));
+        // *momentum += &(step_sizes * 0.5 * self.numerical_log_density_gradient_two_point(position));
     }
 
     fn gradient_step(&mut self, step_size: f32) {
