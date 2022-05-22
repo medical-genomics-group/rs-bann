@@ -229,6 +229,24 @@ impl MarkerGroup {
         arr1(&res)
     }
 
+    fn numerical_log_density_gradient_two_point<D>(&self, param_vec: &ArrayBase<D, Ix1>) -> A
+    where
+        D: Data<Elem = f32>,
+    {
+        let mut res: Vec<f32> = vec![0.0; param_vec.len()];
+        let mut pvc = param_vec.to_owned();
+
+        for param_ix in 0..param_vec.len() {
+            pvc[param_ix] += DELTA_APPROX;
+            let fw = self.log_density(&pvc);
+            pvc[param_ix] -= 2. * DELTA_APPROX;
+            let bw = self.log_density(&pvc);
+            res[param_ix] = (fw - bw) / (2. * DELTA_APPROX);
+            pvc[param_ix] += DELTA_APPROX;
+        }
+        arr1(&res)
+    }
+
     // logarithm of the parameter density (-U)
     fn log_density<D>(&self, param_vec: &ArrayBase<D, Ix1>) -> f32
     where
@@ -268,6 +286,8 @@ impl MarkerGroup {
         let a = z.mapv(activation_fn);
         let y_hat = &a * self.w2;
         let h_prime_of_z = z.mapv(activation_fn_derivative);
+        dbg!(&h_prime_of_z);
+        dbg!(&a);
         let drss_dyhat = -self.lambda_e * (y_hat - &self.residual);
         let mut gradient: A = Array1::zeros(2 + w1.len());
 
@@ -362,11 +382,13 @@ impl MarkerGroup {
         MutD: DataMut<Elem = f32>,
         D: Data<Elem = f32>,
     {
-        // *momentum += &(step_sizes * 0.5 * self.log_density_gradient(position));
-        *momentum += &(step_sizes * 0.5 * self.numerical_log_density_gradient(position));
+        *momentum += &(step_sizes * 0.5 * self.log_density_gradient(position));
+        // *momentum += &(step_sizes * 0.5 * self.numerical_log_density_gradient(position));
+        // *momentum += &(step_sizes * 0.5 * self.numerical_log_density_gradient_two_point(position));
         *position += &(step_sizes * &momentum.view());
-        // *momentum += &(step_sizes * 0.5 * self.log_density_gradient(position));
-        *momentum += &(step_sizes * 0.5 * self.numerical_log_density_gradient(position));
+        *momentum += &(step_sizes * 0.5 * self.log_density_gradient(position));
+        // *momentum += &(step_sizes * 0.5 * self.numerical_log_density_gradient(position));
+        // *momentum += &(step_sizes * 0.5 * self.numerical_log_density_gradient_two_point(position));
     }
 
     fn gradient_step(&mut self, step_size: f32) {
@@ -444,12 +466,34 @@ mod tests {
         mg.forget_marker_data();
     }
 
-    // TODO: use approx here
+    #[test]
+    fn test_no_side_effects_of_log_density_gradient_on_pv() {
+        let mut mg = test_mg();
+        mg.load_marker_data();
+        let exp = arr1(&[0., 0., 1., 1.]);
+        let pv = mg.param_vec();
+        assert_eq!(exp, pv);
+        mg.log_density_gradient(&pv);
+        assert_eq!(exp, pv);
+        mg.forget_marker_data();
+    }
+
+    // TODO: this test is probably not meant to pass.
+    // I don't believe that the minor differences in the gradient
+    // values are the cause of the analytic method's instability
     #[test]
     fn test_marker_group_gradient_magnitude() {
         let mut mg = test_mg();
         let pv = mg.param_vec();
         mg.load_marker_data();
+        assert_eq!(
+            mg.numerical_log_density_gradient_two_point(&pv),
+            mg.numerical_log_density_gradient(&pv),
+        );
+        assert_eq!(
+            mg.numerical_log_density_gradient_two_point(&pv),
+            mg.log_density_gradient(&pv)
+        );
         assert_eq!(
             mg.numerical_log_density_gradient(&pv),
             mg.log_density_gradient(&pv)
