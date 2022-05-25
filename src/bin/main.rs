@@ -39,17 +39,21 @@ fn test_crate() {
         2,
     );
     mg.load_marker_data();
-    let mut prev_res = arr1(&[-0.587_430_3, 0.020_813_8, 0.346_810_51, 0.283_149_64]);
+    let mut prev_pos = arr1(&[-0.587_430_3, 0.020_813_8, 0.346_810_51, 0.283_149_64]);
     let n_samples = 1000;
     let mut n_rejected = 0;
     for _i in 0..n_samples {
-        let res = mg.sample_params(100);
-        if res == prev_res {
+        let (new_pos, u_turn_at) = mg.sample_params(10);
+        if new_pos == prev_pos {
             n_rejected += 1;
         }
-        println!("{:?}", res);
-        prev_res = res.clone();
-        mg.set_params(&res);
+        if let Some(ix) = u_turn_at {
+            println!("{:?}\t{:?}", new_pos, ix);
+        } else {
+            println!("{:?}\tnan", new_pos);
+        }
+        prev_pos = new_pos.clone();
+        mg.set_params(&new_pos);
     }
     mg.forget_marker_data();
     dbg!(n_rejected as f64 / n_samples as f64);

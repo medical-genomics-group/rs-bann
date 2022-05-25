@@ -100,17 +100,21 @@ impl MarkerGroup {
     }
 
     // Take single sample using HMC
-    pub fn sample_params(&mut self, integration_length: usize) -> A {
+    pub fn sample_params(&mut self, integration_length: usize) -> (A, Option<usize>) {
         let start_position = self.param_vec();
-        let step_sizes = 0.1 * arr1(&self.heuristic_step_sizes());
+        let step_sizes = 0.6 * arr1(&self.heuristic_step_sizes());
         let mut position = start_position.clone();
 
+        let mut first_u_turn_at: Option<usize> = None;
         let start_momentum: A = self.momentum_sampler.sample();
         let mut momentum = start_momentum.clone();
         // initial half step
         momentum += &(&step_sizes * 0.5 * self.log_density_gradient(&position));
-        for _step in 0..(integration_length - 1) {
+        for step in 0..(integration_length - 1) {
             self.leapfrog(&mut position, &mut momentum, &step_sizes);
+            if first_u_turn_at == None && self.is_u_turn(&position, &momentum, &start_position) {
+                first_u_turn_at = Some(step);
+            }
         }
         // final steps for alignment
         position += &(&step_sizes * &momentum.view());
@@ -119,9 +123,9 @@ impl MarkerGroup {
         let acc_prob =
             self.acceptance_probability(&position, &momentum, &start_position, &start_momentum);
         if self.accept(acc_prob) {
-            position.to_owned()
+            (position.to_owned(), first_u_turn_at)
         } else {
-            start_position
+            (start_position, first_u_turn_at)
         }
     }
 
