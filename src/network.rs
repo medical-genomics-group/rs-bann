@@ -284,7 +284,7 @@ impl MarkerGroup {
             .right_multiply_par(w1.as_slice().unwrap());
         let z = &x_times_w1 + b1;
         let a = z.mapv(activation_fn);
-        let y_hat = &a * self.w2;
+        let y_hat = &a * w2;
         let h_prime_of_z = z.mapv(activation_fn_derivative);
         let drss_dyhat = -self.lambda_e * (y_hat - &self.residual);
 
@@ -382,7 +382,7 @@ impl MarkerGroup {
     {
         let grad_analytic = self.log_density_gradient(position);
         let grad_numeric = self.numerical_log_density_gradient_two_point(position);
-        dbg!(grad_analytic - grad_numeric);
+        dbg!(&grad_analytic - &grad_numeric);
         dbg!(&grad_analytic);
         dbg!(&grad_numeric);
         *momentum += &(step_sizes * 0.5 * self.log_density_gradient(position));
