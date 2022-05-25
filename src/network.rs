@@ -111,9 +111,6 @@ impl MarkerGroup {
         momentum += &(&step_sizes * 0.5 * self.log_density_gradient(&position));
         for _step in 0..(integration_length - 1) {
             self.leapfrog(&mut position, &mut momentum, &step_sizes);
-            if self.is_u_turn(&position, &momentum, &start_position) {
-                break;
-            }
         }
         // final steps for alignment
         position += &(&step_sizes * &momentum.view());
