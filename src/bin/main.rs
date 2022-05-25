@@ -1,13 +1,6 @@
-// TODO:
-// preprocess, train and predict subcommands
-extern crate blas_src;
-extern crate openblas_src;
-
-use crate::network::MarkerGroup;
 use ndarray::arr1;
+use rs_bann::network::MarkerGroup;
 use rs_bedvec::io::BedReader;
-
-mod network;
 
 fn main() {
     test_crate();

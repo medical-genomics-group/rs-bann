@@ -229,7 +229,7 @@ impl MarkerGroup {
         arr1(&res)
     }
 
-    fn numerical_log_density_gradient_two_point<D>(&self, param_vec: &ArrayBase<D, Ix1>) -> A
+    pub fn numerical_log_density_gradient_two_point<D>(&self, param_vec: &ArrayBase<D, Ix1>) -> A
     where
         D: Data<Elem = f32>,
     {
@@ -266,7 +266,7 @@ impl MarkerGroup {
         b1_part + w1_part + w2_part + rss_part
     }
 
-    fn log_density_gradient<D>(&self, param_vec: &ArrayBase<D, Ix1>) -> A
+    pub fn log_density_gradient<D>(&self, param_vec: &ArrayBase<D, Ix1>) -> A
     where
         D: Data<Elem = f32>,
     {
