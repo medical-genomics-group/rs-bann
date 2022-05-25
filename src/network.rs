@@ -383,6 +383,8 @@ impl MarkerGroup {
         let grad_analytic = self.log_density_gradient(position);
         let grad_numeric = self.numerical_log_density_gradient_two_point(position);
         dbg!(grad_analytic - grad_numeric);
+        dbg!(&grad_analytic);
+        dbg!(&grad_numeric);
         *momentum += &(step_sizes * 0.5 * self.log_density_gradient(position));
         // *momentum += &(step_sizes * 0.5 * self.numerical_log_density_gradient(position));
         // *momentum += &(step_sizes * 0.5 * self.numerical_log_density_gradient_two_point(position));
