@@ -22,6 +22,7 @@ fn main() {
         2,
     );
     mg.set_params(&arr1(&param_vec));
+    dbg!(mg.param_vec());
     mg.load_marker_data();
     println!(
         "numerical gradient: {:?}",
