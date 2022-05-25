@@ -171,7 +171,7 @@ impl MarkerGroup {
     }
 
     fn rss(&self, b1: f32, w1: &ArrayView1<f32>, w2: f32) -> f32 {
-        let r = &self.residual - self.forward_feed(b1, w1, w2);
+        let r = self.forward_feed(b1, w1, w2) - &self.residual;
         r.dot(&r)
     }
 
@@ -380,6 +380,9 @@ impl MarkerGroup {
         MutD: DataMut<Elem = f32>,
         D: Data<Elem = f32>,
     {
+        let grad_analytic = self.log_density_gradient(position);
+        let grad_numeric = self.numerical_log_density_gradient_two_point(position);
+        dbg!(grad_analytic - grad_numeric);
         *momentum += &(step_sizes * 0.5 * self.log_density_gradient(position));
         // *momentum += &(step_sizes * 0.5 * self.numerical_log_density_gradient(position));
         // *momentum += &(step_sizes * 0.5 * self.numerical_log_density_gradient_two_point(position));
