@@ -35,11 +35,12 @@ impl MVNMomentum {
     }
 
     fn sample(&mut self) -> Array1<f32> {
-        // let mut res = Array1::from(vec![0.; self.ndim]);
-        // for ix in 0..self.ndim {
-        //     res[ix] = self.rng.sample(StandardNormal);
-        // }
-        Array1::ones(self.ndim)
+        let mut res = Array1::from(vec![0.; self.ndim]);
+        for ix in 0..self.ndim {
+            res[ix] = self.rng.sample(StandardNormal);
+        }
+        res
+        // Array1::ones(self.ndim)
     }
 
     fn log_density<D>(&self, momentum: &ArrayBase<D, Ix1>) -> f32
@@ -106,17 +107,15 @@ impl MarkerGroup {
 
         let start_momentum: A = self.momentum_sampler.sample();
         let mut momentum = start_momentum.clone();
-        for _step in 0..integration_length {
-            dbg!(&position);
-            dbg!(self.log_density(&position));
-            dbg!(self.momentum_sampler.log_density(&momentum));
-            dbg!(self.neg_hamiltonian(&position, &momentum));
-            let acc_prob =
-                self.acceptance_probability(&position, &momentum, &start_position, &start_momentum);
-            dbg!(acc_prob);
-            dbg!(self.is_u_turn(&position, &momentum, &start_position));
+        // initial half step
+        momentum += &(&step_sizes * 0.5 * self.log_density_gradient(&position));
+        for _step in 0..(integration_length - 1) {
             self.leapfrog(&mut position, &mut momentum, &step_sizes);
         }
+        // final steps for alignment
+        position += &(&step_sizes * &momentum.view());
+        momentum += &(&step_sizes * 0.5 * self.log_density_gradient(&position));
+
         let acc_prob =
             self.acceptance_probability(&position, &momentum, &start_position, &start_momentum);
         if self.accept(acc_prob) {
@@ -380,18 +379,8 @@ impl MarkerGroup {
         MutD: DataMut<Elem = f32>,
         D: Data<Elem = f32>,
     {
-        let grad_analytic = self.log_density_gradient(position);
-        let grad_numeric = self.numerical_log_density_gradient_two_point(position);
-        dbg!(&grad_analytic - &grad_numeric);
-        dbg!(&grad_analytic);
-        dbg!(&grad_numeric);
-        *momentum += &(step_sizes * 0.5 * self.log_density_gradient(position));
-        // *momentum += &(step_sizes * 0.5 * self.numerical_log_density_gradient(position));
-        // *momentum += &(step_sizes * 0.5 * self.numerical_log_density_gradient_two_point(position));
         *position += &(step_sizes * &momentum.view());
-        *momentum += &(step_sizes * 0.5 * self.log_density_gradient(position));
-        // *momentum += &(step_sizes * 0.5 * self.numerical_log_density_gradient(position));
-        // *momentum += &(step_sizes * 0.5 * self.numerical_log_density_gradient_two_point(position));
+        *momentum += &(step_sizes * self.log_density_gradient(position));
     }
 
     fn gradient_step(&mut self, step_size: f32) {

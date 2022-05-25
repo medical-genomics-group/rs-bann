@@ -40,7 +40,7 @@ fn test_crate() {
     );
     mg.load_marker_data();
     let mut prev_res = arr1(&[-0.587_430_3, 0.020_813_8, 0.346_810_51, 0.283_149_64]);
-    let n_samples = 1;
+    let n_samples = 1000;
     let mut n_rejected = 0;
     for _i in 0..n_samples {
         let res = mg.sample_params(100);
