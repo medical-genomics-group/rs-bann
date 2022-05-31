@@ -6,6 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+arrayfire = "3.8"
 rs-bedvec = { git = "https://github.com/nickmachnik/bedvec.git" }
 rs-hmc = { git = "https://github.com/nickmachnik/rs-hmc.git" }
 rayon = "1.5"
