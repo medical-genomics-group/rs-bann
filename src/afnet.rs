@@ -1,10 +1,29 @@
-use arrayfire::{Array, dim4};
-
+use arrayfire::{dim4, Array};
 
 pub struct Arm {
     weights: Vec<Array<f32>>,
+    // always biases, weights alternating
+    precisions: Vec<f32>,
     num_layers: usize,
 }
+
+impl Arm {
+    pub fn hmc_step(&mut self, x_train: &Array<f32>, y_train: &Array<f32>) {
+        let init_weights = self.weights.clone();
+        // TODO: add heuristic step sizes
+        // TODO: add u turn diagnostic for tuning
+        let momentum = self.sample_momentum();
+    }
+
+    fn sample_momentum(&self) -> Vec<Array<f32>> {
+        let mut momentum = Vec::new();
+        for index in 0..(self.num_layers) {
+            momentum.push(arrayfire::randn::<f32>(self.weights[index].dims()))
+        }
+        momentum
+    }
+}
+
 struct ArmBuilder {
     num_markers: usize,
     layer_widths: Vec<usize>,
@@ -14,30 +33,26 @@ struct ArmBuilder {
 
 impl ArmBuilder {
     fn new() -> Self {
-        Self { num_markers: 0, layer_widths: vec![], num_layers: 0, initial_random_range: 0.05 }
+        Self {
+            num_markers: 0,
+            layer_widths: vec![],
+            num_layers: 2,
+            initial_random_range: 0.05,
+        }
     }
 
-    fn with_num_markers(
-        &mut self,
-        num_markers: usize,
-    ) -> &mut Self {
+    fn with_num_markers(&mut self, num_markers: usize) -> &mut Self {
         self.num_markers = num_markers;
         self
     }
 
-    fn add_hidden_layer(
-        &mut self,
-        layer_width: usize,
-    ) -> &mut Self {
+    fn add_hidden_layer(&mut self, layer_width: usize) -> &mut Self {
         self.layer_widths.push(layer_width);
         self.num_layers += 1;
         self
     }
 
-    fn with_initial_random_range(
-        &mut self,
-        range: f32,
-    ) -> &mut Self {
+    fn with_initial_random_range(&mut self, range: f32) -> &mut Self {
         self.initial_random_range = range;
         self
     }
@@ -53,6 +68,7 @@ impl ArmBuilder {
         let mut weights = vec![];
         for index in 0..(widths.len() - 1) {
             weights.push(
+                // this includes the bias term.
                 self.initial_random_range
                     * arrayfire::randu::<f32>(dim4![
                         widths[index] as u64 + 1,
@@ -65,14 +81,14 @@ impl ArmBuilder {
         }
         Arm {
             weights,
+            precisions: vec![1.0; weights.len() * 2],
             num_layers: self.num_layers,
         }
     }
 }
 
-
 mod tests {
-    use arrayfire::{Dim4, af_print, randu};
+    use arrayfire::{af_print, randu, Dim4};
 
     #[test]
     fn test_af() {
