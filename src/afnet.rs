@@ -12,7 +12,9 @@ impl Arm {
         let init_weights = self.weights.clone();
         // TODO: add heuristic step sizes
         // TODO: add u turn diagnostic for tuning
-        let momentum = self.sample_momentum();
+        let init_momentum = self.sample_momentum();
+        // TODO: figure out if this is actually a deep clone?
+        let momentum = init_momentum.clone();
     }
 
     fn sample_momentum(&self) -> Vec<Array<f32>> {
@@ -65,8 +67,9 @@ impl ArmBuilder {
         // the output node
         widths.push(1);
 
+        let num_weights = widths.len() - 1;
         let mut weights = vec![];
-        for index in 0..(widths.len() - 1) {
+        for index in 0..num_weights {
             weights.push(
                 // this includes the bias term.
                 self.initial_random_range
@@ -81,14 +84,14 @@ impl ArmBuilder {
         }
         Arm {
             weights,
-            precisions: vec![1.0; weights.len() * 2],
+            precisions: vec![1.0; num_weights * 2],
             num_layers: self.num_layers,
         }
     }
 }
 
 mod tests {
-    use arrayfire::{af_print, randu, Dim4};
+    use arrayfire::{af_print, randu, Array, Dim4};
 
     #[test]
     fn test_af() {
@@ -97,5 +100,26 @@ mod tests {
         let dims = Dim4::new(&[num_rows, num_cols, 1, 1]);
         let a = randu::<f32>(dims);
         af_print!("Create a 5-by-3 matrix of random floats on the GPU", a);
+    }
+
+    fn to_host(a: &Array<f32>) -> Vec<f32> {
+        let mut buffer = Vec::<f32>::new();
+        buffer.resize(a.elements(), 0.);
+        a.host(&mut buffer);
+        buffer
+    }
+
+    #[test]
+    fn test_vec_of_arrays_deepcopy() {
+        let dims = Dim4::new(&[2, 1, 1, 1]);
+        let v1 = vec![arrayfire::randu::<f32>(dims), arrayfire::randu::<f32>(dims)];
+        let mut v2 = v1.clone();
+        let a3 = arrayfire::randu::<f32>(dims);
+        let v1_1_host = to_host(&v1[0]);
+        let mut v2_1_host = to_host(&v2[0]);
+        assert_eq!(v1_1_host, v2_1_host);
+        v2[0] += a3;
+        v2_1_host = to_host(&v2[0]);
+        assert_ne!(v1_1_host, v2_1_host);
     }
 }
