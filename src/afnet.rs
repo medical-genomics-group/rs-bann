@@ -1,8 +1,8 @@
-use arrayfire::{dim4, Array};
+use arrayfire::{dim4, matmul, tanh, Array, MatProp};
 
 pub struct Arm {
     weights: Vec<Array<f32>>,
-    // always biases, weights alternating
+    biases: Vec<Array<f32>>,
     precisions: Vec<f32>,
     num_layers: usize,
 }
@@ -13,16 +13,101 @@ impl Arm {
         // TODO: add heuristic step sizes
         // TODO: add u turn diagnostic for tuning
         let init_momentum = self.sample_momentum();
-        // TODO: figure out if this is actually a deep clone?
-        let momentum = init_momentum.clone();
+        let mut momentum = init_momentum.clone();
+        // initial half step
     }
 
+    // TODO: split into bias and weights
     fn sample_momentum(&self) -> Vec<Array<f32>> {
         let mut momentum = Vec::new();
         for index in 0..(self.num_layers) {
             momentum.push(arrayfire::randn::<f32>(self.weights[index].dims()))
         }
         momentum
+    }
+
+    fn update_momentum(
+        &self,
+        momentum: &mut Vec<Array<f32>>,
+        step_sizes: &Vec<f32>,
+        // the fraction of a step that will be taken
+        step_size_fraction: f32,
+        x_train: &Array<f32>,
+        y_train: &Array<f32>,
+    ) {
+        let (bias_gradient, weight_gradient) = self.log_density_gradient(x_train, y_train);
+        // update each momentum component individually
+        for index in 0..(self.num_layers) {
+            momentum[index] += step_sizes[index] * step_size_fraction * gradient[index];
+        }
+    }
+
+    fn forward_feed(&self, x_train: &Array<f32>) -> Vec<Array<f32>> {
+        let mut signals: Vec<Array<f32>> = Vec::with_capacity(self.num_layers - 1);
+        signals.push(self.layer_activation(0, x_train));
+
+        for layer_index in 1..(self.num_layers - 1) {
+            signals.push(self.layer_activation(layer_index - 1, &signals[layer_index - 1]));
+        }
+
+        signals
+    }
+
+    fn log_density_gradient(
+        &self,
+        x_train: &Array<f32>,
+        y_train: &Array<f32>,
+    ) -> (Vec<Array<f32>>, Vec<Array<f32>>) {
+        // forward propagate to get signals
+        let signals = self.forward_feed(x_train);
+
+        let mut bias_gradients: Vec<Array<f32>> = Vec::with_capacity(self.num_layers - 1);
+        let mut weight_gradients: Vec<Array<f32>> = Vec::with_capacity(self.num_layers - 1);
+        // back propagate
+        let mut activation = signals.last().unwrap();
+        let mut error = activation - y_train;
+        bias_gradients.push(Array::new(&[1.0_f32], dim4![1, 1, 1, 1]));
+        // TODO: do dimensions check out here?
+        weight_gradients.push(matmul(&error, &activation, MatProp::NONE, MatProp::NONE));
+        activation = &signals[self.num_layers - 1];
+        // TODO: do dimensions check out here?
+        error = matmul(
+            &error,
+            &self.weights.last().unwrap(),
+            MatProp::NONE,
+            MatProp::NONE,
+        );
+
+        for layer_index in (0..self.num_layers - 2).rev() {
+            let signal = &signals[layer_index];
+            let delta = (1 - arrayfire::pow(activation, &2, false)) * error;
+            // TODO: sum here along some dimension?
+            bias_gradients.push(delta);
+            weight_gradients.push(matmul(&delta, &signal, MatProp::NONE, MatProp::NONE));
+
+            activation = signal;
+            error = matmul(
+                &delta,
+                &self.weights[layer_index],
+                MatProp::NONE,
+                MatProp::NONE,
+            );
+        }
+
+        bias_gradients.reverse();
+        weight_gradients.reverse();
+        (bias_gradients, weight_gradients)
+    }
+
+    fn layer_activation(&self, layer_index: usize, input: &Array<f32>) -> Array<f32> {
+        tanh(
+            &(&matmul(
+                input,
+                &self.weights[layer_index],
+                MatProp::NONE,
+                MatProp::NONE,
+            ) + &self.biases[layer_index]),
+        )
     }
 }
 
@@ -69,21 +154,28 @@ impl ArmBuilder {
 
         let num_weights = widths.len() - 1;
         let mut weights = vec![];
+        let mut biases: Vec<Array<f32>> = vec![];
         for index in 0..num_weights {
             weights.push(
-                // this includes the bias term.
+                // this does not includes the bias term.
                 self.initial_random_range
                     * arrayfire::randu::<f32>(dim4![
-                        widths[index] as u64 + 1,
+                        widths[index] as u64,
                         widths[index + 1] as u64,
                         1,
                         1
                     ])
                     - self.initial_random_range / 2f32,
-            )
+            );
+            biases.push(
+                self.initial_random_range
+                    * arrayfire::randu::<f32>(dim4![widths[index] as u64, 1, 1, 1])
+                    - self.initial_random_range / 2f32,
+            );
         }
         Arm {
             weights,
+            biases,
             precisions: vec![1.0; num_weights * 2],
             num_layers: self.num_layers,
         }
