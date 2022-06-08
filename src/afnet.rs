@@ -1,5 +1,17 @@
 use arrayfire::{dim4, matmul, tanh, Array, MatProp};
 
+#[derive(Clone)]
+struct ArmMomenta {
+    weights_momenta: Vec<Array<f32>>,
+    bias_momenta: Vec<Array<f32>>,
+}
+
+#[derive(Clone)]
+struct ArmGradient {
+    weights_gradient: Vec<Array<f32>>,
+    bias_gradient: Vec<Array<f32>>,
+}
+
 pub struct Arm {
     weights: Vec<Array<f32>>,
     biases: Vec<Array<f32>>,
@@ -12,33 +24,41 @@ impl Arm {
         let init_weights = self.weights.clone();
         // TODO: add heuristic step sizes
         // TODO: add u turn diagnostic for tuning
-        let init_momentum = self.sample_momentum();
-        let mut momentum = init_momentum.clone();
+        let init_momenta = self.sample_momenta();
+        let mut momenta = init_momenta.clone();
         // initial half step
     }
 
     // TODO: split into bias and weights
-    fn sample_momentum(&self) -> Vec<Array<f32>> {
-        let mut momentum = Vec::new();
+    fn sample_momenta(&self) -> ArmMomenta {
+        let mut weights_momenta = Vec::with_capacity(self.num_layers - 1);
+        let mut bias_momenta = Vec::with_capacity(self.num_layers - 1);
         for index in 0..(self.num_layers) {
-            momentum.push(arrayfire::randn::<f32>(self.weights[index].dims()))
+            weights_momenta.push(arrayfire::randn::<f32>(self.weights[index].dims()));
+            bias_momenta.push(arrayfire::randn::<f32>(self.biases[index].dims()));
         }
-        momentum
+        ArmMomenta {
+            weights_momenta,
+            bias_momenta,
+        }
     }
 
-    fn update_momentum(
+    fn update_momenta(
         &self,
-        momentum: &mut Vec<Array<f32>>,
+        momenta: &mut ArmMomenta,
         step_sizes: &Vec<f32>,
         // the fraction of a step that will be taken
         step_size_fraction: f32,
         x_train: &Array<f32>,
         y_train: &Array<f32>,
     ) {
-        let (bias_gradient, weight_gradient) = self.log_density_gradient(x_train, y_train);
+        let gradient = self.log_density_gradient(x_train, y_train);
         // update each momentum component individually
         for index in 0..(self.num_layers) {
-            momentum[index] += step_sizes[index] * step_size_fraction * gradient[index];
+            momenta.weights_momenta[index] +=
+                step_sizes[index] * step_size_fraction * &gradient.weights_gradient[index];
+            momenta.bias_momenta[index] +=
+                step_sizes[index] * step_size_fraction * &gradient.bias_gradient[index];
         }
     }
 
@@ -53,22 +73,18 @@ impl Arm {
         signals
     }
 
-    fn log_density_gradient(
-        &self,
-        x_train: &Array<f32>,
-        y_train: &Array<f32>,
-    ) -> (Vec<Array<f32>>, Vec<Array<f32>>) {
+    fn log_density_gradient(&self, x_train: &Array<f32>, y_train: &Array<f32>) -> ArmGradient {
         // forward propagate to get signals
         let signals = self.forward_feed(x_train);
 
-        let mut bias_gradients: Vec<Array<f32>> = Vec::with_capacity(self.num_layers - 1);
-        let mut weight_gradients: Vec<Array<f32>> = Vec::with_capacity(self.num_layers - 1);
+        let mut bias_gradient: Vec<Array<f32>> = Vec::with_capacity(self.num_layers - 1);
+        let mut weights_gradient: Vec<Array<f32>> = Vec::with_capacity(self.num_layers - 1);
         // back propagate
         let mut activation = signals.last().unwrap();
         let mut error = activation - y_train;
-        bias_gradients.push(Array::new(&[1.0_f32], dim4![1, 1, 1, 1]));
+        bias_gradient.push(Array::new(&[1.0_f32], dim4![1, 1, 1, 1]));
         // TODO: do dimensions check out here?
-        weight_gradients.push(matmul(&error, &activation, MatProp::NONE, MatProp::NONE));
+        weights_gradient.push(matmul(&error, &activation, MatProp::NONE, MatProp::NONE));
         activation = &signals[self.num_layers - 1];
         // TODO: do dimensions check out here?
         error = matmul(
@@ -82,8 +98,8 @@ impl Arm {
             let signal = &signals[layer_index];
             let delta = (1 - arrayfire::pow(activation, &2, false)) * error;
             // TODO: sum here along some dimension?
-            bias_gradients.push(delta);
-            weight_gradients.push(matmul(&delta, &signal, MatProp::NONE, MatProp::NONE));
+            bias_gradient.push(delta);
+            weights_gradient.push(matmul(&delta, &signal, MatProp::NONE, MatProp::NONE));
 
             activation = signal;
             error = matmul(
@@ -94,9 +110,12 @@ impl Arm {
             );
         }
 
-        bias_gradients.reverse();
-        weight_gradients.reverse();
-        (bias_gradients, weight_gradients)
+        bias_gradient.reverse();
+        weights_gradient.reverse();
+        ArmGradient {
+            weights_gradient,
+            bias_gradient,
+        }
     }
 
     fn layer_activation(&self, layer_index: usize, input: &Array<f32>) -> Array<f32> {
