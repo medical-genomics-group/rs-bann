@@ -73,7 +73,7 @@ impl Arm {
         activations
     }
 
-    fn log_density_gradient(&self, x_train: &Array<f32>, y_train: &Array<f32>) -> ArmGradient {
+    pub fn backpropagate(&self, x_train: &Array<f32>, y_train: &Array<f32>) -> ArmGradient {
         // forward propagate to get signals
         let activations = self.forward_feed(x_train);
 
@@ -102,7 +102,7 @@ impl Arm {
             // first round: [n x width of last layer before arm summary neuron]
             // this is [n x width[layer_index - 1]]
             let input = &activations[layer_index - 1];
-            let activation = &activations[layer_index];
+            activation = &activations[layer_index];
             // this is ([1] - [n x width[layer_index]]) * dim(error)
             // first round: [n] * [n]
             let delta: Array<f32> = (1 - arrayfire::pow(activation, &2, false)) * error;
@@ -136,7 +136,7 @@ impl Arm {
             );
         }
 
-        let delta = (1 - arrayfire::pow(&activations[0], &2, false)) * error;
+        let delta: Array<f32> = (1 - arrayfire::pow(&activations[0], &2, false)) * error;
         bias_gradient.push(arrayfire::sum(&delta, 0));
         weights_gradient.push(matmul(
             &arrayfire::transpose(&delta, false),
@@ -151,6 +151,10 @@ impl Arm {
             weights_gradient,
             bias_gradient,
         }
+    }
+
+    fn log_density_gradient(&self, x_train: &Array<f32>, y_train: &Array<f32>) -> ArmGradient {
+        self.backpropagate(x_train, y_train)
     }
 
     fn layer_activation(&self, layer_index: usize, input: &Array<f32>) -> Array<f32> {
@@ -169,6 +173,8 @@ struct ArmBuilder {
     num_markers: usize,
     layer_widths: Vec<usize>,
     num_layers: usize,
+    initial_weight_value: Option<f32>,
+    initial_bias_value: Option<f32>,
     initial_random_range: f32,
 }
 
@@ -178,6 +184,8 @@ impl ArmBuilder {
             num_markers: 0,
             layer_widths: vec![],
             num_layers: 2,
+            initial_weight_value: None,
+            initial_bias_value: None,
             initial_random_range: 0.05,
         }
     }
@@ -198,6 +206,16 @@ impl ArmBuilder {
         self
     }
 
+    fn with_initial_weights_value(&mut self, value: f32) -> &mut Self {
+        self.initial_weight_value = Some(value);
+        self
+    }
+
+    fn with_initial_bias_value(&mut self, value: f32) -> &mut Self {
+        self.initial_bias_value = Some(value);
+        self
+    }
+
     fn build(&self) -> Arm {
         let mut widths: Vec<usize> = vec![self.num_markers];
         widths.append(&mut self.layer_widths.clone());
@@ -210,22 +228,30 @@ impl ArmBuilder {
         let mut weights = vec![];
         let mut biases: Vec<Array<f32>> = vec![];
         for index in 0..num_weights {
-            weights.push(
-                // this does not includes the bias term.
-                self.initial_random_range
-                    * arrayfire::randu::<f32>(dim4![
-                        widths[index] as u64,
-                        widths[index + 1] as u64,
-                        1,
-                        1
-                    ])
-                    - self.initial_random_range / 2f32,
-            );
-            biases.push(
-                self.initial_random_range
-                    * arrayfire::randu::<f32>(dim4![widths[index] as u64, 1, 1, 1])
-                    - self.initial_random_range / 2f32,
-            );
+            if let Some(v) = self.initial_weight_value {
+                weights.push(arrayfire::constant!(
+                    v;
+                    widths[index] as u64,
+                    widths[index + 1] as u64
+                ));
+            } else {
+                let dims = dim4![widths[index] as u64, widths[index + 1] as u64, 1, 1];
+                weights.push(
+                    // this does not includes the bias term.
+                    self.initial_random_range * arrayfire::randu::<f32>(dims)
+                        - self.initial_random_range / 2f32,
+                );
+            }
+
+            if let Some(v) = self.initial_bias_value {
+                biases.push(arrayfire::constant!(v; widths[index] as u64));
+            } else {
+                biases.push(
+                    self.initial_random_range
+                        * arrayfire::randu::<f32>(dim4![widths[index] as u64, 1, 1, 1])
+                        - self.initial_random_range / 2f32,
+                );
+            }
         }
         Arm {
             weights,
@@ -238,6 +264,8 @@ impl ArmBuilder {
 
 mod tests {
     use arrayfire::{af_print, randu, Array, Dim4};
+
+    use super::{Arm, ArmBuilder};
 
     #[test]
     fn test_af() {
@@ -255,6 +283,10 @@ mod tests {
         buffer
     }
 
+    fn test_arm() -> Arm {
+        ArmBuilder::new().add_hidden_layer(layer_width)
+    }
+
     #[test]
     fn test_vec_of_arrays_deepcopy() {
         let dims = Dim4::new(&[2, 1, 1, 1]);
@@ -268,4 +300,7 @@ mod tests {
         v2_1_host = to_host(&v2[0]);
         assert_ne!(v1_1_host, v2_1_host);
     }
+
+    #[test]
+    fn test_backpropagation() {}
 }
