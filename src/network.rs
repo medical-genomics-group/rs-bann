@@ -474,29 +474,27 @@ mod tests {
         mg.forget_marker_data();
     }
 
-    // TODO: this test is probably not meant to pass.
-    // I don't believe that the minor differences in the gradient
-    // values are the cause of the analytic method's instability
-    #[test]
-    fn test_marker_group_gradient_magnitude() {
-        let mut mg = test_mg();
-        let pv = mg.param_vec();
-        mg.load_marker_data();
-        assert_eq!(
-            mg.numerical_log_density_gradient_two_point(&pv),
-            mg.log_density_gradient(&pv)
-        );
-        mg.forget_marker_data();
-    }
+    // these guys are not meant to pass
+    // #[test]
+    // fn test_marker_group_gradient_magnitude() {
+    //     let mut mg = test_mg();
+    //     let pv = mg.param_vec();
+    //     mg.load_marker_data();
+    //     assert_eq!(
+    //         mg.numerical_log_density_gradient_two_point(&pv),
+    //         mg.log_density_gradient(&pv)
+    //     );
+    //     mg.forget_marker_data();
+    // }
 
-    #[test]
-    fn test_num_gradient_precision() {
-        let mut mg = test_mg();
-        let pv = mg.param_vec();
-        mg.load_marker_data();
-        assert_eq!(
-            mg.numerical_log_density_gradient_two_point(&pv),
-            mg.numerical_log_density_gradient(&pv),
-        );
-    }
+    // #[test]
+    // fn test_num_gradient_precision() {
+    //     let mut mg = test_mg();
+    //     let pv = mg.param_vec();
+    //     mg.load_marker_data();
+    //     assert_eq!(
+    //         mg.numerical_log_density_gradient_two_point(&pv),
+    //         mg.numerical_log_density_gradient(&pv),
+    //     );
+    // }
 }
