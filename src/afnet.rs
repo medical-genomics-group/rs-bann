@@ -136,6 +136,15 @@ impl Arm {
             );
         }
 
+        let delta = (1 - arrayfire::pow(&activations[0], &2, false)) * error;
+        bias_gradient.push(arrayfire::sum(&delta, 0));
+        weights_gradient.push(matmul(
+            &arrayfire::transpose(&delta, false),
+            x_train,
+            MatProp::NONE,
+            MatProp::NONE,
+        ));
+
         bias_gradient.reverse();
         weights_gradient.reverse();
         ArmGradient {
