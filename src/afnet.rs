@@ -263,7 +263,7 @@ impl ArmBuilder {
 }
 
 mod tests {
-    use arrayfire::{af_print, randu, Array, Dim4};
+    use arrayfire::{af_print, dim4, randu, Array, Dim4};
 
     use super::{Arm, ArmBuilder};
 
@@ -284,7 +284,12 @@ mod tests {
     }
 
     fn test_arm() -> Arm {
-        ArmBuilder::new().add_hidden_layer(layer_width)
+        ArmBuilder::new()
+            .with_num_markers(2)
+            .add_hidden_layer(2)
+            .with_initial_bias_value(0.0)
+            .with_initial_weights_value(1.0)
+            .build()
     }
 
     #[test]
@@ -302,5 +307,10 @@ mod tests {
     }
 
     #[test]
-    fn test_backpropagation() {}
+    fn test_backpropagation() {
+        let arm = test_arm();
+        let x_train: Array<f32> = arrayfire::constant!(1.0; 4, 2);
+        let y_train: Array<f32> = Array::new(&[0.0, 0.0, 1.0, 1.0], dim4![4, 1, 1, 1]);
+        let grad = arm.backpropagate(&x_train, &y_train);
+    }
 }
