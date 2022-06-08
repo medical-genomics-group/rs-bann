@@ -65,16 +65,15 @@ impl Arm {
 
     fn forward_feed(&self, x_train: &Array<f32>) -> Vec<Array<f32>> {
         let mut activations: Vec<Array<f32>> = Vec::with_capacity(self.num_layers - 1);
-        activations.push(self.layer_activation(0, x_train));
-
-        for layer_index in 1..self.num_layers {
-            activations.push(self.layer_activation(layer_index, &activations[layer_index - 1]));
+        activations.push(self.mid_layer_activation(0, x_train));
+        for layer_index in 1..self.num_layers - 1 {
+            activations.push(self.mid_layer_activation(layer_index, activations.last().unwrap()));
         }
-
+        activations.push(self.output_neuron_activation(activations.last().unwrap()));
         activations
     }
 
-    fn layer_activation(&self, layer_index: usize, input: &Array<f32>) -> Array<f32> {
+    fn mid_layer_activation(&self, layer_index: usize, input: &Array<f32>) -> Array<f32> {
         let xw = matmul(
             input,
             &self.weights[layer_index],
@@ -88,6 +87,15 @@ impl Arm {
         tanh(&(xw + bias_m))
     }
 
+    fn output_neuron_activation(&self, input: &Array<f32>) -> Array<f32> {
+        matmul(
+            input,
+            &self.weights[self.num_layers - 1],
+            MatProp::NONE,
+            MatProp::NONE,
+        )
+    }
+
     pub fn backpropagate(&self, x_train: &Array<f32>, y_train: &Array<f32>) -> ArmGradient {
         // forward propagate to get signals
 
@@ -96,11 +104,10 @@ impl Arm {
         println!("finished forward feed");
 
         let mut bias_gradient: Vec<Array<f32>> = Vec::with_capacity(self.num_layers - 1);
-        let mut weights_gradient: Vec<Array<f32>> = Vec::with_capacity(self.num_layers - 1);
+        let mut weights_gradient: Vec<Array<f32>> = Vec::with_capacity(self.num_layers);
         // back propagate
         let mut activation = activations.last().unwrap();
         let mut error = activation - y_train;
-        bias_gradient.push(Array::new(&[1.0_f32], dim4![1, 1, 1, 1]));
         // TODO: do dimensions check out here?
         // this is [n] x [n], and matmul should do a dot product (I hope), so this is fine?
         weights_gradient.push(arrayfire::dot(
@@ -236,10 +243,9 @@ impl ArmBuilder {
         // the output node
         widths.push(1);
 
-        let num_weights = widths.len() - 1;
         let mut weights = vec![];
         let mut biases: Vec<Array<f32>> = vec![];
-        for index in 0..num_weights {
+        for index in 0..self.num_layers {
             if let Some(v) = self.initial_weight_value {
                 weights.push(arrayfire::constant!(
                     v;
@@ -255,6 +261,10 @@ impl ArmBuilder {
                 );
             }
 
+            // we don't include the output neurons bias here
+            if index == self.num_layers - 1 {
+                break;
+            }
             if let Some(v) = self.initial_bias_value {
                 biases.push(arrayfire::constant!(v; 1, widths[index + 1] as u64));
             } else {
@@ -268,7 +278,7 @@ impl ArmBuilder {
         Arm {
             weights,
             biases,
-            precisions: vec![1.0; num_weights * 2],
+            precisions: vec![1.0; (self.num_layers * 2) - 1],
             layer_widths: self.layer_widths.clone(),
             num_layers: self.num_layers,
         }
