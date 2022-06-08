@@ -16,6 +16,7 @@ pub struct Arm {
     weights: Vec<Array<f32>>,
     biases: Vec<Array<f32>>,
     precisions: Vec<f32>,
+    layer_widths: Vec<usize>,
     num_layers: usize,
 }
 
@@ -73,9 +74,26 @@ impl Arm {
         activations
     }
 
+    fn layer_activation(&self, layer_index: usize, input: &Array<f32>) -> Array<f32> {
+        let xw = matmul(
+            input,
+            &self.weights[layer_index],
+            MatProp::NONE,
+            MatProp::NONE,
+        );
+        let bias_m = &arrayfire::tile(
+            &self.biases[layer_index],
+            dim4!(input.dims().get()[0], 1, 1, 1),
+        );
+        tanh(&(xw + bias_m))
+    }
+
     pub fn backpropagate(&self, x_train: &Array<f32>, y_train: &Array<f32>) -> ArmGradient {
         // forward propagate to get signals
+
+        println!("beginning forward feed");
         let activations = self.forward_feed(x_train);
+        println!("finished forward feed");
 
         let mut bias_gradient: Vec<Array<f32>> = Vec::with_capacity(self.num_layers - 1);
         let mut weights_gradient: Vec<Array<f32>> = Vec::with_capacity(self.num_layers - 1);
@@ -85,7 +103,12 @@ impl Arm {
         bias_gradient.push(Array::new(&[1.0_f32], dim4![1, 1, 1, 1]));
         // TODO: do dimensions check out here?
         // this is [n] x [n], and matmul should do a dot product (I hope), so this is fine?
-        weights_gradient.push(matmul(&error, activation, MatProp::NONE, MatProp::NONE));
+        weights_gradient.push(arrayfire::dot(
+            &error,
+            activation,
+            MatProp::NONE,
+            MatProp::NONE,
+        ));
         // is this the right index? signal has num_layers entries. activations[num_layers - 1] is therefore the last entry.
         // we want the second to last tho, the input to the second to last layer neuron.
         // TODO: do dimensions check out here?
@@ -155,17 +178,6 @@ impl Arm {
 
     fn log_density_gradient(&self, x_train: &Array<f32>, y_train: &Array<f32>) -> ArmGradient {
         self.backpropagate(x_train, y_train)
-    }
-
-    fn layer_activation(&self, layer_index: usize, input: &Array<f32>) -> Array<f32> {
-        tanh(
-            &(&matmul(
-                input,
-                &self.weights[layer_index],
-                MatProp::NONE,
-                MatProp::NONE,
-            ) + &self.biases[layer_index]),
-        )
     }
 }
 
@@ -244,11 +256,11 @@ impl ArmBuilder {
             }
 
             if let Some(v) = self.initial_bias_value {
-                biases.push(arrayfire::constant!(v; widths[index] as u64));
+                biases.push(arrayfire::constant!(v; 1, widths[index + 1] as u64));
             } else {
                 biases.push(
                     self.initial_random_range
-                        * arrayfire::randu::<f32>(dim4![widths[index] as u64, 1, 1, 1])
+                        * arrayfire::randu::<f32>(dim4![1, widths[index + 1] as u64, 1, 1])
                         - self.initial_random_range / 2f32,
                 );
             }
@@ -257,6 +269,7 @@ impl ArmBuilder {
             weights,
             biases,
             precisions: vec![1.0; num_weights * 2],
+            layer_widths: self.layer_widths.clone(),
             num_layers: self.num_layers,
         }
     }
@@ -267,14 +280,14 @@ mod tests {
 
     use super::{Arm, ArmBuilder};
 
-    #[test]
-    fn test_af() {
-        let num_rows: u64 = 5;
-        let num_cols: u64 = 3;
-        let dims = Dim4::new(&[num_rows, num_cols, 1, 1]);
-        let a = randu::<f32>(dims);
-        af_print!("Create a 5-by-3 matrix of random floats on the GPU", a);
-    }
+    // #[test]
+    // fn test_af() {
+    //     let num_rows: u64 = 5;
+    //     let num_cols: u64 = 3;
+    //     let dims = Dim4::new(&[num_rows, num_cols, 1, 1]);
+    //     let a = randu::<f32>(dims);
+    //     af_print!("Create a 5-by-3 matrix of random floats on the GPU", a);
+    // }
 
     fn to_host(a: &Array<f32>) -> Vec<f32> {
         let mut buffer = Vec::<f32>::new();
