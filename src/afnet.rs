@@ -8,9 +8,9 @@ struct ArmMomenta {
 
 /// Gradients of the log density w.r.t. the network parameters.
 #[derive(Clone)]
-struct ArmGradient {
-    weights_gradient: Vec<Array<f32>>,
-    bias_gradient: Vec<Array<f32>>,
+struct ArmLogDensityGradient {
+    wrt_weights: Vec<Array<f32>>,
+    wrt_biases: Vec<Array<f32>>,
 }
 
 pub struct Arm {
@@ -35,12 +35,16 @@ impl Arm {
 
     // TODO: split into bias and weights
     fn sample_momenta(&self) -> ArmMomenta {
-        let mut weights_momenta = Vec::with_capacity(self.num_layers - 1);
+        let mut weights_momenta = Vec::with_capacity(self.num_layers);
         let mut bias_momenta = Vec::with_capacity(self.num_layers - 1);
-        for index in 0..(self.num_layers) {
+        for index in 0..self.num_layers - 1 {
             weights_momenta.push(arrayfire::randn::<f32>(self.weights[index].dims()));
             bias_momenta.push(arrayfire::randn::<f32>(self.biases[index].dims()));
         }
+        // output layer weight momentum
+        weights_momenta.push(arrayfire::randn::<f32>(
+            self.weights[self.num_layers - 1].dims(),
+        ));
         ArmMomenta {
             weights_momenta,
             bias_momenta,
@@ -56,13 +60,16 @@ impl Arm {
         x_train: &Array<f32>,
         y_train: &Array<f32>,
     ) {
-        let gradient = self.log_density_gradient(x_train, y_train);
+        let ld_gradient = self.log_density_gradient(x_train, y_train);
         // update each momentum component individually
-        for index in 0..(self.num_layers) {
+        for index in 0..self.num_layers {
             momenta.weights_momenta[index] +=
-                step_sizes[index] * step_size_fraction * &gradient.weights_gradient[index];
+                step_sizes[index] * step_size_fraction * &ld_gradient.wrt_weights[index];
+            if index == self.num_layers - 1 {
+                break;
+            }
             momenta.bias_momenta[index] +=
-                step_sizes[index] * step_size_fraction * &gradient.bias_gradient[index];
+                step_sizes[index] * step_size_fraction * &ld_gradient.wrt_biases[index];
         }
     }
 
@@ -159,8 +166,33 @@ impl Arm {
         (weights_gradient, bias_gradient)
     }
 
-    fn log_density_gradient(&self, x_train: &Array<f32>, y_train: &Array<f32>) -> ArmGradient {
+    fn log_density_gradient(
+        &self,
+        x_train: &Array<f32>,
+        y_train: &Array<f32>,
+    ) -> ArmLogDensityGradient {
         let (d_rss_wrt_weights, d_rss_wrt_biases) = self.backpropagate(x_train, y_train);
+        let mut ldg_wrt_weights: Vec<Array<f32>> = Vec::with_capacity(self.num_layers);
+        let mut ldg_wrt_biases: Vec<Array<f32>> = Vec::with_capacity(self.num_layers - 1);
+        for layer_index in 0..self.num_layers - 1 {
+            ldg_wrt_weights.push(
+                -self.weight_precisions[layer_index] * &self.weights[layer_index]
+                    - self.error_precision * &d_rss_wrt_weights[layer_index],
+            );
+            ldg_wrt_biases.push(
+                -self.bias_precisions[layer_index] * &self.biases[layer_index]
+                    - self.error_precision * &d_rss_wrt_biases[layer_index],
+            );
+        }
+        // output layer gradient
+        ldg_wrt_weights.push(
+            -self.weight_precisions[self.num_layers - 1] * &self.weights[self.num_layers - 1]
+                - self.error_precision * &d_rss_wrt_weights[self.num_layers - 1],
+        );
+        ArmLogDensityGradient {
+            wrt_weights: ldg_wrt_weights,
+            wrt_biases: ldg_wrt_biases,
+        }
     }
 }
 
