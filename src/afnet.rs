@@ -312,18 +312,12 @@ mod tests {
         let arm = test_arm();
         let x_train: Array<f32> = arrayfire::constant!(1.0; 4, 2);
         let y_train: Array<f32> = Array::new(&[0.0, 0.0, 1.0, 1.0], dim4![4, 1, 1, 1]);
-        let grad = arm.backpropagate(&x_train, &y_train);
-        assert_eq!(grad.weights_gradient.len(), arm.num_layers);
-        assert_eq!(grad.bias_gradient.len(), arm.num_layers - 1);
-        assert_eq!(
-            to_host(grad.weights_gradient.last().unwrap()),
-            vec![1.758_319_3]
-        );
-        assert_eq!(to_host(&grad.weights_gradient[0]), vec![0.010514336; 4]);
-        assert_eq!(
-            to_host(grad.bias_gradient.last().unwrap()),
-            vec![0.14882116]
-        );
-        assert_eq!(to_host(&grad.bias_gradient[0]), vec![0.010514336; 2]);
+        let (weights_gradient, bias_gradient) = arm.backpropagate(&x_train, &y_train);
+        assert_eq!(weights_gradient.len(), arm.num_layers);
+        assert_eq!(bias_gradient.len(), arm.num_layers - 1);
+        assert_eq!(to_host(weights_gradient.last().unwrap()), vec![1.758_319_3]);
+        assert_eq!(to_host(&weights_gradient[0]), vec![0.010514336; 4]);
+        assert_eq!(to_host(bias_gradient.last().unwrap()), vec![0.14882116]);
+        assert_eq!(to_host(&bias_gradient[0]), vec![0.010514336; 2]);
     }
 }
