@@ -98,28 +98,19 @@ impl Arm {
 
     pub fn backpropagate(&self, x_train: &Array<f32>, y_train: &Array<f32>) -> ArmGradient {
         // forward propagate to get signals
-
-        println!("beginning forward feed");
         let activations = self.forward_feed(x_train);
-        println!("finished forward feed");
 
         let mut bias_gradient: Vec<Array<f32>> = Vec::with_capacity(self.num_layers - 1);
         let mut weights_gradient: Vec<Array<f32>> = Vec::with_capacity(self.num_layers);
         // back propagate
         let mut activation = activations.last().unwrap();
         let mut error = activation - y_train;
-        // TODO: do dimensions check out here?
-        // this is [n] x [n], and matmul should do a dot product (I hope), so this is fine?
         weights_gradient.push(arrayfire::dot(
             &error,
             activation,
             MatProp::NONE,
             MatProp::NONE,
         ));
-        // is this the right index? signal has num_layers entries. activations[num_layers - 1] is therefore the last entry.
-        // we want the second to last tho, the input to the second to last layer neuron.
-        // TODO: do dimensions check out here?
-        // this [n] x [1], don't think I need a matmul here
         error = matmul(
             &error,
             self.weights.last().unwrap(),
@@ -128,36 +119,16 @@ impl Arm {
         );
 
         for layer_index in (1..self.num_layers - 1).rev() {
-            // this is the input to the current layer, which is num_layer-2 -> second to last layer in the first round.
-            // first round: [n x width of last layer before arm summary neuron]
-            // this is [n x width[layer_index - 1]]
             let input = &activations[layer_index - 1];
             activation = &activations[layer_index];
-            // this is ([1] - [n x width[layer_index]]) * dim(error)
-            // first round: [n] * [n]
             let delta: Array<f32> = (1 - arrayfire::pow(activation, &2, false)) * error;
-            // how many biases are there?
-            // always equal to the width of the current layer.
-            // at least in the first round, delta has dim n (and later hopefully [n x width])
-            // which will always require to sum over the first dimension
             bias_gradient.push(arrayfire::sum(&delta, 0));
-            // we have [prev layer widht x current layer width] weights.
-            // first round: delta: [n], input: [n x width[layer_index - 1]], so delta would need to be a row vector here.
-            // later, we will hopefully have delta: [n x width current layer], so delta would definitely need to
-            // be transposed later.
-            // TODO: test if this works AND gives the expected output.
             weights_gradient.push(matmul(
                 &arrayfire::transpose(&delta, false),
                 input,
                 MatProp::NONE,
                 MatProp::NONE,
             ));
-
-            // first round: [n x 1] @ [width prev layer x 1]
-            // generally (I hope): [n x current width] @ [width prev layer x current width]
-            // the only way this makes sense is if the weights are transposed,
-            // to give a [n x width prev layer] result, which will be the same
-            // as the activation of the prev layer, which will then work with the next delta.
             error = matmul(
                 &delta,
                 &arrayfire::transpose(&self.weights[layer_index], false),
