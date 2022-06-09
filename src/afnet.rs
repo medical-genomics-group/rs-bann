@@ -6,6 +6,7 @@ struct ArmMomenta {
     bias_momenta: Vec<Array<f32>>,
 }
 
+/// Gradients of the log density w.r.t. the network parameters.
 #[derive(Clone)]
 struct ArmGradient {
     weights_gradient: Vec<Array<f32>>,
@@ -15,7 +16,9 @@ struct ArmGradient {
 pub struct Arm {
     weights: Vec<Array<f32>>,
     biases: Vec<Array<f32>>,
-    precisions: Vec<f32>,
+    weight_precisions: Vec<f32>,
+    bias_precisions: Vec<f32>,
+    error_precision: f32,
     layer_widths: Vec<usize>,
     num_layers: usize,
 }
@@ -96,7 +99,11 @@ impl Arm {
         )
     }
 
-    pub fn backpropagate(&self, x_train: &Array<f32>, y_train: &Array<f32>) -> ArmGradient {
+    pub fn backpropagate(
+        &self,
+        x_train: &Array<f32>,
+        y_train: &Array<f32>,
+    ) -> (Vec<Array<f32>>, Vec<Array<f32>>) {
         // forward propagate to get signals
         let activations = self.forward_feed(x_train);
 
@@ -148,14 +155,12 @@ impl Arm {
 
         bias_gradient.reverse();
         weights_gradient.reverse();
-        ArmGradient {
-            weights_gradient,
-            bias_gradient,
-        }
+
+        (weights_gradient, bias_gradient)
     }
 
     fn log_density_gradient(&self, x_train: &Array<f32>, y_train: &Array<f32>) -> ArmGradient {
-        self.backpropagate(x_train, y_train)
+        let (d_rss_wrt_weights, d_rss_wrt_biases) = self.backpropagate(x_train, y_train);
     }
 }
 
@@ -249,7 +254,9 @@ impl ArmBuilder {
         Arm {
             weights,
             biases,
-            precisions: vec![1.0; (self.num_layers * 2) - 1],
+            weight_precisions: vec![1.0; self.num_layers],
+            bias_precisions: vec![1.0; self.num_layers - 1],
+            error_precision: 1.0,
             layer_widths: self.layer_widths.clone(),
             num_layers: self.num_layers,
         }
