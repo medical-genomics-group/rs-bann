@@ -61,8 +61,19 @@ impl ArmParams {
         }
     }
 
-    fn log_density(&self, hyperparams: &ArmHyperparams) -> f64 {
-        0.
+    fn log_density(&self, hyperparams: &ArmHyperparams, rss: f64) -> f64 {
+        let mut log_density: f64 = -0.5 * hyperparams.error_precision * rss;
+        for i in 0..self.weights.len() {
+            log_density -= hyperparams.weight_precisions[i]
+                * 0.5
+                * arrayfire::sum_all(&(&self.weights[i] * &self.weights[i])).0;
+        }
+        for i in 0..self.biases.len() {
+            log_density -= hyperparams.bias_precisions[i]
+                * 0.5
+                * arrayfire::sum_all(&(&self.biases[i] * &self.biases[i])).0;
+        }
+        log_density
     }
 }
 
