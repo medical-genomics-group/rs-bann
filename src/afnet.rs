@@ -1,31 +1,38 @@
 use arrayfire::{dim4, matmul, tanh, Array, MatProp};
 
+fn to_host(a: &Array<f64>) -> Vec<f64> {
+    let mut buffer = Vec::<f64>::new();
+    buffer.resize(a.elements(), 0.);
+    a.host(&mut buffer);
+    buffer
+}
+
 #[derive(Clone)]
 struct ArmMomenta {
-    weights_momenta: Vec<Array<f32>>,
-    bias_momenta: Vec<Array<f32>>,
+    weights_momenta: Vec<Array<f64>>,
+    bias_momenta: Vec<Array<f64>>,
 }
 
 /// Gradients of the log density w.r.t. the network parameters.
 #[derive(Clone)]
 struct ArmLogDensityGradient {
-    wrt_weights: Vec<Array<f32>>,
-    wrt_biases: Vec<Array<f32>>,
+    wrt_weights: Vec<Array<f64>>,
+    wrt_biases: Vec<Array<f64>>,
 }
 
 pub struct Arm {
     num_markers: usize,
-    weights: Vec<Array<f32>>,
-    biases: Vec<Array<f32>>,
-    weight_precisions: Vec<f32>,
-    bias_precisions: Vec<f32>,
-    error_precision: f32,
+    weights: Vec<Array<f64>>,
+    biases: Vec<Array<f64>>,
+    weight_precisions: Vec<f64>,
+    bias_precisions: Vec<f64>,
+    error_precision: f64,
     layer_widths: Vec<usize>,
     num_layers: usize,
 }
 
 impl Arm {
-    pub fn hmc_step(&mut self, x_train: &Array<f32>, y_train: &Array<f32>) {
+    pub fn hmc_step(&mut self, x_train: &Array<f64>, y_train: &Array<f64>) {
         let init_weights = self.weights.clone();
         // TODO: add heuristic step sizes
         // TODO: add u turn diagnostic for tuning
@@ -39,11 +46,11 @@ impl Arm {
         let mut weights_momenta = Vec::with_capacity(self.num_layers);
         let mut bias_momenta = Vec::with_capacity(self.num_layers - 1);
         for index in 0..self.num_layers - 1 {
-            weights_momenta.push(arrayfire::randn::<f32>(self.weights[index].dims()));
-            bias_momenta.push(arrayfire::randn::<f32>(self.biases[index].dims()));
+            weights_momenta.push(arrayfire::randn::<f64>(self.weights[index].dims()));
+            bias_momenta.push(arrayfire::randn::<f64>(self.biases[index].dims()));
         }
         // output layer weight momentum
-        weights_momenta.push(arrayfire::randn::<f32>(
+        weights_momenta.push(arrayfire::randn::<f64>(
             self.weights[self.num_layers - 1].dims(),
         ));
         ArmMomenta {
@@ -55,11 +62,11 @@ impl Arm {
     fn update_momenta(
         &self,
         momenta: &mut ArmMomenta,
-        step_sizes: &Vec<f32>,
+        step_sizes: &Vec<f64>,
         // the fraction of a step that will be taken
-        step_size_fraction: f32,
-        x_train: &Array<f32>,
-        y_train: &Array<f32>,
+        step_size_fraction: f64,
+        x_train: &Array<f64>,
+        y_train: &Array<f64>,
     ) {
         let ld_gradient = self.log_density_gradient(x_train, y_train);
         // update each momentum component individually
@@ -74,8 +81,8 @@ impl Arm {
         }
     }
 
-    fn forward_feed(&self, x_train: &Array<f32>) -> Vec<Array<f32>> {
-        let mut activations: Vec<Array<f32>> = Vec::with_capacity(self.num_layers - 1);
+    fn forward_feed(&self, x_train: &Array<f64>) -> Vec<Array<f64>> {
+        let mut activations: Vec<Array<f64>> = Vec::with_capacity(self.num_layers - 1);
         activations.push(self.mid_layer_activation(0, x_train));
         for layer_index in 1..self.num_layers - 1 {
             activations.push(self.mid_layer_activation(layer_index, activations.last().unwrap()));
@@ -84,7 +91,7 @@ impl Arm {
         activations
     }
 
-    fn mid_layer_activation(&self, layer_index: usize, input: &Array<f32>) -> Array<f32> {
+    fn mid_layer_activation(&self, layer_index: usize, input: &Array<f64>) -> Array<f64> {
         let xw = matmul(
             input,
             &self.weights[layer_index],
@@ -98,7 +105,7 @@ impl Arm {
         tanh(&(xw + bias_m))
     }
 
-    fn output_neuron_activation(&self, input: &Array<f32>) -> Array<f32> {
+    fn output_neuron_activation(&self, input: &Array<f64>) -> Array<f64> {
         matmul(
             input,
             &self.weights[self.num_layers - 1],
@@ -109,14 +116,14 @@ impl Arm {
 
     pub fn backpropagate(
         &self,
-        x_train: &Array<f32>,
-        y_train: &Array<f32>,
-    ) -> (Vec<Array<f32>>, Vec<Array<f32>>) {
+        x_train: &Array<f64>,
+        y_train: &Array<f64>,
+    ) -> (Vec<Array<f64>>, Vec<Array<f64>>) {
         // forward propagate to get signals
         let activations = self.forward_feed(x_train);
 
-        let mut bias_gradient: Vec<Array<f32>> = Vec::with_capacity(self.num_layers - 1);
-        let mut weights_gradient: Vec<Array<f32>> = Vec::with_capacity(self.num_layers);
+        let mut bias_gradient: Vec<Array<f64>> = Vec::with_capacity(self.num_layers - 1);
+        let mut weights_gradient: Vec<Array<f64>> = Vec::with_capacity(self.num_layers);
         // back propagate
         let mut activation = activations.last().unwrap();
         let mut error = activation - y_train;
@@ -136,29 +143,25 @@ impl Arm {
         for layer_index in (1..self.num_layers - 1).rev() {
             let input = &activations[layer_index - 1];
             activation = &activations[layer_index];
-            let delta: Array<f32> = (1 - arrayfire::pow(activation, &2, false)) * error;
+            let delta: Array<f64> = (1 - arrayfire::pow(activation, &2, false)) * error;
             bias_gradient.push(arrayfire::sum(&delta, 0));
-            weights_gradient.push(matmul(
-                &arrayfire::transpose(&delta, false),
-                input,
-                MatProp::NONE,
-                MatProp::NONE,
+            weights_gradient.push(arrayfire::transpose(
+                &matmul(&delta, input, MatProp::TRANS, MatProp::NONE),
+                false,
             ));
             error = matmul(
                 &delta,
-                &arrayfire::transpose(&self.weights[layer_index], false),
+                &self.weights[layer_index],
                 MatProp::NONE,
-                MatProp::NONE,
+                MatProp::TRANS,
             );
         }
 
-        let delta: Array<f32> = (1 - arrayfire::pow(&activations[0], &2, false)) * error;
+        let delta: Array<f64> = (1 - arrayfire::pow(&activations[0], &2, false)) * error;
         bias_gradient.push(arrayfire::sum(&delta, 0));
-        weights_gradient.push(matmul(
-            &arrayfire::transpose(&delta, false),
-            x_train,
-            MatProp::NONE,
-            MatProp::NONE,
+        weights_gradient.push(arrayfire::transpose(
+            &matmul(&delta, x_train, MatProp::TRANS, MatProp::NONE),
+            false,
         ));
 
         bias_gradient.reverse();
@@ -169,12 +172,12 @@ impl Arm {
 
     fn log_density_gradient(
         &self,
-        x_train: &Array<f32>,
-        y_train: &Array<f32>,
+        x_train: &Array<f64>,
+        y_train: &Array<f64>,
     ) -> ArmLogDensityGradient {
         let (d_rss_wrt_weights, d_rss_wrt_biases) = self.backpropagate(x_train, y_train);
-        let mut ldg_wrt_weights: Vec<Array<f32>> = Vec::with_capacity(self.num_layers);
-        let mut ldg_wrt_biases: Vec<Array<f32>> = Vec::with_capacity(self.num_layers - 1);
+        let mut ldg_wrt_weights: Vec<Array<f64>> = Vec::with_capacity(self.num_layers);
+        let mut ldg_wrt_biases: Vec<Array<f64>> = Vec::with_capacity(self.num_layers - 1);
         for layer_index in 0..self.num_layers - 1 {
             ldg_wrt_weights.push(
                 -self.weight_precisions[layer_index] * &self.weights[layer_index]
@@ -201,11 +204,11 @@ struct ArmBuilder {
     num_markers: usize,
     layer_widths: Vec<usize>,
     num_layers: usize,
-    initial_weight_value: Option<f32>,
-    initial_bias_value: Option<f32>,
-    initial_random_range: f32,
-    biases: Vec<Option<Array<f32>>>,
-    weights: Vec<Option<Array<f32>>>,
+    initial_weight_value: Option<f64>,
+    initial_bias_value: Option<f64>,
+    initial_random_range: f64,
+    biases: Vec<Option<Array<f64>>>,
+    weights: Vec<Option<Array<f64>>>,
 }
 
 impl ArmBuilder {
@@ -236,7 +239,7 @@ impl ArmBuilder {
         self
     }
 
-    fn add_layer_biases(&mut self, biases: Array<f32>) -> &mut Self {
+    fn add_layer_biases(&mut self, biases: Array<f64>) -> &mut Self {
         assert!(
             biases.dims().get()[0] as usize == 1,
             "bias vector dim 0 != 1, expected row vector"
@@ -249,7 +252,7 @@ impl ArmBuilder {
         self
     }
 
-    fn add_layer_weights(&mut self, weights: Array<f32>) -> &mut Self {
+    fn add_layer_weights(&mut self, weights: Array<f64>) -> &mut Self {
         let wdims = *weights.dims().get();
         let expected_ncols = if self.num_layers > 3 {
             self.layer_widths[self.num_layers - 4]
@@ -268,7 +271,7 @@ impl ArmBuilder {
         self
     }
 
-    fn add_summary_bias(&mut self, bias: Array<f32>) -> &mut Self {
+    fn add_summary_bias(&mut self, bias: Array<f64>) -> &mut Self {
         let wdims = *bias.dims().get();
         assert!(
             wdims[0] as usize == 1,
@@ -282,7 +285,7 @@ impl ArmBuilder {
         self
     }
 
-    fn add_summary_weights(&mut self, weights: Array<f32>) -> &mut Self {
+    fn add_summary_weights(&mut self, weights: Array<f64>) -> &mut Self {
         let wdims = *weights.dims().get();
         assert!(
             wdims[0] as usize == self.layer_widths[self.num_layers - 3],
@@ -296,7 +299,7 @@ impl ArmBuilder {
         self
     }
 
-    fn add_output_weight(&mut self, weights: Array<f32>) -> &mut Self {
+    fn add_output_weight(&mut self, weights: Array<f64>) -> &mut Self {
         let wdims = *weights.dims().get();
         assert!(
             wdims[0] as usize == 1,
@@ -310,17 +313,17 @@ impl ArmBuilder {
         self
     }
 
-    fn with_initial_random_range(&mut self, range: f32) -> &mut Self {
+    fn with_initial_random_range(&mut self, range: f64) -> &mut Self {
         self.initial_random_range = range;
         self
     }
 
-    fn with_initial_weights_value(&mut self, value: f32) -> &mut Self {
+    fn with_initial_weights_value(&mut self, value: f64) -> &mut Self {
         self.initial_weight_value = Some(value);
         self
     }
 
-    fn with_initial_bias_value(&mut self, value: f32) -> &mut Self {
+    fn with_initial_bias_value(&mut self, value: f64) -> &mut Self {
         self.initial_bias_value = Some(value);
         self
     }
@@ -342,15 +345,10 @@ impl ArmBuilder {
         }
 
         let mut weights = vec![];
-        let mut biases: Vec<Array<f32>> = vec![];
+        let mut biases: Vec<Array<f64>> = vec![];
 
         for index in 0..self.num_layers {
             if let Some(w) = &self.weights[index] {
-                println!(
-                    "adding user defined weights with dims: {:?} at index: {:?}",
-                    w.dims(),
-                    index
-                );
                 weights.push(w.copy());
             } else if let Some(v) = self.initial_weight_value {
                 weights.push(arrayfire::constant!(
@@ -362,8 +360,8 @@ impl ArmBuilder {
                 let dims = dim4![widths[index] as u64, widths[index + 1] as u64, 1, 1];
                 weights.push(
                     // this does not includes the bias term.
-                    self.initial_random_range * arrayfire::randu::<f32>(dims)
-                        - self.initial_random_range / 2f32,
+                    self.initial_random_range * arrayfire::randu::<f64>(dims)
+                        - self.initial_random_range / 2f64,
                 );
             }
 
@@ -378,8 +376,8 @@ impl ArmBuilder {
             } else {
                 biases.push(
                     self.initial_random_range
-                        * arrayfire::randu::<f32>(dim4![1, widths[index + 1] as u64, 1, 1])
-                        - self.initial_random_range / 2f32,
+                        * arrayfire::randu::<f64>(dim4![1, widths[index + 1] as u64, 1, 1])
+                        - self.initial_random_range / 2f64,
                 );
             }
         }
@@ -408,23 +406,36 @@ mod tests {
     //     let num_rows: u64 = 5;
     //     let num_cols: u64 = 3;
     //     let dims = Dim4::new(&[num_rows, num_cols, 1, 1]);
-    //     let a = randu::<f32>(dims);
+    //     let a = randu::<f64>(dims);
     //     af_print!("Create a 5-by-3 matrix of random floats on the GPU", a);
     // }
 
-    fn to_host(a: &Array<f32>) -> Vec<f32> {
-        let mut buffer = Vec::<f32>::new();
+    fn to_host(a: &Array<f64>) -> Vec<f64> {
+        let mut buffer = Vec::<f64>::new();
         buffer.resize(a.elements(), 0.);
         a.host(&mut buffer);
         buffer
     }
 
     fn test_arm() -> Arm {
+        let exp_weights = [
+            Array::new(&[0., 1., 2., 3., 4., 5.], dim4![3, 2, 1, 1]),
+            Array::new(&[1., 2.], dim4![2, 1, 1, 1]),
+            Array::new(&[2.], dim4![1, 1, 1, 1]),
+        ];
+        let exp_biases = [
+            Array::new(&[0., 1.], dim4![1, 2, 1, 1]),
+            Array::new(&[2.], dim4![1, 1, 1, 1]),
+        ];
+
         ArmBuilder::new()
             .with_num_markers(3)
             .add_hidden_layer(2)
-            .with_initial_bias_value(0.0)
-            .with_initial_weights_value(1.0)
+            .add_layer_biases(exp_biases[0].copy())
+            .add_layer_weights(exp_weights[0].copy())
+            .add_summary_weights(exp_weights[1].copy())
+            .add_summary_bias(exp_biases[1].copy())
+            .add_output_weight(exp_weights[2].copy())
             .build()
     }
 
@@ -569,9 +580,9 @@ mod tests {
     #[test]
     fn test_vec_of_arrays_deepcopy() {
         let dims = Dim4::new(&[2, 1, 1, 1]);
-        let v1 = vec![arrayfire::randu::<f32>(dims), arrayfire::randu::<f32>(dims)];
+        let v1 = vec![arrayfire::randu::<f64>(dims), arrayfire::randu::<f64>(dims)];
         let mut v2 = v1.clone();
-        let a3 = arrayfire::randu::<f32>(dims);
+        let a3 = arrayfire::randu::<f64>(dims);
         let v1_1_host = to_host(&v1[0]);
         let mut v2_1_host = to_host(&v2[0]);
         assert_eq!(v1_1_host, v2_1_host);
@@ -580,38 +591,106 @@ mod tests {
         assert_ne!(v1_1_host, v2_1_host);
     }
 
-    // #[test]
-    // fn test_backpropagation() {
-    //     let arm = test_arm();
-    //     let x_train: Array<f32> = arrayfire::constant!(1.0; 4, 2);
-    //     let y_train: Array<f32> = Array::new(&[0.0, 0.0, 1.0, 1.0], dim4![4, 1, 1, 1]);
-    //     let (weights_gradient, bias_gradient) = arm.backpropagate(&x_train, &y_train);
+    #[test]
+    fn test_forward_feed() {
+        let num_individuals = 4;
+        let num_markers = 3;
+        let arm = test_arm();
+        let x_train: Array<f64> = Array::new(
+            &[1., 0., 0., 2., 1., 1., 2., 0., 0., 2., 0., 1.],
+            dim4![num_individuals, num_markers, 1, 1],
+        );
+        let activations = arm.forward_feed(&x_train);
 
-    //     // correct number of gradients
-    //     assert_eq!(weights_gradient.len(), arm.num_layers);
-    //     assert_eq!(bias_gradient.len(), arm.num_layers - 1);
+        // correct number of activations
+        assert_eq!(activations.len(), arm.num_layers);
 
-    //     // correct dimensions of gradients
-    //     for i in 0..(arm.num_layers) {
-    //         println!("{:?}", i);
-    //         assert_eq!(weights_gradient[i].dims(), arm.weights[i].dims());
-    //     }
-    //     for i in 0..(arm.num_layers - 1) {
-    //         assert_eq!(bias_gradient[i].dims(), arm.biases[i].dims());
-    //     }
+        // correct dimensions of activations
+        for i in 0..(arm.num_layers) {
+            println!("{:?}", i);
+            assert_eq!(
+                activations[i].dims(),
+                dim4![num_individuals, arm.layer_widths[i] as u64, 1, 1]
+            );
+        }
 
-    //     // correct values of gradients
-    //     assert_eq!(to_host(weights_gradient.last().unwrap()), vec![1.758_319_3]);
-    //     assert_eq!(to_host(&weights_gradient[0]), vec![0.010514336; 4]);
-    //     assert_eq!(to_host(bias_gradient.last().unwrap()), vec![0.14882116]);
-    //     assert_eq!(to_host(&bias_gradient[0]), vec![0.010514336; 2]);
-    // }
+        let exp_activations: Vec<Array<f64>> = vec![
+            Array::new(
+                &[
+                    0.7615941559557649,
+                    0.9999092042625951,
+                    0.9640275800758169,
+                    0.9640275800758169,
+                    0.9999997749296758,
+                    0.9999999999998128,
+                    0.999999969540041,
+                    0.9999999999244973,
+                ],
+                dim4![4, 2, 1, 1],
+            ),
+            Array::new(
+                &[
+                    0.9998537383423458,
+                    0.9999091877741149,
+                    0.9999024315761632,
+                    0.999902431588021,
+                ],
+                dim4![4, 1, 1, 1],
+            ),
+            Array::new(
+                &[
+                    1.9997074766846916,
+                    1.9998183755482297,
+                    1.9998048631523264,
+                    1.999804863176042,
+                ],
+                dim4![4, 1, 1, 1],
+            ),
+        ];
+        // correct values of activations
+        for i in 0..(arm.num_layers) {
+            println!("{:?}", i);
+            assert_eq!(to_host(&activations[i]), to_host(&exp_activations[i]));
+        }
+    }
+
+    #[test]
+    fn test_backpropagation() {
+        let num_individuals = 4;
+        let num_markers = 3;
+        let arm = test_arm();
+        let x_train: Array<f64> = Array::new(
+            &[1., 0., 0., 2., 1., 1., 2., 0., 0., 2., 0., 1.],
+            dim4![num_individuals, num_markers, 1, 1],
+        );
+        let y_train: Array<f64> = Array::new(&[0.0, 2.0, 1.0, 1.5], dim4![4, 1, 1, 1]);
+        let (weights_gradient, bias_gradient) = arm.backpropagate(&x_train, &y_train);
+
+        // correct number of gradients
+        assert_eq!(weights_gradient.len(), arm.num_layers);
+        assert_eq!(bias_gradient.len(), arm.num_layers - 1);
+
+        // // correct dimensions of gradients
+        for i in 0..(arm.num_layers) {
+            println!("{:?}", i);
+            assert_eq!(weights_gradient[i].dims(), arm.weights[i].dims());
+        }
+        for i in 0..(arm.num_layers - 1) {
+            assert_eq!(bias_gradient[i].dims(), arm.biases[i].dims());
+        }
+
+        // // correct values of gradients
+        // assert_eq!(to_host(weights_gradient.last().unwrap()), vec![1.758_319_3]);
+        // assert_eq!(to_host(&weights_gradient[0]), vec![0.010514336; 4]);
+        // assert_eq!(to_host(bias_gradient.last().unwrap()), vec![0.14882116]);
+        // assert_eq!(to_host(&bias_gradient[0]), vec![0.010514336; 2]);
+    }
 
     // #[test]
     // fn test_log_density_gradient() {
     //     let arm = test_arm();
-    //     let x_train: Array<f32> = arrayfire::constant!(1.0; 4, 2);
-    //     let y_train: Array<f32> = Array::new(&[0.0, 0.0, 1.0, 1.0], dim4![4, 1, 1, 1]);
+    //     let x_train: Array<f64> = arrayfire::constant!(1.0; 4, 2);
+    //     let y_train: Array<f64> = Array::new(&[0.0, 0.0, 1.0, 1.0], dim4![4, 1, 1, 1]);
     //     //let ldg = arm.log_density_gradient(&x_train, &y_train);
     //     //assert_eq!(ldg.wrt_weights.len(), arm.num_layers);
     //     //assert_eq!(ldg.wrt_biases.len(), arm.num_layers - 1);
