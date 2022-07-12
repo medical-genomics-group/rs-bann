@@ -716,21 +716,67 @@ mod tests {
             println!("{:?}", i);
             assert_eq!(to_host(&bias_gradient[i]), to_host(&exp_bias_grad[i]));
         }
-
-        // // correct values of gradient
-        // assert_eq!(to_host(weights_gradient.last().unwrap()), vec![1.758_319_3]);
-        // assert_eq!(to_host(&weights_gradient[0]), vec![0.010514336; 4]);
-        // assert_eq!(to_host(bias_gradient.last().unwrap()), vec![0.14882116]);
-        // assert_eq!(to_host(&bias_gradient[0]), vec![0.010514336; 2]);
     }
 
-    // #[test]
-    // fn test_log_density_gradient() {
-    //     let arm = test_arm();
-    //     let x_train: Array<f64> = arrayfire::constant!(1.0; 4, 2);
-    //     let y_train: Array<f64> = Array::new(&[0.0, 0.0, 1.0, 1.0], dim4![4, 1, 1, 1]);
-    //     //let ldg = arm.log_density_gradient(&x_train, &y_train);
-    //     //assert_eq!(ldg.wrt_weights.len(), arm.num_layers);
-    //     //assert_eq!(ldg.wrt_biases.len(), arm.num_layers - 1);
-    // }
+    #[test]
+    fn test_log_density_gradient() {
+        let num_individuals = 4;
+        let num_markers = 3;
+        let arm = test_arm();
+        let x_train: Array<f64> = Array::new(
+            &[1., 0., 0., 2., 1., 1., 2., 0., 0., 2., 0., 1.],
+            dim4![num_individuals, num_markers, 1, 1],
+        );
+        let y_train: Array<f64> = Array::new(&[0.0, 2.0, 1.0, 1.5], dim4![4, 1, 1, 1]);
+        let ldg = arm.log_density_gradient(&x_train, &y_train);
+
+        // correct output length
+        assert_eq!(ldg.wrt_weights.len(), arm.num_layers);
+        assert_eq!(ldg.wrt_biases.len(), arm.num_layers - 1);
+
+        // correct dimensions
+        for i in 0..(arm.num_layers) {
+            println!("{:?}", i);
+            assert_eq!(ldg.wrt_weights[i].dims(), arm.weights[i].dims());
+        }
+        for i in 0..(arm.num_layers - 1) {
+            assert_eq!(ldg.wrt_biases[i].dims(), arm.biases[i].dims());
+        }
+
+        let exp_ldg_wrt_w = [
+            Array::new(
+                &[
+                    -0.0005188623902535914,
+                    -1.0005464341949823,
+                    -2.0000137805007703,
+                    -3.0000000010532997,
+                    -4.00000000114826,
+                    -5.000000000000059,
+                ],
+                dim4![3, 2, 1, 1],
+            ),
+            Array::new(
+                &[-1.0014550522522556, -2.0017549999714044],
+                dim4![2, 1, 1, 1],
+            ),
+            Array::new(&[-5.498696799973206], dim4![1, 1, 1, 1]),
+        ];
+
+        let exp_ldg_wrt_b = [
+            Array::new(
+                &[-0.0005326482866282294, -1.0000000011007801],
+                dim4![2, 1, 1, 1],
+            ),
+            Array::new(&[-2.0017550002465994], dim4![1, 1, 1, 1]),
+        ];
+
+        // correct values
+        for i in 0..(arm.num_layers) {
+            println!("{:?}", i);
+            assert_eq!(to_host(&ldg.wrt_weights[i]), to_host(&exp_ldg_wrt_w[i]));
+        }
+        for i in 0..(arm.num_layers - 1) {
+            assert_eq!(to_host(&ldg.wrt_biases[i]), to_host(&exp_ldg_wrt_b[i]));
+        }
+    }
 }
