@@ -4,15 +4,15 @@ use arrayfire::{add, dim4, matmul, tanh, Array, MatProp};
 
 #[derive(Clone)]
 struct ArmMomenta {
-    weights_momenta: Vec<Array<f64>>,
+    weight_momenta: Vec<Array<f64>>,
     bias_momenta: Vec<Array<f64>>,
 }
 
 impl ArmMomenta {
     // TODO: add step size for heuristic step sizes
     fn half_step(&mut self, grad: &ArmLogDensityGradient) {
-        for i in 0..self.weights_momenta.len() {
-            self.weights_momenta[i] += 0.5 * &grad.wrt_weights[i];
+        for i in 0..self.weight_momenta.len() {
+            self.weight_momenta[i] += 0.5 * &grad.wrt_weights[i];
         }
         for i in 0..self.bias_momenta.len() {
             self.bias_momenta[i] += 0.5 * &grad.wrt_biases[i];
@@ -21,13 +21,25 @@ impl ArmMomenta {
 
     // TODO: add step size for heuristic step sizes
     fn full_step(&mut self, grad: &ArmLogDensityGradient) {
-        for i in 0..self.weights_momenta.len() {
-            self.weights_momenta[i] = add(&self.weights_momenta[i], &grad.wrt_weights[i], false);
-            // self.weights_momenta[i].add_assign(grad.wrt_weights[i]);
+        for i in 0..self.weight_momenta.len() {
+            self.weight_momenta[i] = add(&self.weight_momenta[i], &grad.wrt_weights[i], false);
+            // self.weight_momenta[i].add_assign(grad.wrt_weights[i]);
         }
         for i in 0..self.bias_momenta.len() {
             self.bias_momenta[i] = add(&self.bias_momenta[i], &grad.wrt_biases[i], false);
         }
+    }
+
+    fn log_density(&self) -> f64 {
+        let mut log_density: f64 = 0.;
+        for i in 0..self.weight_momenta.len() {
+            log_density +=
+                arrayfire::sum_all(&(&self.weight_momenta[i] * &self.weight_momenta[i])).0;
+        }
+        for i in 0..self.bias_momenta.len() {
+            log_density += arrayfire::sum_all(&(&self.bias_momenta[i] * &self.bias_momenta[i])).0;
+        }
+        log_density
     }
 }
 
@@ -36,6 +48,28 @@ impl ArmMomenta {
 struct ArmParams {
     weights: Vec<Array<f64>>,
     biases: Vec<Array<f64>>,
+}
+
+impl ArmParams {
+    // TODO: add step size fo heuristic step sizes
+    fn full_step(&mut self, mom: &ArmMomenta) {
+        for i in 0..self.weights.len() {
+            self.weights[i] = add(&self.weights[i], &mom.weight_momenta[i], false);
+        }
+        for i in 0..self.biases.len() {
+            self.biases[i] = add(&self.biases[i], &mom.bias_momenta[i], false);
+        }
+    }
+
+    fn log_density(&self, hyperparams: &ArmHyperparams) -> f64 {
+        0.
+    }
+}
+
+struct ArmHyperparams {
+    weight_precisions: Vec<f64>,
+    bias_precisions: Vec<f64>,
+    error_precision: f64,
 }
 
 /// Gradients of the log density w.r.t. the network parameters.
@@ -48,9 +82,7 @@ struct ArmLogDensityGradient {
 pub struct Arm {
     num_markers: usize,
     params: ArmParams,
-    weight_precisions: Vec<f64>,
-    bias_precisions: Vec<f64>,
-    error_precision: f64,
+    hyperparams: ArmHyperparams,
     layer_widths: Vec<usize>,
     num_layers: usize,
 }
@@ -64,6 +96,18 @@ impl Arm {
         &self.params.biases[index]
     }
 
+    fn weight_precision(&self, index: usize) -> f64 {
+        self.hyperparams.weight_precisions[index]
+    }
+
+    fn bias_precision(&self, index: usize) -> f64 {
+        self.hyperparams.bias_precisions[index]
+    }
+
+    fn error_precision(&self) -> f64 {
+        self.hyperparams.error_precision
+    }
+
     pub fn hmc_step(
         &mut self,
         x_train: &Array<f64>,
@@ -75,27 +119,37 @@ impl Arm {
         // TODO: add u turn diagnostic for tuning
         let init_momenta = self.sample_momenta();
         let mut momenta = init_momenta.clone();
+
+        // integrate
         // initial half step
         let mut grad = self.log_density_gradient(x_train, y_train);
         momenta.half_step(&grad);
-        for step in 0..(integration_length - 1) {}
+        // leapfrog
+        for step in 0..(integration_length - 1) {
+            self.params.full_step(&momenta);
+            momenta.full_step(&self.log_density_gradient(x_train, y_train));
+        }
         // final steps for alignment
+        self.params.full_step(&momenta);
+        momenta.half_step(&self.log_density_gradient(x_train, y_train));
+
+        // accept or reject
     }
 
     // TODO: split into bias and weights
     fn sample_momenta(&self) -> ArmMomenta {
-        let mut weights_momenta = Vec::with_capacity(self.num_layers);
+        let mut weight_momenta = Vec::with_capacity(self.num_layers);
         let mut bias_momenta = Vec::with_capacity(self.num_layers - 1);
         for index in 0..self.num_layers - 1 {
-            weights_momenta.push(arrayfire::randn::<f64>(self.weights(index).dims()));
+            weight_momenta.push(arrayfire::randn::<f64>(self.weights(index).dims()));
             bias_momenta.push(arrayfire::randn::<f64>(self.biases(index).dims()));
         }
         // output layer weight momentum
-        weights_momenta.push(arrayfire::randn::<f64>(
+        weight_momenta.push(arrayfire::randn::<f64>(
             self.weights(self.num_layers - 1).dims(),
         ));
         ArmMomenta {
-            weights_momenta,
+            weight_momenta,
             bias_momenta,
         }
     }
@@ -112,7 +166,7 @@ impl Arm {
         let ld_gradient = self.log_density_gradient(x_train, y_train);
         // update each momentum component individually
         for index in 0..self.num_layers {
-            momenta.weights_momenta[index] +=
+            momenta.weight_momenta[index] +=
                 step_sizes[index] * step_size_fraction * &ld_gradient.wrt_weights[index];
             if index == self.num_layers - 1 {
                 break;
@@ -223,18 +277,18 @@ impl Arm {
         let mut ldg_wrt_biases: Vec<Array<f64>> = Vec::with_capacity(self.num_layers - 1);
         for layer_index in 0..self.num_layers - 1 {
             ldg_wrt_weights.push(
-                -self.weight_precisions[layer_index] * self.weights(layer_index)
-                    - self.error_precision * &d_rss_wrt_weights[layer_index],
+                -self.weight_precision(layer_index) * self.weights(layer_index)
+                    - self.error_precision() * &d_rss_wrt_weights[layer_index],
             );
             ldg_wrt_biases.push(
-                -self.bias_precisions[layer_index] * self.biases(layer_index)
-                    - self.error_precision * &d_rss_wrt_biases[layer_index],
+                -self.bias_precision(layer_index) * self.biases(layer_index)
+                    - self.error_precision() * &d_rss_wrt_biases[layer_index],
             );
         }
         // output layer gradient
         ldg_wrt_weights.push(
-            -self.weight_precisions[self.num_layers - 1] * self.weights(self.num_layers - 1)
-                - self.error_precision * &d_rss_wrt_weights[self.num_layers - 1],
+            -self.weight_precision(self.num_layers - 1) * self.weights(self.num_layers - 1)
+                - self.error_precision() * &d_rss_wrt_weights[self.num_layers - 1],
         );
         ArmLogDensityGradient {
             wrt_weights: ldg_wrt_weights,
@@ -429,9 +483,11 @@ impl ArmBuilder {
             num_markers: self.num_markers,
             params: ArmParams { weights, biases },
             // TODO: impl build method for setting precisions
-            weight_precisions: vec![1.0; self.num_layers],
-            bias_precisions: vec![1.0; self.num_layers - 1],
-            error_precision: 1.0,
+            hyperparams: ArmHyperparams {
+                weight_precisions: vec![1.0; self.num_layers],
+                bias_precisions: vec![1.0; self.num_layers - 1],
+                error_precision: 1.0,
+            },
             layer_widths: self.layer_widths.clone(),
             num_layers: self.num_layers,
         }
