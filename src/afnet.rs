@@ -1,6 +1,7 @@
-use std::ops::{Add, AddAssign};
-
 use arrayfire::{add, dim4, matmul, tanh, Array, MatProp};
+use rand::prelude::ThreadRng;
+use rand::{thread_rng, Rng};
+use std::ops::{Add, AddAssign};
 
 #[derive(Clone)]
 struct ArmMomenta {
@@ -96,6 +97,7 @@ pub struct Arm {
     hyperparams: ArmHyperparams,
     layer_widths: Vec<usize>,
     num_layers: usize,
+    rng: ThreadRng,
 }
 
 impl Arm {
@@ -119,6 +121,20 @@ impl Arm {
         self.hyperparams.error_precision
     }
 
+    fn rss(&self, x: &Array<f64>, y: &Array<f64>) -> f64 {
+        let r = self.forward_feed(&x).last().unwrap() - y;
+        arrayfire::sum_all(&(&r * &r)).0
+    }
+
+    // this is -H = (-U) + (-K)
+    fn neg_hamiltonian(&self, momenta: &ArmMomenta, x: &Array<f64>, y: &Array<f64>) -> f64 {
+        self.params.log_density(&self.hyperparams, self.rss(x, y)) + momenta.log_density()
+    }
+
+    fn is_accepted(&mut self, acceptance_probability: f64) -> bool {
+        self.rng.gen_range(0.0..1.0) < acceptance_probability
+    }
+
     pub fn hmc_step(
         &mut self,
         x_train: &Array<f64>,
@@ -126,9 +142,11 @@ impl Arm {
         integration_length: usize,
     ) {
         let init_params = self.params.clone();
+        let init_rss = self.rss(x_train, y_train);
         // TODO: add heuristic step sizes
         // TODO: add u turn diagnostic for tuning
         let init_momenta = self.sample_momenta();
+        let init_neg_hamiltonian = self.neg_hamiltonian(&init_momenta, x_train, y_train);
         let mut momenta = init_momenta.clone();
 
         // integrate
@@ -145,6 +163,11 @@ impl Arm {
         momenta.half_step(&self.log_density_gradient(x_train, y_train));
 
         // accept or reject
+        let final_neg_hamiltonian = self.neg_hamiltonian(&momenta, x_train, y_train);
+        let log_acc_probability = final_neg_hamiltonian - init_neg_hamiltonian;
+        if !(log_acc_probability >= 0. || self.is_accepted(log_acc_probability.exp())) {
+            self.params = init_params;
+        }
     }
 
     // TODO: split into bias and weights
@@ -501,6 +524,7 @@ impl ArmBuilder {
             },
             layer_widths: self.layer_widths.clone(),
             num_layers: self.num_layers,
+            rng: thread_rng(),
         }
     }
 }
