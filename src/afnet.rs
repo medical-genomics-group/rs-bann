@@ -1,16 +1,34 @@
-use arrayfire::{dim4, matmul, tanh, Array, MatProp};
+use std::ops::{Add, AddAssign};
 
-fn to_host(a: &Array<f64>) -> Vec<f64> {
-    let mut buffer = Vec::<f64>::new();
-    buffer.resize(a.elements(), 0.);
-    a.host(&mut buffer);
-    buffer
-}
+use arrayfire::{add, dim4, matmul, tanh, Array, MatProp};
 
 #[derive(Clone)]
 struct ArmMomenta {
     weights_momenta: Vec<Array<f64>>,
     bias_momenta: Vec<Array<f64>>,
+}
+
+impl ArmMomenta {
+    // TODO: add step size for heuristic step sizes
+    fn half_step(&mut self, grad: &ArmLogDensityGradient) {
+        for i in 0..self.weights_momenta.len() {
+            self.weights_momenta[i] += 0.5 * &grad.wrt_weights[i];
+        }
+        for i in 0..self.bias_momenta.len() {
+            self.bias_momenta[i] += 0.5 * &grad.wrt_biases[i];
+        }
+    }
+
+    // TODO: add step size for heuristic step sizes
+    fn full_step(&mut self, grad: &ArmLogDensityGradient) {
+        for i in 0..self.weights_momenta.len() {
+            self.weights_momenta[i] = add(&self.weights_momenta[i], &grad.wrt_weights[i], false);
+            // self.weights_momenta[i].add_assign(grad.wrt_weights[i]);
+        }
+        for i in 0..self.bias_momenta.len() {
+            self.bias_momenta[i] = add(&self.bias_momenta[i], &grad.wrt_biases[i], false);
+        }
+    }
 }
 
 /// Gradients of the log density w.r.t. the network parameters.
@@ -32,13 +50,23 @@ pub struct Arm {
 }
 
 impl Arm {
-    pub fn hmc_step(&mut self, x_train: &Array<f64>, y_train: &Array<f64>) {
+    pub fn hmc_step(
+        &mut self,
+        x_train: &Array<f64>,
+        y_train: &Array<f64>,
+        integration_length: usize,
+    ) {
         let init_weights = self.weights.clone();
+        let init_biases = self.biases.clone();
         // TODO: add heuristic step sizes
         // TODO: add u turn diagnostic for tuning
         let init_momenta = self.sample_momenta();
         let mut momenta = init_momenta.clone();
         // initial half step
+        let mut grad = self.log_density_gradient(x_train, y_train);
+        momenta.half_step(&grad);
+        for step in 0..(integration_length - 1) {}
+        // final steps for alignment
     }
 
     // TODO: split into bias and weights
