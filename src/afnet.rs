@@ -31,6 +31,13 @@ impl ArmMomenta {
     }
 }
 
+/// Weights and biases
+#[derive(Clone)]
+struct ArmParams {
+    weights: Vec<Array<f64>>,
+    biases: Vec<Array<f64>>,
+}
+
 /// Gradients of the log density w.r.t. the network parameters.
 #[derive(Clone)]
 struct ArmLogDensityGradient {
@@ -40,8 +47,7 @@ struct ArmLogDensityGradient {
 
 pub struct Arm {
     num_markers: usize,
-    weights: Vec<Array<f64>>,
-    biases: Vec<Array<f64>>,
+    params: ArmParams,
     weight_precisions: Vec<f64>,
     bias_precisions: Vec<f64>,
     error_precision: f64,
@@ -50,14 +56,21 @@ pub struct Arm {
 }
 
 impl Arm {
+    fn weights(&self, index: usize) -> &Array<f64> {
+        &self.params.weights[index]
+    }
+
+    fn biases(&self, index: usize) -> &Array<f64> {
+        &self.params.biases[index]
+    }
+
     pub fn hmc_step(
         &mut self,
         x_train: &Array<f64>,
         y_train: &Array<f64>,
         integration_length: usize,
     ) {
-        let init_weights = self.weights.clone();
-        let init_biases = self.biases.clone();
+        let init_params = self.params.clone();
         // TODO: add heuristic step sizes
         // TODO: add u turn diagnostic for tuning
         let init_momenta = self.sample_momenta();
@@ -74,12 +87,12 @@ impl Arm {
         let mut weights_momenta = Vec::with_capacity(self.num_layers);
         let mut bias_momenta = Vec::with_capacity(self.num_layers - 1);
         for index in 0..self.num_layers - 1 {
-            weights_momenta.push(arrayfire::randn::<f64>(self.weights[index].dims()));
-            bias_momenta.push(arrayfire::randn::<f64>(self.biases[index].dims()));
+            weights_momenta.push(arrayfire::randn::<f64>(self.weights(index).dims()));
+            bias_momenta.push(arrayfire::randn::<f64>(self.biases(index).dims()));
         }
         // output layer weight momentum
         weights_momenta.push(arrayfire::randn::<f64>(
-            self.weights[self.num_layers - 1].dims(),
+            self.weights(self.num_layers - 1).dims(),
         ));
         ArmMomenta {
             weights_momenta,
@@ -122,12 +135,12 @@ impl Arm {
     fn mid_layer_activation(&self, layer_index: usize, input: &Array<f64>) -> Array<f64> {
         let xw = matmul(
             input,
-            &self.weights[layer_index],
+            self.weights(layer_index),
             MatProp::NONE,
             MatProp::NONE,
         );
         let bias_m = &arrayfire::tile(
-            &self.biases[layer_index],
+            self.biases(layer_index),
             dim4!(input.dims().get()[0], 1, 1, 1),
         );
         tanh(&(xw + bias_m))
@@ -136,7 +149,7 @@ impl Arm {
     fn output_neuron_activation(&self, input: &Array<f64>) -> Array<f64> {
         matmul(
             input,
-            &self.weights[self.num_layers - 1],
+            self.weights(self.num_layers - 1),
             MatProp::NONE,
             MatProp::NONE,
         )
@@ -165,7 +178,7 @@ impl Arm {
         ));
         error = matmul(
             &error,
-            self.weights.last().unwrap(),
+            self.weights(self.num_layers - 1),
             MatProp::NONE,
             MatProp::NONE,
         );
@@ -181,7 +194,7 @@ impl Arm {
             ));
             error = matmul(
                 &delta,
-                &self.weights[layer_index],
+                self.weights(layer_index),
                 MatProp::NONE,
                 MatProp::TRANS,
             );
@@ -210,17 +223,17 @@ impl Arm {
         let mut ldg_wrt_biases: Vec<Array<f64>> = Vec::with_capacity(self.num_layers - 1);
         for layer_index in 0..self.num_layers - 1 {
             ldg_wrt_weights.push(
-                -self.weight_precisions[layer_index] * &self.weights[layer_index]
+                -self.weight_precisions[layer_index] * self.weights(layer_index)
                     - self.error_precision * &d_rss_wrt_weights[layer_index],
             );
             ldg_wrt_biases.push(
-                -self.bias_precisions[layer_index] * &self.biases[layer_index]
+                -self.bias_precisions[layer_index] * self.biases(layer_index)
                     - self.error_precision * &d_rss_wrt_biases[layer_index],
             );
         }
         // output layer gradient
         ldg_wrt_weights.push(
-            -self.weight_precisions[self.num_layers - 1] * &self.weights[self.num_layers - 1]
+            -self.weight_precisions[self.num_layers - 1] * self.weights(self.num_layers - 1)
                 - self.error_precision * &d_rss_wrt_weights[self.num_layers - 1],
         );
         ArmLogDensityGradient {
@@ -414,8 +427,7 @@ impl ArmBuilder {
 
         Arm {
             num_markers: self.num_markers,
-            weights,
-            biases,
+            params: ArmParams { weights, biases },
             // TODO: impl build method for setting precisions
             weight_precisions: vec![1.0; self.num_layers],
             bias_precisions: vec![1.0; self.num_layers - 1],
@@ -590,20 +602,20 @@ mod tests {
         for i in 0..arm.num_layers {
             println!("{:?}", i);
             assert_eq!(arm.layer_widths[i], exp_layer_widths[i]);
-            assert_eq!(arm.weights[i].dims(), exp_weight_dims[i]);
+            assert_eq!(arm.weights(i).dims(), exp_weight_dims[i]);
             if i < arm.num_layers - 1 {
-                assert_eq!(arm.biases[i].dims(), exp_bias_dims[i]);
+                assert_eq!(arm.biases(i).dims(), exp_bias_dims[i]);
             }
         }
 
         // param values
         // weights
         for i in 0..arm.num_layers {
-            assert_eq!(to_host(&arm.weights[i]), to_host(&exp_weights[i]));
+            assert_eq!(to_host(&arm.weights(i)), to_host(&exp_weights[i]));
         }
         // biases
         for i in 0..arm.num_layers - 1 {
-            assert_eq!(to_host(&arm.biases[i]), to_host(&exp_biases[i]));
+            assert_eq!(to_host(&arm.biases(i)), to_host(&exp_biases[i]));
         }
     }
 
@@ -703,10 +715,10 @@ mod tests {
         // correct dimensions of gradients
         for i in 0..(arm.num_layers) {
             println!("{:?}", i);
-            assert_eq!(weights_gradient[i].dims(), arm.weights[i].dims());
+            assert_eq!(weights_gradient[i].dims(), arm.weights(i).dims());
         }
         for i in 0..(arm.num_layers - 1) {
-            assert_eq!(bias_gradient[i].dims(), arm.biases[i].dims());
+            assert_eq!(bias_gradient[i].dims(), arm.biases(i).dims());
         }
 
         let exp_weight_grad = [
@@ -765,10 +777,10 @@ mod tests {
         // correct dimensions
         for i in 0..(arm.num_layers) {
             println!("{:?}", i);
-            assert_eq!(ldg.wrt_weights[i].dims(), arm.weights[i].dims());
+            assert_eq!(ldg.wrt_weights[i].dims(), arm.weights(i).dims());
         }
         for i in 0..(arm.num_layers - 1) {
-            assert_eq!(ldg.wrt_biases[i].dims(), arm.biases[i].dims());
+            assert_eq!(ldg.wrt_biases[i].dims(), arm.biases(i).dims());
         }
 
         let exp_ldg_wrt_w = [
