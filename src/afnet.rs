@@ -700,10 +700,21 @@ mod tests {
             Array::new(&[3.4986967999732057], dim4![1, 1, 1, 1]),
         ];
 
+        let exp_bias_grad = [
+            Array::new(
+                &[0.0005326482866282294, 1.1007800519475804e-9],
+                dim4![2, 1, 1, 1],
+            ),
+            Array::new(&[0.0017550002465993087], dim4![1, 1, 1, 1]),
+        ];
+
         // correct values of gradient
         for i in 0..(arm.num_layers) {
-            println!("{:?}", i);
             assert_eq!(to_host(&weights_gradient[i]), to_host(&exp_weight_grad[i]));
+        }
+        for i in 0..(arm.num_layers - 1) {
+            println!("{:?}", i);
+            assert_eq!(to_host(&bias_gradient[i]), to_host(&exp_bias_grad[i]));
         }
 
         // // correct values of gradient
