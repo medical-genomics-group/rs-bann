@@ -170,7 +170,6 @@ impl Arm {
         }
     }
 
-    // TODO: split into bias and weights
     fn sample_momenta(&self) -> ArmMomenta {
         let mut weight_momenta = Vec::with_capacity(self.num_layers);
         let mut bias_momenta = Vec::with_capacity(self.num_layers - 1);
