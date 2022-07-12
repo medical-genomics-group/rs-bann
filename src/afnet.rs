@@ -528,7 +528,8 @@ impl ArmBuilder {
 }
 
 mod tests {
-    use arrayfire::{af_print, dim4, randu, Array, Dim4};
+    use arrayfire::{dim4, Array, Dim4};
+    // use arrayfire::{af_print, randu};
 
     use super::{Arm, ArmBuilder};
 
