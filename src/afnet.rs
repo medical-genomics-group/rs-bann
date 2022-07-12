@@ -126,10 +126,12 @@ impl Arm {
         let mut weights_gradient: Vec<Array<f64>> = Vec::with_capacity(self.num_layers);
         // back propagate
         let mut activation = activations.last().unwrap();
+
+        // TODO: factor of 2 might be necessary here?
         let mut error = activation - y_train;
         weights_gradient.push(arrayfire::dot(
             &error,
-            activation,
+            &activations[self.num_layers - 2],
             MatProp::NONE,
             MatProp::NONE,
         ));
@@ -670,7 +672,7 @@ mod tests {
         assert_eq!(weights_gradient.len(), arm.num_layers);
         assert_eq!(bias_gradient.len(), arm.num_layers - 1);
 
-        // // correct dimensions of gradients
+        // correct dimensions of gradients
         for i in 0..(arm.num_layers) {
             println!("{:?}", i);
             assert_eq!(weights_gradient[i].dims(), arm.weights[i].dims());
@@ -679,7 +681,32 @@ mod tests {
             assert_eq!(bias_gradient[i].dims(), arm.biases[i].dims());
         }
 
-        // // correct values of gradients
+        let exp_weight_grad = [
+            Array::new(
+                &[
+                    0.0005188623902535914,
+                    0.0005464341949822559,
+                    1.3780500770415134e-5,
+                    1.0532996754298074e-9,
+                    1.148260428514749e-9,
+                    5.890746731184353e-14,
+                ],
+                dim4![3, 2, 1, 1],
+            ),
+            Array::new(
+                &[0.0014550522522557225, 0.0017549999714042658],
+                dim4![2, 1, 1, 1],
+            ),
+            Array::new(&[3.4986967999732057], dim4![1, 1, 1, 1]),
+        ];
+
+        // correct values of gradient
+        for i in 0..(arm.num_layers) {
+            println!("{:?}", i);
+            assert_eq!(to_host(&weights_gradient[i]), to_host(&exp_weight_grad[i]));
+        }
+
+        // // correct values of gradient
         // assert_eq!(to_host(weights_gradient.last().unwrap()), vec![1.758_319_3]);
         // assert_eq!(to_host(&weights_gradient[0]), vec![0.010514336; 4]);
         // assert_eq!(to_host(bias_gradient.last().unwrap()), vec![0.14882116]);
