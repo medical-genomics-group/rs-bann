@@ -156,15 +156,16 @@ impl Arm {
         integration_length: usize,
         step_size: f64,
     ) {
-        if self.verbose {
-            info!("Starting hmc step");
-        }
         let init_params = self.params.clone();
         let init_rss = self.rss(x_train, y_train);
         // TODO: add heuristic step sizes
         // TODO: add u turn diagnostic for tuning
         let init_momenta = self.sample_momenta();
         let init_neg_hamiltonian = self.neg_hamiltonian(&init_momenta, x_train, y_train);
+        if self.verbose {
+            info!("Starting hmc step");
+            debug!("initial hamiltonian: {:?}", init_neg_hamiltonian);
+        }
         let mut momenta = init_momenta.clone();
 
         // integrate
@@ -175,7 +176,11 @@ impl Arm {
             self.params.full_step(step_size, &momenta);
             momenta.full_step(step_size, &self.log_density_gradient(x_train, y_train));
             if self.verbose {
-                debug!("current state: {:?}", self.params);
+                debug!(
+                    "step: {:?}, hamiltonian: {:?}",
+                    step,
+                    self.neg_hamiltonian(&momenta, x_train, y_train)
+                )
             }
         }
         // final steps for alignment
@@ -185,8 +190,16 @@ impl Arm {
         // accept or reject
         let final_neg_hamiltonian = self.neg_hamiltonian(&momenta, x_train, y_train);
         let log_acc_probability = final_neg_hamiltonian - init_neg_hamiltonian;
-        if !(log_acc_probability >= 0. || self.is_accepted(log_acc_probability.exp())) {
+        let acc_probability = if log_acc_probability >= 0. {
+            1.
+        } else {
+            log_acc_probability.exp()
+        };
+        if self.is_accepted(acc_probability) {
+            info!("accepted state with acc prob: {:?}", acc_probability);
             self.params = init_params;
+        } else {
+            info!("rejected state with acc prob: {:?}", acc_probability);
         }
     }
 
