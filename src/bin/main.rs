@@ -1,9 +1,35 @@
 use arrayfire::{dim4, randn, Array};
+use clap::Parser;
 use log::info;
 use ndarray::arr1;
 use rs_bann::afnet::{Arm, ArmBuilder};
 use rs_bann::network::MarkerGroup;
 use rs_bedvec::io::BedReader;
+
+/// A small bayesian neural network implementation based on ArrayFire.
+#[derive(Parser, Debug)]
+#[clap(author, version, about, long_about = None)]
+struct AFArgs {
+    /// number of input feature (markers)
+    #[clap(short, value_parser)]
+    p: usize,
+
+    /// number of samples (individuals)
+    #[clap(short, value_parser)]
+    n: usize,
+
+    /// width of hidden layer
+    #[clap(short, value_parser)]
+    w: usize,
+
+    /// hmc step size
+    #[clap(short, value_parser)]
+    e: f64,
+
+    /// hmc integration length
+    #[clap(short, value_parser)]
+    l: usize,
+}
 
 fn main() {
     simple_logger::init_with_level(log::Level::Info).unwrap();
@@ -34,16 +60,17 @@ fn predict() {
 
 fn test_crate_af() {
     info!("Starting af test");
+    let args = AFArgs::parse();
 
     // make random data
-    let num_individuals: u64 = 10_000;
-    let num_markers: u64 = 100;
-    let hidden_layer_width: u64 = 50;
-    let x_train: Array<f64> = randn(dim4![num_individuals, num_markers, 1, 1]);
-    let w0: Array<f64> = randn(dim4![num_markers, hidden_layer_width, 1, 1]);
-    let w1: Array<f64> = randn(dim4![hidden_layer_width, 1, 1, 1]);
+    let num_individuals: usize = args.n;
+    let num_markers: usize = args.p;
+    let hidden_layer_width: usize = args.w;
+    let x_train: Array<f64> = randn(dim4![num_individuals as u64, num_markers as u64, 1, 1]);
+    let w0: Array<f64> = randn(dim4![num_markers as u64, hidden_layer_width as u64, 1, 1]);
+    let w1: Array<f64> = randn(dim4![hidden_layer_width as u64, 1, 1, 1]);
     let w2: Array<f64> = randn(dim4![1, 1, 1, 1]);
-    let b0: Array<f64> = randn(dim4![1, hidden_layer_width, 1, 1]);
+    let b0: Array<f64> = randn(dim4![1, hidden_layer_width as u64, 1, 1]);
     let b1: Array<f64> = randn(dim4![1, 1, 1, 1]);
     let true_net = ArmBuilder::new()
         .with_num_markers(num_markers as usize)
@@ -66,8 +93,8 @@ fn test_crate_af() {
         .build();
 
     // train
-    let integration_length = 100;
-    let step_size = 0.001;
+    let integration_length = args.l;
+    let step_size = args.e;
 
     train_net.hmc_step(&x_train, &y_train, integration_length, step_size);
 }
