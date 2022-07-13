@@ -154,13 +154,15 @@ impl Arm {
         self.forward_feed(x).last().unwrap().copy()
     }
 
+    /// Take a single parameter sample using HMC.
+    /// Return `false` if final state is rejected, `true` if accepted.
     pub fn hmc_step(
         &mut self,
         x_train: &Array<f64>,
         y_train: &Array<f64>,
         integration_length: usize,
         step_size: f64,
-    ) {
+    ) -> bool {
         let init_params = self.params.clone();
         let init_rss = self.rss(x_train, y_train);
         // TODO: add heuristic step sizes
@@ -202,9 +204,11 @@ impl Arm {
         };
         if self.is_accepted(acc_probability) {
             info!("accepted state with acc prob: {:?}", acc_probability);
+            true
         } else {
             info!("rejected state with acc prob: {:?}", acc_probability);
             self.params = init_params;
+            false
         }
     }
 
