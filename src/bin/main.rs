@@ -2,7 +2,7 @@ use arrayfire::{dim4, randn, Array};
 use clap::Parser;
 use log::info;
 use ndarray::arr1;
-use rs_bann::afnet::{Arm, ArmBuilder};
+use rs_bann::afnet::ArmBuilder;
 use rs_bann::network::MarkerGroup;
 use rs_bedvec::io::BedReader;
 
@@ -29,6 +29,10 @@ struct AFArgs {
     /// hmc integration length
     #[clap(short, value_parser)]
     l: usize,
+
+    /// chain length (number of hmc samples)
+    #[clap(short, value_parser)]
+    c: usize,
 }
 
 fn main() {
@@ -66,7 +70,6 @@ fn test_crate_af() {
     let num_individuals: usize = args.n;
     let num_markers: usize = args.p;
     let hidden_layer_width: usize = args.w;
-    let x_train: Array<f64> = randn(dim4![num_individuals as u64, num_markers as u64, 1, 1]);
     let w0: Array<f64> = randn(dim4![num_markers as u64, hidden_layer_width as u64, 1, 1]);
     let w1: Array<f64> = randn(dim4![hidden_layer_width as u64, 1, 1, 1]);
     let w2: Array<f64> = randn(dim4![1, 1, 1, 1]);
@@ -82,7 +85,11 @@ fn test_crate_af() {
         .add_output_weight(&w2)
         .verbose()
         .build();
+
+    let x_train: Array<f64> = randn(dim4![num_individuals as u64, num_markers as u64, 1, 1]);
     let y_train = true_net.predict(&x_train);
+    let x_test: Array<f64> = randn(dim4![num_individuals as u64, num_markers as u64, 1, 1]);
+    let y_test = true_net.predict(&x_test);
 
     let mut train_net = ArmBuilder::new()
         .with_num_markers(num_markers as usize)
@@ -95,8 +102,17 @@ fn test_crate_af() {
     // train
     let integration_length = args.l;
     let step_size = args.e;
+    let chain_length = args.c;
 
-    train_net.hmc_step(&x_train, &y_train, integration_length, step_size);
+    for i in 0..chain_length {
+        train_net.hmc_step(&x_train, &y_train, integration_length, step_size);
+        info!(
+            "iteration: {:?} | loss (train): {:?} | loss (test): {:?}",
+            i,
+            train_net.rss(&x_train, &y_train),
+            train_net.rss(&x_test, &y_test)
+        );
+    }
 }
 
 fn test_crate_ndarray() {
