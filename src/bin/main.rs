@@ -109,7 +109,7 @@ fn test_crate_af() {
         if train_net.hmc_step(&x_train, &y_train, integration_length, step_size) {
             accepted_samples += 1;
             info!(
-                "iteration: {:?} | loss (train): {:?} | loss (test): {:?}",
+                "iteration: {:?} \t| loss (train): {:?} \t| loss (test): {:?}",
                 i,
                 train_net.rss(&x_train, &y_train),
                 train_net.rss(&x_test, &y_test)
