@@ -430,7 +430,7 @@ impl ArmBuilder {
         self
     }
 
-    pub fn add_layer_biases(&mut self, biases: Array<f64>) -> &mut Self {
+    pub fn add_layer_biases(&mut self, biases: &Array<f64>) -> &mut Self {
         assert!(
             biases.dims().get()[0] as usize == 1,
             "bias vector dim 0 != 1, expected row vector"
@@ -439,11 +439,11 @@ impl ArmBuilder {
             biases.dims().get()[1] as usize == *self.layer_widths.last().unwrap(),
             "bias dim 1 does not match width of last added layer"
         );
-        *self.biases.last_mut().unwrap() = Some(biases);
+        *self.biases.last_mut().unwrap() = Some(biases.copy());
         self
     }
 
-    pub fn add_layer_weights(&mut self, weights: Array<f64>) -> &mut Self {
+    pub fn add_layer_weights(&mut self, weights: &Array<f64>) -> &mut Self {
         let wdims = *weights.dims().get();
         let expected_ncols = if self.num_layers > 3 {
             self.layer_widths[self.num_layers - 4]
@@ -458,11 +458,11 @@ impl ArmBuilder {
             wdims[1] as usize == self.layer_widths[self.num_layers - 3],
             "incorrect weight dims in dim 1"
         );
-        *self.weights.last_mut().unwrap() = Some(weights);
+        *self.weights.last_mut().unwrap() = Some(weights.copy());
         self
     }
 
-    pub fn add_summary_bias(&mut self, bias: Array<f64>) -> &mut Self {
+    pub fn add_summary_bias(&mut self, bias: &Array<f64>) -> &mut Self {
         let wdims = *bias.dims().get();
         assert!(
             wdims[0] as usize == 1,
@@ -472,11 +472,11 @@ impl ArmBuilder {
             wdims[1] as usize == 1,
             "incorrect summary bias dims in dim 1: has to be 1."
         );
-        self.biases.push(Some(bias));
+        self.biases.push(Some(bias.copy()));
         self
     }
 
-    pub fn add_summary_weights(&mut self, weights: Array<f64>) -> &mut Self {
+    pub fn add_summary_weights(&mut self, weights: &Array<f64>) -> &mut Self {
         let wdims = *weights.dims().get();
         assert!(
             wdims[0] as usize == self.layer_widths[self.num_layers - 3],
@@ -486,11 +486,11 @@ impl ArmBuilder {
             wdims[1] as usize == 1,
             "incorrect summary weight dims in dim 1: has to be 1."
         );
-        self.weights.push(Some(weights));
+        self.weights.push(Some(weights.copy()));
         self
     }
 
-    pub fn add_output_weight(&mut self, weights: Array<f64>) -> &mut Self {
+    pub fn add_output_weight(&mut self, weights: &Array<f64>) -> &mut Self {
         let wdims = *weights.dims().get();
         assert!(
             wdims[0] as usize == 1,
@@ -500,7 +500,7 @@ impl ArmBuilder {
             wdims[1] as usize == 1,
             "incorrect output weight dims in dim 1: has to be 1."
         );
-        self.weights.push(Some(weights));
+        self.weights.push(Some(weights.copy()));
         self
     }
 
@@ -626,11 +626,11 @@ mod tests {
         ArmBuilder::new()
             .with_num_markers(3)
             .add_hidden_layer(2)
-            .add_layer_biases(exp_biases[0].copy())
-            .add_layer_weights(exp_weights[0].copy())
-            .add_summary_weights(exp_weights[1].copy())
-            .add_summary_bias(exp_biases[1].copy())
-            .add_output_weight(exp_weights[2].copy())
+            .add_layer_biases(&exp_biases[0])
+            .add_layer_weights(&exp_weights[0])
+            .add_summary_weights(&exp_weights[1])
+            .add_summary_bias(&exp_biases[1])
+            .add_output_weight(&exp_weights[2])
             .build()
     }
 
@@ -640,9 +640,9 @@ mod tests {
         let _arm = ArmBuilder::new()
             .with_num_markers(3)
             .add_hidden_layer(2)
-            .add_layer_biases(Array::new(&[0., 1., 2.], dim4![1, 3, 1, 1]))
-            .add_layer_weights(Array::new(&[0., 1., 2., 3., 4., 5.], dim4![3, 2, 1, 1]))
-            .add_output_weight(Array::new(&[1., 2.], dim4![2, 1, 1, 1]))
+            .add_layer_biases(&Array::new(&[0., 1., 2.], dim4![1, 3, 1, 1]))
+            .add_layer_weights(&Array::new(&[0., 1., 2., 3., 4., 5.], dim4![3, 2, 1, 1]))
+            .add_output_weight(&Array::new(&[1., 2.], dim4![2, 1, 1, 1]))
             .build();
     }
 
@@ -652,9 +652,9 @@ mod tests {
         let _arm = ArmBuilder::new()
             .with_num_markers(3)
             .add_hidden_layer(2)
-            .add_layer_biases(Array::new(&[0., 1.], dim4![1, 2, 1, 1]))
-            .add_layer_weights(Array::new(&[0., 1., 2., 3., 4., 5.], dim4![2, 3, 1, 1]))
-            .add_output_weight(Array::new(&[1., 2.], dim4![2, 1, 1, 1]))
+            .add_layer_biases(&Array::new(&[0., 1.], dim4![1, 2, 1, 1]))
+            .add_layer_weights(&Array::new(&[0., 1., 2., 3., 4., 5.], dim4![2, 3, 1, 1]))
+            .add_output_weight(&Array::new(&[1., 2.], dim4![2, 1, 1, 1]))
             .build();
     }
 
@@ -664,12 +664,12 @@ mod tests {
         let _arm = ArmBuilder::new()
             .with_num_markers(3)
             .add_hidden_layer(2)
-            .add_layer_biases(Array::new(&[0., 1.], dim4![1, 2, 1, 1]))
-            .add_layer_weights(Array::new(
+            .add_layer_biases(&Array::new(&[0., 1.], dim4![1, 2, 1, 1]))
+            .add_layer_weights(&Array::new(
                 &[0., 1., 2., 3., 4., 5., 6., 7., 8.],
                 dim4![3, 3, 1, 1],
             ))
-            .add_output_weight(Array::new(&[1., 2.], dim4![2, 1, 1, 1]))
+            .add_output_weight(&Array::new(&[1., 2.], dim4![2, 1, 1, 1]))
             .build();
     }
 
@@ -679,10 +679,10 @@ mod tests {
         let _arm = ArmBuilder::new()
             .with_num_markers(3)
             .add_hidden_layer(2)
-            .add_layer_biases(Array::new(&[0., 1.], dim4![1, 2, 1, 1]))
-            .add_layer_weights(Array::new(&[0., 1., 2., 3., 4., 5.], dim4![3, 2, 1, 1]))
-            .add_summary_weights(Array::new(&[1., 2.], dim4![1, 2, 1, 1]))
-            .add_output_weight(Array::new(&[1.], dim4![1, 1, 1, 1]))
+            .add_layer_biases(&Array::new(&[0., 1.], dim4![1, 2, 1, 1]))
+            .add_layer_weights(&Array::new(&[0., 1., 2., 3., 4., 5.], dim4![3, 2, 1, 1]))
+            .add_summary_weights(&Array::new(&[1., 2.], dim4![1, 2, 1, 1]))
+            .add_output_weight(&Array::new(&[1.], dim4![1, 1, 1, 1]))
             .build();
     }
 
@@ -692,10 +692,10 @@ mod tests {
         let _arm = ArmBuilder::new()
             .with_num_markers(3)
             .add_hidden_layer(2)
-            .add_layer_biases(Array::new(&[0., 1.], dim4![1, 2, 1, 1]))
-            .add_layer_weights(Array::new(&[0., 1., 2., 3., 4., 5.], dim4![3, 2, 1, 1]))
-            .add_summary_weights(Array::new(&[1., 2., 1., 2.], dim4![2, 2, 1, 1]))
-            .add_output_weight(Array::new(&[1.], dim4![1, 1, 1, 1]))
+            .add_layer_biases(&Array::new(&[0., 1.], dim4![1, 2, 1, 1]))
+            .add_layer_weights(&Array::new(&[0., 1., 2., 3., 4., 5.], dim4![3, 2, 1, 1]))
+            .add_summary_weights(&Array::new(&[1., 2., 1., 2.], dim4![2, 2, 1, 1]))
+            .add_output_weight(&Array::new(&[1.], dim4![1, 1, 1, 1]))
             .build();
     }
 
@@ -705,10 +705,10 @@ mod tests {
         let _arm = ArmBuilder::new()
             .with_num_markers(3)
             .add_hidden_layer(2)
-            .add_layer_biases(Array::new(&[0., 1.], dim4![1, 2, 1, 1]))
-            .add_layer_weights(Array::new(&[0., 1., 2., 3., 4., 5.], dim4![3, 2, 1, 1]))
-            .add_summary_weights(Array::new(&[1., 2.], dim4![2, 1, 1, 1]))
-            .add_output_weight(Array::new(&[1., 2.], dim4![2, 1, 1, 1]))
+            .add_layer_biases(&Array::new(&[0., 1.], dim4![1, 2, 1, 1]))
+            .add_layer_weights(&Array::new(&[0., 1., 2., 3., 4., 5.], dim4![3, 2, 1, 1]))
+            .add_summary_weights(&Array::new(&[1., 2.], dim4![2, 1, 1, 1]))
+            .add_output_weight(&Array::new(&[1., 2.], dim4![2, 1, 1, 1]))
             .build();
     }
 
@@ -718,10 +718,10 @@ mod tests {
         let _arm = ArmBuilder::new()
             .with_num_markers(3)
             .add_hidden_layer(2)
-            .add_layer_biases(Array::new(&[0., 1.], dim4![1, 2, 1, 1]))
-            .add_layer_weights(Array::new(&[0., 1., 2., 3., 4., 5.], dim4![3, 2, 1, 1]))
-            .add_summary_weights(Array::new(&[1., 2.], dim4![2, 1, 1, 1]))
-            .add_output_weight(Array::new(&[1., 2.], dim4![1, 2, 1, 1]))
+            .add_layer_biases(&Array::new(&[0., 1.], dim4![1, 2, 1, 1]))
+            .add_layer_weights(&Array::new(&[0., 1., 2., 3., 4., 5.], dim4![3, 2, 1, 1]))
+            .add_summary_weights(&Array::new(&[1., 2.], dim4![2, 1, 1, 1]))
+            .add_output_weight(&Array::new(&[1., 2.], dim4![1, 2, 1, 1]))
             .build();
     }
 
@@ -742,11 +742,11 @@ mod tests {
         let arm = ArmBuilder::new()
             .with_num_markers(3)
             .add_hidden_layer(2)
-            .add_layer_biases(exp_biases[0].copy())
-            .add_layer_weights(exp_weights[0].copy())
-            .add_summary_weights(exp_weights[1].copy())
-            .add_summary_bias(exp_biases[1].copy())
-            .add_output_weight(exp_weights[2].copy())
+            .add_layer_biases(&exp_biases[0])
+            .add_layer_weights(&exp_weights[0])
+            .add_summary_weights(&exp_weights[1])
+            .add_summary_bias(&exp_biases[1])
+            .add_output_weight(&exp_weights[2])
             .build();
 
         // network size
