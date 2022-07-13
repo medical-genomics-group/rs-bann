@@ -203,10 +203,10 @@ impl Arm {
             log_acc_probability.exp()
         };
         if self.is_accepted(acc_probability) {
-            info!("accepted state with acc prob: {:?}", acc_probability);
+            debug!("accepted state with acc prob: {:?}", acc_probability);
             true
         } else {
-            info!("rejected state with acc prob: {:?}", acc_probability);
+            debug!("rejected state with acc prob: {:?}", acc_probability);
             self.params = init_params;
             false
         }
