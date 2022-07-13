@@ -17,3 +17,4 @@ ndarray = { version = "0.15", features = ["blas", "approx"] }
 blas-src = { version = "*",  default-features=false, features=["netlib"] }
 openblas-src = { version = "*", default-features = false, features = ["cblas", "static"] }
 log = "0.4"
+simple_logger = "2.2"
