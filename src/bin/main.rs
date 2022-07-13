@@ -103,16 +103,22 @@ fn test_crate_af() {
     let integration_length = args.l;
     let step_size = args.e;
     let chain_length = args.c;
+    let mut accepted_samples: u64 = 0;
 
     for i in 0..chain_length {
-        train_net.hmc_step(&x_train, &y_train, integration_length, step_size);
-        info!(
-            "iteration: {:?} | loss (train): {:?} | loss (test): {:?}",
-            i,
-            train_net.rss(&x_train, &y_train),
-            train_net.rss(&x_test, &y_test)
-        );
+        if train_net.hmc_step(&x_train, &y_train, integration_length, step_size) {
+            accepted_samples += 1;
+            info!(
+                "iteration: {:?} | loss (train): {:?} | loss (test): {:?}",
+                i,
+                train_net.rss(&x_train, &y_train),
+                train_net.rss(&x_test, &y_test)
+            );
+        }
     }
+
+    let acceptance_rate: f64 = accepted_samples as f64 / chain_length as f64;
+    info!("Finished. Overall acceptance rate: {:?}", acceptance_rate);
 }
 
 fn test_crate_ndarray() {
