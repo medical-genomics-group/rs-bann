@@ -18,3 +18,4 @@ blas-src = { version = "*",  default-features=false, features=["netlib"] }
 openblas-src = { version = "*", default-features = false, features = ["cblas", "static"] }
 log = "0.4"
 simple_logger = "2.2"
+clap = { version = "3.2.10", features = ["derive"] }
