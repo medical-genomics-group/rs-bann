@@ -36,9 +36,9 @@ fn test_crate_af() {
     info!("Starting af test");
 
     // make random data
-    let num_individuals: u64 = 100;
-    let num_markers: u64 = 10;
-    let hidden_layer_width: u64 = 2;
+    let num_individuals: u64 = 10_000;
+    let num_markers: u64 = 100;
+    let hidden_layer_width: u64 = 50;
     let x_train: Array<f64> = randn(dim4![num_individuals, num_markers, 1, 1]);
     let w0: Array<f64> = randn(dim4![num_markers, hidden_layer_width, 1, 1]);
     let w1: Array<f64> = randn(dim4![hidden_layer_width, 1, 1, 1]);
