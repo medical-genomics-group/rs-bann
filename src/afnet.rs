@@ -145,6 +145,51 @@ pub struct Arm {
 }
 
 impl Arm {
+    pub fn predict(&self, x: &Array<f64>) -> Array<f64> {
+        self.forward_feed(x).last().unwrap().copy()
+    }
+
+    pub fn hmc_step(
+        &mut self,
+        x_train: &Array<f64>,
+        y_train: &Array<f64>,
+        integration_length: usize,
+        step_size: f64,
+    ) {
+        if self.verbose {
+            info!("Starting hmc step");
+        }
+        let init_params = self.params.clone();
+        let init_rss = self.rss(x_train, y_train);
+        // TODO: add heuristic step sizes
+        // TODO: add u turn diagnostic for tuning
+        let init_momenta = self.sample_momenta();
+        let init_neg_hamiltonian = self.neg_hamiltonian(&init_momenta, x_train, y_train);
+        let mut momenta = init_momenta.clone();
+
+        // integrate
+        // initial half step
+        momenta.half_step(step_size, &self.log_density_gradient(x_train, y_train));
+        // leapfrog
+        for step in 0..(integration_length - 1) {
+            self.params.full_step(step_size, &momenta);
+            momenta.full_step(step_size, &self.log_density_gradient(x_train, y_train));
+            if self.verbose {
+                debug!("current state: {:?}", self.params);
+            }
+        }
+        // final steps for alignment
+        self.params.full_step(step_size, &momenta);
+        momenta.half_step(step_size, &self.log_density_gradient(x_train, y_train));
+
+        // accept or reject
+        let final_neg_hamiltonian = self.neg_hamiltonian(&momenta, x_train, y_train);
+        let log_acc_probability = final_neg_hamiltonian - init_neg_hamiltonian;
+        if !(log_acc_probability >= 0. || self.is_accepted(log_acc_probability.exp())) {
+            self.params = init_params;
+        }
+    }
+
     fn weights(&self, index: usize) -> &Array<f64> {
         &self.params.weights[index]
     }
@@ -177,47 +222,6 @@ impl Arm {
 
     fn is_accepted(&mut self, acceptance_probability: f64) -> bool {
         self.rng.gen_range(0.0..1.0) < acceptance_probability
-    }
-
-    pub fn hmc_step(
-        &mut self,
-        x_train: &Array<f64>,
-        y_train: &Array<f64>,
-        integration_length: usize,
-        step_size: f64,
-    ) {
-        if self.verbose {
-            info!("Starting hmc step");
-        }
-        let init_params = self.params.clone();
-        let init_rss = self.rss(x_train, y_train);
-        // TODO: add heuristic step sizes
-        // TODO: add u turn diagnostic for tuning
-        let init_momenta = self.sample_momenta();
-        let init_neg_hamiltonian = self.neg_hamiltonian(&init_momenta, x_train, y_train);
-        let mut momenta = init_momenta.clone();
-
-        // integrate
-        // initial half step
-        momenta.half_step(step_size, &self.log_density_gradient(x_train, y_train));
-        // leapfrog
-        for step in 0..(integration_length - 1) {
-            self.params.full_step(step_size, &momenta);
-            momenta.full_step(step_size, &self.log_density_gradient(x_train, y_train));
-            if self.verbose {
-                // debug!("current state: {:?}", self.params);
-            }
-        }
-        // final steps for alignment
-        self.params.full_step(step_size, &momenta);
-        momenta.half_step(step_size, &self.log_density_gradient(x_train, y_train));
-
-        // accept or reject
-        let final_neg_hamiltonian = self.neg_hamiltonian(&momenta, x_train, y_train);
-        let log_acc_probability = final_neg_hamiltonian - init_neg_hamiltonian;
-        if !(log_acc_probability >= 0. || self.is_accepted(log_acc_probability.exp())) {
-            self.params = init_params;
-        }
     }
 
     fn sample_momenta(&self) -> ArmMomenta {
@@ -380,7 +384,7 @@ impl Arm {
     }
 }
 
-struct ArmBuilder {
+pub struct ArmBuilder {
     num_markers: usize,
     layer_widths: Vec<usize>,
     num_layers: usize,
@@ -393,7 +397,7 @@ struct ArmBuilder {
 }
 
 impl ArmBuilder {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             num_markers: 0,
             layer_widths: vec![],
@@ -408,17 +412,17 @@ impl ArmBuilder {
         }
     }
 
-    fn verbose(&mut self) -> &mut Self {
+    pub fn verbose(&mut self) -> &mut Self {
         self.verbose = true;
         self
     }
 
-    fn with_num_markers(&mut self, num_markers: usize) -> &mut Self {
+    pub fn with_num_markers(&mut self, num_markers: usize) -> &mut Self {
         self.num_markers = num_markers;
         self
     }
 
-    fn add_hidden_layer(&mut self, layer_width: usize) -> &mut Self {
+    pub fn add_hidden_layer(&mut self, layer_width: usize) -> &mut Self {
         self.layer_widths.push(layer_width);
         self.num_layers += 1;
         self.biases.push(None);
@@ -426,7 +430,7 @@ impl ArmBuilder {
         self
     }
 
-    fn add_layer_biases(&mut self, biases: Array<f64>) -> &mut Self {
+    pub fn add_layer_biases(&mut self, biases: Array<f64>) -> &mut Self {
         assert!(
             biases.dims().get()[0] as usize == 1,
             "bias vector dim 0 != 1, expected row vector"
@@ -439,7 +443,7 @@ impl ArmBuilder {
         self
     }
 
-    fn add_layer_weights(&mut self, weights: Array<f64>) -> &mut Self {
+    pub fn add_layer_weights(&mut self, weights: Array<f64>) -> &mut Self {
         let wdims = *weights.dims().get();
         let expected_ncols = if self.num_layers > 3 {
             self.layer_widths[self.num_layers - 4]
@@ -458,7 +462,7 @@ impl ArmBuilder {
         self
     }
 
-    fn add_summary_bias(&mut self, bias: Array<f64>) -> &mut Self {
+    pub fn add_summary_bias(&mut self, bias: Array<f64>) -> &mut Self {
         let wdims = *bias.dims().get();
         assert!(
             wdims[0] as usize == 1,
@@ -472,7 +476,7 @@ impl ArmBuilder {
         self
     }
 
-    fn add_summary_weights(&mut self, weights: Array<f64>) -> &mut Self {
+    pub fn add_summary_weights(&mut self, weights: Array<f64>) -> &mut Self {
         let wdims = *weights.dims().get();
         assert!(
             wdims[0] as usize == self.layer_widths[self.num_layers - 3],
@@ -486,7 +490,7 @@ impl ArmBuilder {
         self
     }
 
-    fn add_output_weight(&mut self, weights: Array<f64>) -> &mut Self {
+    pub fn add_output_weight(&mut self, weights: Array<f64>) -> &mut Self {
         let wdims = *weights.dims().get();
         assert!(
             wdims[0] as usize == 1,
@@ -500,22 +504,22 @@ impl ArmBuilder {
         self
     }
 
-    fn with_initial_random_range(&mut self, range: f64) -> &mut Self {
+    pub fn with_initial_random_range(&mut self, range: f64) -> &mut Self {
         self.initial_random_range = range;
         self
     }
 
-    fn with_initial_weights_value(&mut self, value: f64) -> &mut Self {
+    pub fn with_initial_weights_value(&mut self, value: f64) -> &mut Self {
         self.initial_weight_value = Some(value);
         self
     }
 
-    fn with_initial_bias_value(&mut self, value: f64) -> &mut Self {
+    pub fn with_initial_bias_value(&mut self, value: f64) -> &mut Self {
         self.initial_bias_value = Some(value);
         self
     }
 
-    fn build(&mut self) -> Arm {
+    pub fn build(&mut self) -> Arm {
         let mut widths: Vec<usize> = vec![self.num_markers];
         // summary and output node
         self.layer_widths.push(1);
