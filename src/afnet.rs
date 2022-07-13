@@ -145,6 +145,11 @@ pub struct Arm {
 }
 
 impl Arm {
+    pub fn rss(&self, x: &Array<f64>, y: &Array<f64>) -> f64 {
+        let r = self.forward_feed(&x).last().unwrap() - y;
+        arrayfire::sum_all(&(&r * &r)).0
+    }
+
     pub fn predict(&self, x: &Array<f64>) -> Array<f64> {
         self.forward_feed(x).last().unwrap().copy()
     }
@@ -163,7 +168,7 @@ impl Arm {
         let init_momenta = self.sample_momenta();
         let init_neg_hamiltonian = self.neg_hamiltonian(&init_momenta, x_train, y_train);
         if self.verbose {
-            info!("Starting hmc step");
+            debug!("Starting hmc step");
             debug!("initial hamiltonian: {:?}", init_neg_hamiltonian);
         }
         let mut momenta = init_momenta.clone();
@@ -197,9 +202,9 @@ impl Arm {
         };
         if self.is_accepted(acc_probability) {
             info!("accepted state with acc prob: {:?}", acc_probability);
-            self.params = init_params;
         } else {
             info!("rejected state with acc prob: {:?}", acc_probability);
+            self.params = init_params;
         }
     }
 
@@ -221,11 +226,6 @@ impl Arm {
 
     fn error_precision(&self) -> f64 {
         self.hyperparams.error_precision
-    }
-
-    fn rss(&self, x: &Array<f64>, y: &Array<f64>) -> f64 {
-        let r = self.forward_feed(&x).last().unwrap() - y;
-        arrayfire::sum_all(&(&r * &r)).0
     }
 
     // this is -H = (-U) + (-K)
