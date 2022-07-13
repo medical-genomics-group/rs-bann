@@ -1,4 +1,4 @@
-use arrayfire::{add, dim4, matmul, tanh, Array, MatProp};
+use arrayfire::{dim4, matmul, tanh, Array, MatProp};
 use rand::prelude::ThreadRng;
 use rand::{thread_rng, Rng};
 
