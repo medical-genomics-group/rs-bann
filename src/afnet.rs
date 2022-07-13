@@ -10,23 +10,22 @@ struct ArmMomenta {
 
 impl ArmMomenta {
     // TODO: add step size for heuristic step sizes
-    fn half_step(&mut self, grad: &ArmLogDensityGradient) {
+    fn half_step(&mut self, step_size: f64, grad: &ArmLogDensityGradient) {
         for i in 0..self.weight_momenta.len() {
-            self.weight_momenta[i] += 0.5 * &grad.wrt_weights[i];
+            self.weight_momenta[i] += step_size * 0.5 * &grad.wrt_weights[i];
         }
         for i in 0..self.bias_momenta.len() {
-            self.bias_momenta[i] += 0.5 * &grad.wrt_biases[i];
+            self.bias_momenta[i] += step_size * 0.5 * &grad.wrt_biases[i];
         }
     }
 
     // TODO: add step size for heuristic step sizes
-    fn full_step(&mut self, grad: &ArmLogDensityGradient) {
+    fn full_step(&mut self, step_size: f64, grad: &ArmLogDensityGradient) {
         for i in 0..self.weight_momenta.len() {
-            self.weight_momenta[i] = add(&self.weight_momenta[i], &grad.wrt_weights[i], false);
-            // self.weight_momenta[i].add_assign(grad.wrt_weights[i]);
+            self.weight_momenta[i] += step_size * &grad.wrt_weights[i];
         }
         for i in 0..self.bias_momenta.len() {
-            self.bias_momenta[i] = add(&self.bias_momenta[i], &grad.wrt_biases[i], false);
+            self.bias_momenta[i] += step_size * &grad.wrt_biases[i];
         }
     }
 
@@ -52,12 +51,12 @@ struct ArmParams {
 
 impl ArmParams {
     // TODO: add step size fo heuristic step sizes
-    fn full_step(&mut self, mom: &ArmMomenta) {
+    fn full_step(&mut self, step_size: f64, mom: &ArmMomenta) {
         for i in 0..self.weights.len() {
-            self.weights[i] = add(&self.weights[i], &mom.weight_momenta[i], false);
+            self.weights[i] += step_size * &mom.weight_momenta[i];
         }
         for i in 0..self.biases.len() {
-            self.biases[i] = add(&self.biases[i], &mom.bias_momenta[i], false);
+            self.biases[i] += step_size * &mom.bias_momenta[i];
         }
     }
 
@@ -139,6 +138,7 @@ impl Arm {
         x_train: &Array<f64>,
         y_train: &Array<f64>,
         integration_length: usize,
+        step_size: f64,
     ) {
         let init_params = self.params.clone();
         let init_rss = self.rss(x_train, y_train);
@@ -150,16 +150,15 @@ impl Arm {
 
         // integrate
         // initial half step
-        let mut grad = self.log_density_gradient(x_train, y_train);
-        momenta.half_step(&grad);
+        momenta.half_step(step_size, &self.log_density_gradient(x_train, y_train));
         // leapfrog
         for step in 0..(integration_length - 1) {
-            self.params.full_step(&momenta);
-            momenta.full_step(&self.log_density_gradient(x_train, y_train));
+            self.params.full_step(step_size, &momenta);
+            momenta.full_step(step_size, &self.log_density_gradient(x_train, y_train));
         }
         // final steps for alignment
-        self.params.full_step(&momenta);
-        momenta.half_step(&self.log_density_gradient(x_train, y_train));
+        self.params.full_step(step_size, &momenta);
+        momenta.half_step(step_size, &self.log_density_gradient(x_train, y_train));
 
         // accept or reject
         let final_neg_hamiltonian = self.neg_hamiltonian(&momenta, x_train, y_train);
