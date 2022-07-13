@@ -1,6 +1,17 @@
 use arrayfire::{dim4, matmul, tanh, Array, MatProp};
+use log::{debug, info};
 use rand::prelude::ThreadRng;
 use rand::{thread_rng, Rng};
+use std::fmt;
+
+/// Copy data from device to a host vector.
+// TODO: this should not live in this module.
+fn to_host(a: &Array<f64>) -> Vec<f64> {
+    let mut buffer = Vec::<f64>::new();
+    buffer.resize(a.elements(), 0.);
+    a.host(&mut buffer);
+    buffer
+}
 
 #[derive(Clone)]
 struct ArmMomenta {
@@ -49,7 +60,41 @@ struct ArmParams {
     biases: Vec<Array<f64>>,
 }
 
+impl fmt::Debug for ArmParams {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self.param_vec())
+    }
+}
+
 impl ArmParams {
+    fn param_vec(&self) -> Vec<f64> {
+        let mut host_vec = Vec::new();
+        host_vec.resize(self.num_params(), 0.);
+        let mut insert_ix: usize = 0;
+        for i in 0..self.weights.len() {
+            let len = self.weights[i].elements();
+            self.weights[i].host(&mut host_vec[insert_ix..insert_ix + len]);
+            insert_ix += len;
+        }
+        for i in 0..self.biases.len() {
+            let len = self.biases[i].elements();
+            self.biases[i].host(&mut host_vec[insert_ix..insert_ix + len]);
+            insert_ix += len;
+        }
+        host_vec
+    }
+
+    fn num_params(&self) -> usize {
+        let mut res: usize = 0;
+        for i in 0..self.weights.len() {
+            res += self.weights[i].elements();
+        }
+        for i in 0..self.biases.len() {
+            res += self.biases[i].elements();
+        }
+        res
+    }
+
     // TODO: add step size fo heuristic step sizes
     fn full_step(&mut self, step_size: f64, mom: &ArmMomenta) {
         for i in 0..self.weights.len() {
@@ -96,6 +141,7 @@ pub struct Arm {
     layer_widths: Vec<usize>,
     num_layers: usize,
     rng: ThreadRng,
+    verbose: bool,
 }
 
 impl Arm {
@@ -140,6 +186,9 @@ impl Arm {
         integration_length: usize,
         step_size: f64,
     ) {
+        if self.verbose {
+            info!("Starting hmc step");
+        }
         let init_params = self.params.clone();
         let init_rss = self.rss(x_train, y_train);
         // TODO: add heuristic step sizes
@@ -155,6 +204,9 @@ impl Arm {
         for step in 0..(integration_length - 1) {
             self.params.full_step(step_size, &momenta);
             momenta.full_step(step_size, &self.log_density_gradient(x_train, y_train));
+            if self.verbose {
+                // debug!("current state: {:?}", self.params);
+            }
         }
         // final steps for alignment
         self.params.full_step(step_size, &momenta);
@@ -337,6 +389,7 @@ struct ArmBuilder {
     initial_random_range: f64,
     biases: Vec<Option<Array<f64>>>,
     weights: Vec<Option<Array<f64>>>,
+    verbose: bool,
 }
 
 impl ArmBuilder {
@@ -351,7 +404,13 @@ impl ArmBuilder {
             initial_random_range: 0.05,
             biases: vec![],
             weights: vec![],
+            verbose: false,
         }
+    }
+
+    fn verbose(&mut self) -> &mut Self {
+        self.verbose = true;
+        self
     }
 
     fn with_num_markers(&mut self, num_markers: usize) -> &mut Self {
@@ -522,6 +581,7 @@ impl ArmBuilder {
             layer_widths: self.layer_widths.clone(),
             num_layers: self.num_layers,
             rng: thread_rng(),
+            verbose: self.verbose,
         }
     }
 }
@@ -530,7 +590,7 @@ mod tests {
     use arrayfire::{dim4, Array, Dim4};
     // use arrayfire::{af_print, randu};
 
-    use super::{Arm, ArmBuilder};
+    use super::{Arm, ArmBuilder, ArmParams};
 
     // #[test]
     // fn test_af() {
@@ -907,5 +967,18 @@ mod tests {
         for i in 0..(arm.num_layers - 1) {
             assert_eq!(to_host(&ldg.wrt_biases[i]), to_host(&exp_ldg_wrt_b[i]));
         }
+    }
+
+    #[test]
+    fn test_param_vec() {
+        let params = ArmParams {
+            weights: vec![
+                Array::new(&[0.1, 0.2], dim4![2, 1, 1, 1]),
+                Array::new(&[0.3], dim4![1, 1, 1, 1]),
+            ],
+            biases: vec![Array::new(&[0.4], dim4![1, 1, 1, 1])],
+        };
+        let exp = vec![0.1, 0.2, 0.3, 0.4];
+        assert_eq!(params.param_vec(), exp);
     }
 }
