@@ -298,28 +298,6 @@ impl Arm {
         }
     }
 
-    fn update_momenta(
-        &self,
-        momenta: &mut ArmMomenta,
-        step_sizes: &Vec<f64>,
-        // the fraction of a step that will be taken
-        step_size_fraction: f64,
-        x_train: &Array<f64>,
-        y_train: &Array<f64>,
-    ) {
-        let ld_gradient = self.log_density_gradient(x_train, y_train);
-        // update each momentum component individually
-        for index in 0..self.num_layers {
-            momenta.weight_momenta[index] +=
-                step_sizes[index] * step_size_fraction * &ld_gradient.wrt_weights[index];
-            if index == self.num_layers - 1 {
-                break;
-            }
-            momenta.bias_momenta[index] +=
-                step_sizes[index] * step_size_fraction * &ld_gradient.wrt_biases[index];
-        }
-    }
-
     fn uniform_step_sizes(&self, val: f64) -> StepSizes {
         let mut wrt_weights = Vec::with_capacity(self.num_layers);
         let mut wrt_biases = Vec::with_capacity(self.num_layers - 1);
