@@ -323,6 +323,30 @@ impl Arm {
         }
     }
 
+    fn uniform_step_sizes(&self, val: f64) -> StepSizes {
+        let mut wrt_weights = Vec::with_capacity(self.num_layers);
+        let mut wrt_biases = Vec::with_capacity(self.num_layers - 1);
+        for index in 0..self.num_layers - 1 {
+            wrt_weights.push(Array::new(
+                &vec![val; self.weights(index).elements()],
+                self.weights(index).dims(),
+            ));
+            wrt_biases.push(Array::new(
+                &vec![val; self.biases(index).elements()],
+                self.biases(index).dims(),
+            ));
+        }
+        // output layer weights
+        wrt_weights.push(Array::new(
+            &vec![val; self.weights(self.num_layers - 1).elements()],
+            self.weights(self.num_layers - 1).dims(),
+        ));
+        StepSizes {
+            wrt_weights,
+            wrt_biases,
+        }
+    }
+
     fn forward_feed(&self, x_train: &Array<f64>) -> Vec<Array<f64>> {
         let mut activations: Vec<Array<f64>> = Vec::with_capacity(self.num_layers - 1);
         activations.push(self.mid_layer_activation(0, x_train));
@@ -1044,5 +1068,20 @@ mod tests {
         };
         let exp = vec![0.1, 0.2, 0.3, 0.4];
         assert_eq!(params.param_vec(), exp);
+    }
+
+    #[test]
+    fn test_uniform_step_sizes() {
+        let arm = test_arm();
+        let val = 1.0;
+        let step_sizes = arm.uniform_step_sizes(val);
+        for i in 0..(arm.num_layers - 1) {
+            let mut obs = to_host(&step_sizes.wrt_weights[i]);
+            assert_eq!(obs, vec![val; obs.len()]);
+            obs = to_host(&step_sizes.wrt_biases[i]);
+            assert_eq!(obs, vec![val; obs.len()]);
+        }
+        let obs = to_host(&step_sizes.wrt_weights[arm.num_layers - 1]);
+        assert_eq!(obs, vec![val; obs.len()]);
     }
 }
