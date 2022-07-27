@@ -14,40 +14,106 @@ fn to_host(a: &Array<f64>) -> Vec<f64> {
 }
 
 #[derive(Clone)]
+struct StepSizes {
+    wrt_weights: Vec<Array<f64>>,
+    wrt_biases: Vec<Array<f64>>,
+}
+
+impl fmt::Debug for StepSizes {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self.param_vec())
+    }
+}
+
+impl StepSizes {
+    fn param_vec(&self) -> Vec<f64> {
+        let mut host_vec = Vec::new();
+        host_vec.resize(self.num_params(), 0.);
+        let mut insert_ix: usize = 0;
+        for i in 0..self.wrt_weights.len() {
+            let len = self.wrt_weights[i].elements();
+            self.wrt_weights[i].host(&mut host_vec[insert_ix..insert_ix + len]);
+            insert_ix += len;
+        }
+        for i in 0..self.wrt_biases.len() {
+            let len = self.wrt_biases[i].elements();
+            self.wrt_biases[i].host(&mut host_vec[insert_ix..insert_ix + len]);
+            insert_ix += len;
+        }
+        host_vec
+    }
+
+    fn num_params(&self) -> usize {
+        let mut res: usize = 0;
+        for i in 0..self.wrt_weights.len() {
+            res += self.wrt_weights[i].elements();
+        }
+        for i in 0..self.wrt_biases.len() {
+            res += self.wrt_biases[i].elements();
+        }
+        res
+    }
+
+    // TODO: better to use some dual averaging scheme?
+    // TODO: test this!
+    // TODO: this will almost definitely violate reversibility and therefore detailed balance.
+    // It might still work, but is not guaranteed to?
+    fn update_with_second_derivative(
+        &mut self,
+        prev_momenta: &ArmMomenta,
+        prev_gradients: &ArmLogDensityGradient,
+        curr_gradients: &ArmLogDensityGradient,
+    ) {
+        for i in 0..self.wrt_weights.len() {
+            // distance traveled
+            let delta_t = &self.wrt_weights[i] * &prev_momenta.wrt_weights[i];
+            // change in first derivative value
+            let delta_f = &curr_gradients.wrt_weights[i] - &prev_gradients.wrt_weights[i];
+            // TODO: the argument of the sqrt might need a negative sign
+            self.wrt_weights[i] = 1 / (arrayfire::sqrt(&(delta_f / delta_t)));
+        }
+        for i in 0..self.wrt_biases.len() {
+            // distance traveled
+            let delta_t = &self.wrt_biases[i] * &prev_momenta.wrt_biases[i];
+            // change in first derivative value
+            let delta_f = &curr_gradients.wrt_biases[i] - &prev_gradients.wrt_biases[i];
+            self.wrt_biases[i] = 1 / (arrayfire::sqrt(&(delta_f / delta_t)));
+        }
+    }
+}
+
+#[derive(Clone)]
 struct ArmMomenta {
-    weight_momenta: Vec<Array<f64>>,
-    bias_momenta: Vec<Array<f64>>,
+    wrt_weights: Vec<Array<f64>>,
+    wrt_biases: Vec<Array<f64>>,
 }
 
 impl ArmMomenta {
-    // TODO: add step size for heuristic step sizes
-    fn half_step(&mut self, step_size: f64, grad: &ArmLogDensityGradient) {
-        for i in 0..self.weight_momenta.len() {
-            self.weight_momenta[i] += step_size * 0.5 * &grad.wrt_weights[i];
+    fn half_step(&mut self, step_sizes: &StepSizes, grad: &ArmLogDensityGradient) {
+        for i in 0..self.wrt_weights.len() {
+            self.wrt_weights[i] += &step_sizes.wrt_weights[i] * 0.5 * &grad.wrt_weights[i];
         }
-        for i in 0..self.bias_momenta.len() {
-            self.bias_momenta[i] += step_size * 0.5 * &grad.wrt_biases[i];
+        for i in 0..self.wrt_biases.len() {
+            self.wrt_biases[i] += &step_sizes.wrt_biases[i] * 0.5 * &grad.wrt_biases[i];
         }
     }
 
-    // TODO: add step size for heuristic step sizes
-    fn full_step(&mut self, step_size: f64, grad: &ArmLogDensityGradient) {
-        for i in 0..self.weight_momenta.len() {
-            self.weight_momenta[i] += step_size * &grad.wrt_weights[i];
+    fn full_step(&mut self, step_sizes: &StepSizes, grad: &ArmLogDensityGradient) {
+        for i in 0..self.wrt_weights.len() {
+            self.wrt_weights[i] += &step_sizes.wrt_weights[i] * &grad.wrt_weights[i];
         }
-        for i in 0..self.bias_momenta.len() {
-            self.bias_momenta[i] += step_size * &grad.wrt_biases[i];
+        for i in 0..self.wrt_biases.len() {
+            self.wrt_biases[i] += &step_sizes.wrt_biases[i] * &grad.wrt_biases[i];
         }
     }
 
     fn log_density(&self) -> f64 {
         let mut log_density: f64 = 0.;
-        for i in 0..self.weight_momenta.len() {
-            log_density +=
-                arrayfire::sum_all(&(&self.weight_momenta[i] * &self.weight_momenta[i])).0;
+        for i in 0..self.wrt_weights.len() {
+            log_density += arrayfire::sum_all(&(&self.wrt_weights[i] * &self.wrt_weights[i])).0;
         }
-        for i in 0..self.bias_momenta.len() {
-            log_density += arrayfire::sum_all(&(&self.bias_momenta[i] * &self.bias_momenta[i])).0;
+        for i in 0..self.wrt_biases.len() {
+            log_density += arrayfire::sum_all(&(&self.wrt_biases[i] * &self.wrt_biases[i])).0;
         }
         log_density
     }
@@ -95,13 +161,12 @@ impl ArmParams {
         res
     }
 
-    // TODO: add step size fo heuristic step sizes
-    fn full_step(&mut self, step_size: f64, mom: &ArmMomenta) {
+    fn full_step(&mut self, step_sizes: &StepSizes, mom: &ArmMomenta) {
         for i in 0..self.weights.len() {
-            self.weights[i] += step_size * &mom.weight_momenta[i];
+            self.weights[i] += &step_sizes.wrt_weights[i] * &mom.wrt_weights[i];
         }
         for i in 0..self.biases.len() {
-            self.biases[i] += step_size * &mom.bias_momenta[i];
+            self.biases[i] += &step_sizes.wrt_biases[i] * &mom.wrt_biases[i];
         }
     }
 
@@ -161,11 +226,12 @@ impl Arm {
         x_train: &Array<f64>,
         y_train: &Array<f64>,
         integration_length: usize,
-        step_size: f64,
+        init_step_size: f64,
     ) -> bool {
         let init_params = self.params.clone();
-        let init_rss = self.rss(x_train, y_train);
         // TODO: add heuristic step sizes
+        // for that I will need to keep last rounds gradient, step sizes and momenta
+        let step_sizes = self.uniform_step_sizes(init_step_size);
         // TODO: add u turn diagnostic for tuning
         let init_momenta = self.sample_momenta();
         let init_neg_hamiltonian = self.neg_hamiltonian(&init_momenta, x_train, y_train);
@@ -177,11 +243,11 @@ impl Arm {
 
         // integrate
         // initial half step
-        momenta.half_step(step_size, &self.log_density_gradient(x_train, y_train));
+        momenta.half_step(&step_sizes, &self.log_density_gradient(x_train, y_train));
         // leapfrog
         for step in 0..(integration_length - 1) {
-            self.params.full_step(step_size, &momenta);
-            momenta.full_step(step_size, &self.log_density_gradient(x_train, y_train));
+            self.params.full_step(&step_sizes, &momenta);
+            momenta.full_step(&step_sizes, &self.log_density_gradient(x_train, y_train));
             if self.verbose {
                 debug!(
                     "step: {:?}, hamiltonian: {:?}",
@@ -191,8 +257,8 @@ impl Arm {
             }
         }
         // final steps for alignment
-        self.params.full_step(step_size, &momenta);
-        momenta.half_step(step_size, &self.log_density_gradient(x_train, y_train));
+        self.params.full_step(&step_sizes, &momenta);
+        momenta.half_step(&step_sizes, &self.log_density_gradient(x_train, y_train));
 
         // accept or reject
         let final_neg_hamiltonian = self.neg_hamiltonian(&momenta, x_train, y_train);
@@ -242,41 +308,43 @@ impl Arm {
     }
 
     fn sample_momenta(&self) -> ArmMomenta {
-        let mut weight_momenta = Vec::with_capacity(self.num_layers);
-        let mut bias_momenta = Vec::with_capacity(self.num_layers - 1);
+        let mut wrt_weights = Vec::with_capacity(self.num_layers);
+        let mut wrt_biases = Vec::with_capacity(self.num_layers - 1);
         for index in 0..self.num_layers - 1 {
-            weight_momenta.push(arrayfire::randn::<f64>(self.weights(index).dims()));
-            bias_momenta.push(arrayfire::randn::<f64>(self.biases(index).dims()));
+            wrt_weights.push(arrayfire::randn::<f64>(self.weights(index).dims()));
+            wrt_biases.push(arrayfire::randn::<f64>(self.biases(index).dims()));
         }
         // output layer weight momentum
-        weight_momenta.push(arrayfire::randn::<f64>(
+        wrt_weights.push(arrayfire::randn::<f64>(
             self.weights(self.num_layers - 1).dims(),
         ));
         ArmMomenta {
-            weight_momenta,
-            bias_momenta,
+            wrt_weights,
+            wrt_biases,
         }
     }
 
-    fn update_momenta(
-        &self,
-        momenta: &mut ArmMomenta,
-        step_sizes: &Vec<f64>,
-        // the fraction of a step that will be taken
-        step_size_fraction: f64,
-        x_train: &Array<f64>,
-        y_train: &Array<f64>,
-    ) {
-        let ld_gradient = self.log_density_gradient(x_train, y_train);
-        // update each momentum component individually
-        for index in 0..self.num_layers {
-            momenta.weight_momenta[index] +=
-                step_sizes[index] * step_size_fraction * &ld_gradient.wrt_weights[index];
-            if index == self.num_layers - 1 {
-                break;
-            }
-            momenta.bias_momenta[index] +=
-                step_sizes[index] * step_size_fraction * &ld_gradient.wrt_biases[index];
+    fn uniform_step_sizes(&self, val: f64) -> StepSizes {
+        let mut wrt_weights = Vec::with_capacity(self.num_layers);
+        let mut wrt_biases = Vec::with_capacity(self.num_layers - 1);
+        for index in 0..self.num_layers - 1 {
+            wrt_weights.push(Array::new(
+                &vec![val; self.weights(index).elements()],
+                self.weights(index).dims(),
+            ));
+            wrt_biases.push(Array::new(
+                &vec![val; self.biases(index).elements()],
+                self.biases(index).dims(),
+            ));
+        }
+        // output layer weights
+        wrt_weights.push(Array::new(
+            &vec![val; self.weights(self.num_layers - 1).elements()],
+            self.weights(self.num_layers - 1).dims(),
+        ));
+        StepSizes {
+            wrt_weights,
+            wrt_biases,
         }
     }
 
@@ -1001,5 +1069,20 @@ mod tests {
         };
         let exp = vec![0.1, 0.2, 0.3, 0.4];
         assert_eq!(params.param_vec(), exp);
+    }
+
+    #[test]
+    fn test_uniform_step_sizes() {
+        let arm = test_arm();
+        let val = 1.0;
+        let step_sizes = arm.uniform_step_sizes(val);
+        for i in 0..(arm.num_layers - 1) {
+            let mut obs = to_host(&step_sizes.wrt_weights[i]);
+            assert_eq!(obs, vec![val; obs.len()]);
+            obs = to_host(&step_sizes.wrt_biases[i]);
+            assert_eq!(obs, vec![val; obs.len()]);
+        }
+        let obs = to_host(&step_sizes.wrt_weights[arm.num_layers - 1]);
+        assert_eq!(obs, vec![val; obs.len()]);
     }
 }
