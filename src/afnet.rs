@@ -2,6 +2,7 @@ use arrayfire::{dim4, matmul, tanh, Array, MatProp};
 use log::{debug, info};
 use rand::prelude::ThreadRng;
 use rand::{thread_rng, Rng};
+use rand_distr::{Distribution, Gamma};
 use std::fmt;
 
 /// Copy data from device to a host vector.
@@ -200,6 +201,7 @@ struct ArmLogDensityGradient {
 }
 
 pub struct Arm {
+    num_params: usize,
     num_markers: usize,
     params: ArmParams,
     hyperparams: ArmHyperparams,
@@ -226,12 +228,17 @@ impl Arm {
         x_train: &Array<f64>,
         y_train: &Array<f64>,
         integration_length: usize,
-        init_step_size: f64,
+        step_size: Option<f64>,
+        max_hamiltonian_error: f64,
     ) -> bool {
         let init_params = self.params.clone();
-        // TODO: add heuristic step sizes
-        // for that I will need to keep last rounds gradient, step sizes and momenta
-        let step_sizes = self.uniform_step_sizes(init_step_size);
+        let step_sizes = if let Some(s) = step_size {
+            self.uniform_step_sizes(s)
+        } else {
+            self.random_step_sizes()
+        };
+        debug!("step sizes: {:?}", step_sizes);
+
         // TODO: add u turn diagnostic for tuning
         let init_momenta = self.sample_momenta();
         let init_neg_hamiltonian = self.neg_hamiltonian(&init_momenta, x_train, y_train);
@@ -240,14 +247,15 @@ impl Arm {
             debug!("initial hamiltonian: {:?}", init_neg_hamiltonian);
         }
         let mut momenta = init_momenta.clone();
+        let mut ldg = self.log_density_gradient(x_train, y_train);
 
-        // integrate
-        // initial half step
-        momenta.half_step(&step_sizes, &self.log_density_gradient(x_train, y_train));
         // leapfrog
-        for step in 0..(integration_length - 1) {
+        for step in 0..(integration_length) {
+            momenta.half_step(&step_sizes, &ldg);
             self.params.full_step(&step_sizes, &momenta);
-            momenta.full_step(&step_sizes, &self.log_density_gradient(x_train, y_train));
+            ldg = self.log_density_gradient(x_train, y_train);
+            momenta.half_step(&step_sizes, &ldg);
+
             if self.verbose {
                 debug!(
                     "step: {:?}, hamiltonian: {:?}",
@@ -255,10 +263,14 @@ impl Arm {
                     self.neg_hamiltonian(&momenta, x_train, y_train)
                 )
             }
+
+            if (self.neg_hamiltonian(&momenta, x_train, y_train) - init_neg_hamiltonian).abs()
+                > max_hamiltonian_error
+            {
+                info!("hamiltonian error threshold crossed: terminating");
+                return false;
+            }
         }
-        // final steps for alignment
-        self.params.full_step(&step_sizes, &momenta);
-        momenta.half_step(&step_sizes, &self.log_density_gradient(x_train, y_train));
 
         // accept or reject
         let final_neg_hamiltonian = self.neg_hamiltonian(&momenta, x_train, y_train);
@@ -319,6 +331,53 @@ impl Arm {
             self.weights(self.num_layers - 1).dims(),
         ));
         ArmMomenta {
+            wrt_weights,
+            wrt_biases,
+        }
+    }
+
+    fn random_step_sizes(&mut self) -> StepSizes {
+        let mut wrt_weights = Vec::with_capacity(self.num_layers);
+        let mut wrt_biases = Vec::with_capacity(self.num_layers - 1);
+        let gamma = Gamma::new(0.5, 1.).unwrap();
+        let prop_factor = (self.num_params as f64).powf(-0.25);
+        for index in 0..self.num_layers - 1 {
+            let n = self.weights(index).elements();
+            wrt_weights.push(
+                Array::new(
+                    (&mut self.rng)
+                        .sample_iter(gamma)
+                        .take(n)
+                        .collect::<Vec<f64>>()
+                        .as_slice(),
+                    self.weights(index).dims(),
+                ) * prop_factor,
+            );
+            let n = self.biases(index).elements();
+            wrt_biases.push(
+                Array::new(
+                    (&mut self.rng)
+                        .sample_iter(gamma)
+                        .take(n)
+                        .collect::<Vec<f64>>()
+                        .as_slice(),
+                    self.biases(index).dims(),
+                ) * prop_factor,
+            );
+        }
+        // output layer weights
+        let n = self.weights(self.num_layers - 1).elements();
+        wrt_weights.push(
+            Array::new(
+                (&mut self.rng)
+                    .sample_iter(gamma)
+                    .take(n)
+                    .collect::<Vec<f64>>()
+                    .as_slice(),
+                self.weights(self.num_layers - 1).dims(),
+            ) * prop_factor,
+        );
+        StepSizes {
             wrt_weights,
             wrt_biases,
         }
@@ -470,6 +529,7 @@ impl Arm {
 }
 
 pub struct ArmBuilder {
+    num_params: usize,
     num_markers: usize,
     layer_widths: Vec<usize>,
     num_layers: usize,
@@ -484,6 +544,7 @@ pub struct ArmBuilder {
 impl ArmBuilder {
     pub fn new() -> Self {
         Self {
+            num_params: 0,
             num_markers: 0,
             layer_widths: vec![],
             // we always have a summary and an output node, so at least 2 layers.
@@ -611,6 +672,13 @@ impl ArmBuilder {
         self.layer_widths.push(1);
         widths.append(&mut self.layer_widths.clone());
 
+        // get total number of params in network
+        for i in 1..=self.num_layers {
+            self.num_params += widths[i - 1] * widths[i] + widths[i];
+        }
+        // remove count for output bias
+        self.num_params -= 1;
+
         // add None if weights or biases not added for last layers
         for _ in 0..self.num_layers - self.weights.len() {
             self.weights.push(None);
@@ -620,7 +688,7 @@ impl ArmBuilder {
             self.biases.push(None);
         }
 
-        let mut weights = vec![];
+        let mut weights: Vec<Array<f64>> = vec![];
         let mut biases: Vec<Array<f64>> = vec![];
 
         for index in 0..self.num_layers {
@@ -659,6 +727,7 @@ impl ArmBuilder {
         }
 
         Arm {
+            num_params: self.num_params,
             num_markers: self.num_markers,
             params: ArmParams { weights, biases },
             // TODO: impl build method for setting precisions
@@ -835,6 +904,7 @@ mod tests {
             .build();
 
         // network size
+        assert_eq!(arm.num_params, 6 + 2 + 2 + 1 + 1);
         assert_eq!(arm.num_layers, 3);
         assert_eq!(arm.num_markers, 3);
         for i in 0..arm.num_layers {
