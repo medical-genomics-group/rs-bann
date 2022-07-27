@@ -11,32 +11,33 @@ use rs_bedvec::io::BedReader;
 #[clap(author, version, about, long_about = None)]
 struct AFArgs {
     /// number of input feature (markers)
-    #[clap(short, value_parser)]
-    p: usize,
+    num_markers: usize,
 
     /// number of samples (individuals)
-    #[clap(short, value_parser)]
-    n: usize,
+    num_individuals: usize,
 
     /// width of hidden layer
-    #[clap(short, value_parser)]
-    w: usize,
-
-    /// hmc step size
-    #[clap(short, value_parser)]
-    e: f64,
+    hidden_layer_width: usize,
 
     /// hmc integration length
-    #[clap(short, value_parser)]
-    l: usize,
+    integration_length: usize,
 
     /// chain length (number of hmc samples)
-    #[clap(short, value_parser)]
-    c: usize,
+    chain_length: usize,
+
+    /// max hamiltonian error
+    max_hamiltonian_error: f64,
+
+    /// hmc step size
+    #[clap(short, long)]
+    step_size: Option<f64>,
+
+    /// enable debug prints
+    #[clap(short, long)]
+    debug_prints: bool,
 }
 
 fn main() {
-    simple_logger::init_with_level(log::Level::Info).unwrap();
     test_crate_af();
 }
 
@@ -63,21 +64,30 @@ fn predict() {
 }
 
 fn test_crate_af() {
-    info!("Starting af test");
     let args = AFArgs::parse();
 
+    if args.debug_prints {
+        simple_logger::init_with_level(log::Level::Debug).unwrap();
+    } else {
+        simple_logger::init_with_level(log::Level::Info).unwrap();
+    }
+
+    info!("Starting af test");
+
     // make random data
-    let num_individuals: usize = args.n;
-    let num_markers: usize = args.p;
-    let hidden_layer_width: usize = args.w;
-    let w0: Array<f64> = randn(dim4![num_markers as u64, hidden_layer_width as u64, 1, 1]);
-    let w1: Array<f64> = randn(dim4![hidden_layer_width as u64, 1, 1, 1]);
+    let w0: Array<f64> = randn(dim4![
+        args.num_markers as u64,
+        args.hidden_layer_width as u64,
+        1,
+        1
+    ]);
+    let w1: Array<f64> = randn(dim4![args.hidden_layer_width as u64, 1, 1, 1]);
     let w2: Array<f64> = randn(dim4![1, 1, 1, 1]);
-    let b0: Array<f64> = randn(dim4![1, hidden_layer_width as u64, 1, 1]);
+    let b0: Array<f64> = randn(dim4![1, args.hidden_layer_width as u64, 1, 1]);
     let b1: Array<f64> = randn(dim4![1, 1, 1, 1]);
     let true_net = ArmBuilder::new()
-        .with_num_markers(num_markers as usize)
-        .add_hidden_layer(hidden_layer_width as usize)
+        .with_num_markers(args.num_markers as usize)
+        .add_hidden_layer(args.hidden_layer_width as usize)
         .add_layer_weights(&w0)
         .add_layer_biases(&b0)
         .add_summary_weights(&w1)
@@ -86,27 +96,40 @@ fn test_crate_af() {
         .verbose()
         .build();
 
-    let x_train: Array<f64> = randn(dim4![num_individuals as u64, num_markers as u64, 1, 1]);
+    let x_train: Array<f64> = randn(dim4![
+        args.num_individuals as u64,
+        args.num_markers as u64,
+        1,
+        1
+    ]);
     let y_train = true_net.predict(&x_train);
-    let x_test: Array<f64> = randn(dim4![num_individuals as u64, num_markers as u64, 1, 1]);
+    let x_test: Array<f64> = randn(dim4![
+        args.num_individuals as u64,
+        args.num_markers as u64,
+        1,
+        1
+    ]);
     let y_test = true_net.predict(&x_test);
 
     let mut train_net = ArmBuilder::new()
-        .with_num_markers(num_markers as usize)
-        .add_hidden_layer(hidden_layer_width as usize)
+        .with_num_markers(args.num_markers as usize)
+        .add_hidden_layer(args.hidden_layer_width as usize)
         .with_initial_weights_value(1.)
         .with_initial_bias_value(1.)
         .verbose()
         .build();
 
     // train
-    let integration_length = args.l;
-    let step_size = args.e;
-    let chain_length = args.c;
     let mut accepted_samples: u64 = 0;
 
-    for i in 0..chain_length {
-        if train_net.hmc_step(&x_train, &y_train, integration_length, step_size) {
+    for i in 0..args.chain_length {
+        if train_net.hmc_step(
+            &x_train,
+            &y_train,
+            args.integration_length,
+            args.step_size,
+            args.max_hamiltonian_error,
+        ) {
             accepted_samples += 1;
             info!(
                 "iteration: {:?} \t| loss (train): {:?} \t| loss (test): {:?}",
@@ -117,7 +140,7 @@ fn test_crate_af() {
         }
     }
 
-    let acceptance_rate: f64 = accepted_samples as f64 / chain_length as f64;
+    let acceptance_rate: f64 = accepted_samples as f64 / args.chain_length as f64;
     info!("Finished. Overall acceptance rate: {:?}", acceptance_rate);
 }
 
