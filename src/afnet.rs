@@ -56,7 +56,9 @@ impl StepSizes {
 
     // TODO: better to use some dual averaging scheme?
     // TODO: test this!
-    fn update(
+    // TODO: this will almost definitely violate reversibility and therefore detailed balance.
+    // It might still work, but is not guaranteed to?
+    fn update_with_second_derivative(
         &mut self,
         prev_momenta: &ArmMomenta,
         prev_gradients: &ArmLogDensityGradient,
