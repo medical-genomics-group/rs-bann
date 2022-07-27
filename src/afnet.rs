@@ -237,6 +237,8 @@ impl Arm {
         } else {
             self.random_step_sizes()
         };
+        debug!("step sizes: {:?}", step_sizes);
+
         // TODO: add u turn diagnostic for tuning
         let init_momenta = self.sample_momenta();
         let init_neg_hamiltonian = self.neg_hamiltonian(&init_momenta, x_train, y_train);
@@ -337,7 +339,7 @@ impl Arm {
     fn random_step_sizes(&mut self) -> StepSizes {
         let mut wrt_weights = Vec::with_capacity(self.num_layers);
         let mut wrt_biases = Vec::with_capacity(self.num_layers - 1);
-        let gamma = Gamma::new(1., 2.).unwrap();
+        let gamma = Gamma::new(0.5, 1.).unwrap();
         let prop_factor = (self.num_params as f64).powf(-0.25);
         for index in 0..self.num_layers - 1 {
             let n = self.weights(index).elements();
