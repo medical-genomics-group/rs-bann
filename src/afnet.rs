@@ -200,6 +200,7 @@ struct ArmLogDensityGradient {
 }
 
 pub struct Arm {
+    num_params: usize,
     num_markers: usize,
     params: ArmParams,
     hyperparams: ArmHyperparams,
@@ -470,6 +471,7 @@ impl Arm {
 }
 
 pub struct ArmBuilder {
+    num_params: usize,
     num_markers: usize,
     layer_widths: Vec<usize>,
     num_layers: usize,
@@ -484,6 +486,7 @@ pub struct ArmBuilder {
 impl ArmBuilder {
     pub fn new() -> Self {
         Self {
+            num_params: 0,
             num_markers: 0,
             layer_widths: vec![],
             // we always have a summary and an output node, so at least 2 layers.
@@ -611,6 +614,13 @@ impl ArmBuilder {
         self.layer_widths.push(1);
         widths.append(&mut self.layer_widths.clone());
 
+        // get total number of params in network
+        for i in 1..=self.num_layers {
+            self.num_params += widths[i - 1] * widths[i] + widths[i];
+        }
+        // remove count for output bias
+        self.num_params -= 1;
+
         // add None if weights or biases not added for last layers
         for _ in 0..self.num_layers - self.weights.len() {
             self.weights.push(None);
@@ -620,7 +630,7 @@ impl ArmBuilder {
             self.biases.push(None);
         }
 
-        let mut weights = vec![];
+        let mut weights: Vec<Array<f64>> = vec![];
         let mut biases: Vec<Array<f64>> = vec![];
 
         for index in 0..self.num_layers {
@@ -659,6 +669,7 @@ impl ArmBuilder {
         }
 
         Arm {
+            num_params: self.num_params,
             num_markers: self.num_markers,
             params: ArmParams { weights, biases },
             // TODO: impl build method for setting precisions
@@ -835,6 +846,7 @@ mod tests {
             .build();
 
         // network size
+        assert_eq!(arm.num_params, 6 + 2 + 2 + 1 + 1);
         assert_eq!(arm.num_layers, 3);
         assert_eq!(arm.num_markers, 3);
         for i in 0..arm.num_layers {
