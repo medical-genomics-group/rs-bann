@@ -268,6 +268,7 @@ impl Arm {
                 > max_hamiltonian_error
             {
                 info!("hamiltonian error threshold crossed: terminating");
+                self.params = init_params;
                 return false;
             }
         }
