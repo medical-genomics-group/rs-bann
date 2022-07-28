@@ -2,7 +2,7 @@ use arrayfire::{dim4, randn, Array};
 use clap::Parser;
 use log::info;
 use ndarray::arr1;
-use rs_bann::afnet::ArmBuilder;
+use rs_bann::branch::branch_builder::BranchBuilder;
 use rs_bann::network::MarkerGroup;
 use rs_bedvec::io::BedReader;
 
@@ -85,7 +85,7 @@ fn test_crate_af() {
     let w2: Array<f64> = randn(dim4![1, 1, 1, 1]);
     let b0: Array<f64> = randn(dim4![1, args.hidden_layer_width as u64, 1, 1]);
     let b1: Array<f64> = randn(dim4![1, 1, 1, 1]);
-    let true_net = ArmBuilder::new()
+    let true_net = BranchBuilder::new()
         .with_num_markers(args.num_markers as usize)
         .add_hidden_layer(args.hidden_layer_width as usize)
         .add_layer_weights(&w0)
@@ -111,7 +111,7 @@ fn test_crate_af() {
     ]);
     let y_test = true_net.predict(&x_test);
 
-    let mut train_net = ArmBuilder::new()
+    let mut train_net = BranchBuilder::new()
         .with_num_markers(args.num_markers as usize)
         .add_hidden_layer(args.hidden_layer_width as usize)
         .with_initial_weights_value(1.)

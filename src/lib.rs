@@ -1,5 +1,14 @@
 extern crate blas_src;
 extern crate openblas_src;
 
-pub mod afnet;
+pub mod branch;
 pub mod network;
+
+use arrayfire::Array;
+
+pub(crate) fn to_host(a: &Array<f64>) -> Vec<f64> {
+    let mut buffer = Vec::<f64>::new();
+    buffer.resize(a.elements(), 0.);
+    a.host(&mut buffer);
+    buffer
+}
