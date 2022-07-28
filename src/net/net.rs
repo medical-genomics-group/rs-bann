@@ -22,7 +22,7 @@ impl Net {
         let mut branch_ixs = (0..self.num_branches).collect::<Vec<usize>>();
         for ix in 0..chain_length {
             // TODO: update output bias term (Katya says before everything else), including output residual variance?
-            // determine random order in which branches are trained
+            // shuffle order in which branches are trained
             branch_ixs.shuffle(&mut rng);
             for &branch_ix in &branch_ixs {
                 let cfg = &self.branch_cfgs[branch_ix];
@@ -34,13 +34,13 @@ impl Net {
                 // load branch cfg
                 let mut branch = Branch::from_cfg(&self.branch_cfgs[branch_ix]);
                 // remove prev contribution from residual
-                residual -= branch.predict(&x);
+                residual += branch.predict(&x);
                 // TODO: use some input cfg for hmc params
                 if branch.hmc_step(&x, &residual, 70, None, 1000.) {
                     acceptance_counts[branch_ix] += 1;
                 }
                 // update residual
-                residual += branch.predict(&x);
+                residual -= branch.predict(&x);
                 // TODO: update hyperparams!
                 // dump branch cfg
                 self.branch_cfgs[ix] = branch.to_cfg();
