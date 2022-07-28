@@ -2,7 +2,7 @@ use arrayfire::{dim4, randn, Array};
 use clap::Parser;
 use log::info;
 use ndarray::arr1;
-use rs_bann::branch::branch_builder::BranchBuilder;
+use rs_bann::net::branch::branch_builder::BranchBuilder;
 use rs_bann::network::MarkerGroup;
 use rs_bedvec::io::BedReader;
 
