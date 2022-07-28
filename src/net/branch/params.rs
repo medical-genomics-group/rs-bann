@@ -134,12 +134,14 @@ mod tests {
         let params = test_params();
         let param_vec = params.param_vec();
         let params_loaded = BranchParams::from_param_vec(&param_vec, &vec![1, 1], 2);
+        assert_eq!(params.weights.len(), params_loaded.weights.len());
         for ix in 0..params.weights.len() {
             assert_eq!(
                 to_host(&params.weights[ix]),
                 to_host(&params_loaded.weights[ix])
             );
         }
+        assert_eq!(params.biases.len(), params_loaded.biases.len());
         for ix in 0..params.biases.len() {
             assert_eq!(
                 to_host(&params.biases[ix]),
