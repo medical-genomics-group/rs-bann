@@ -93,7 +93,6 @@ fn test_crate_af() {
         .add_summary_weights(&w1)
         .add_summary_bias(&b1)
         .add_output_weight(&w2)
-        .verbose()
         .build();
 
     let x_train: Array<f64> = randn(dim4![
@@ -116,7 +115,6 @@ fn test_crate_af() {
         .add_hidden_layer(args.hidden_layer_width as usize)
         .with_initial_weights_value(1.)
         .with_initial_bias_value(1.)
-        .verbose()
         .build();
 
     // train

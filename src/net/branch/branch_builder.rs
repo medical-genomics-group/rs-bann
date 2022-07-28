@@ -13,7 +13,6 @@ pub struct BranchBuilder {
     initial_random_range: f64,
     biases: Vec<Option<Array<f64>>>,
     weights: Vec<Option<Array<f64>>>,
-    verbose: bool,
 }
 
 impl BranchBuilder {
@@ -29,13 +28,7 @@ impl BranchBuilder {
             initial_random_range: 0.05,
             biases: vec![],
             weights: vec![],
-            verbose: false,
         }
-    }
-
-    pub fn verbose(&mut self) -> &mut Self {
-        self.verbose = true;
-        self
     }
 
     pub fn with_num_markers(&mut self, num_markers: usize) -> &mut Self {
@@ -214,7 +207,6 @@ impl BranchBuilder {
             layer_widths: self.layer_widths.clone(),
             num_layers: self.num_layers,
             rng: thread_rng(),
-            verbose: self.verbose,
         }
     }
 }
