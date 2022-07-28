@@ -1,8 +1,9 @@
 use super::momenta::BranchMomenta;
 use super::step_sizes::StepSizes;
-use arrayfire::Array;
+use arrayfire::{dim4, Array};
 use std::fmt;
 
+#[derive(Clone)]
 pub(crate) struct BranchHyperparams {
     pub weight_precisions: Vec<f64>,
     pub bias_precisions: Vec<f64>,
@@ -23,6 +24,35 @@ impl fmt::Debug for BranchParams {
 }
 
 impl BranchParams {
+    pub fn from_param_vec(
+        param_vec: &Vec<f64>,
+        layer_widths: &Vec<usize>,
+        num_markers: usize,
+    ) -> Self {
+        let mut weights: Vec<Array<f64>>;
+        let mut biases: Vec<Array<f64>>;
+        let mut prev_width = num_markers;
+        let mut read_ix: usize = 0;
+        for width in layer_widths {
+            let num_weights = prev_width * width;
+            weights.push(Array::new(
+                &param_vec[read_ix..read_ix + num_weights],
+                dim4!(prev_width as u64, *width as u64, 1, 1),
+            ));
+            prev_width = *width;
+            read_ix += num_weights;
+        }
+        for width in layer_widths {
+            let num_biases = width;
+            Array::new(
+                &param_vec[read_ix..read_ix + num_biases],
+                dim4!(1, *width as u64, 1, 1),
+            );
+            read_ix += num_biases;
+        }
+        Self { weights, biases }
+    }
+
     pub fn param_vec(&self) -> Vec<f64> {
         let mut host_vec = Vec::new();
         host_vec.resize(self.num_params(), 0.);

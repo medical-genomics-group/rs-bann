@@ -16,6 +16,15 @@ fn to_host(a: &Array<f64>) -> Vec<f64> {
     buffer
 }
 
+#[derive(Clone)]
+pub struct BranchCfg {
+    pub(crate) num_params: usize,
+    pub(crate) num_markers: usize,
+    pub(crate) layer_widths: Vec<usize>,
+    pub(crate) params: Vec<f64>,
+    pub(crate) hyperparams: BranchHyperparams,
+}
+
 /// Gradients of the log density w.r.t. the network parameters.
 #[derive(Clone)]
 pub(crate) struct BranchLogDensityGradient {
@@ -31,10 +40,33 @@ pub struct Branch {
     pub(crate) layer_widths: Vec<usize>,
     pub(crate) num_layers: usize,
     pub(crate) rng: ThreadRng,
-    pub(crate) verbose: bool,
 }
 
 impl Branch {
+    /// Creates Branch on device with BranchCfg from host memory.
+    pub fn from_cfg(cfg: &BranchCfg) -> Self {
+        Self {
+            num_params: cfg.num_params,
+            num_markers: cfg.num_markers,
+            num_layers: cfg.layer_widths.len(),
+            layer_widths: cfg.layer_widths.clone(),
+            hyperparams: cfg.hyperparams.clone(),
+            params: BranchParams::from_param_vec(&cfg.params, &cfg.layer_widths, cfg.num_markers),
+            rng: thread_rng(),
+        }
+    }
+
+    /// Dumps all branch info into a BranchCfg object stored in host memory.
+    pub fn to_cfg(&self) -> BranchCfg {
+        BranchCfg {
+            num_params: self.num_params,
+            num_markers: self.num_markers,
+            layer_widths: self.layer_widths.clone(),
+            params: self.params.param_vec(),
+            hyperparams: self.hyperparams.clone(),
+        }
+    }
+
     pub fn num_params(&self) -> usize {
         self.num_params
     }
@@ -101,10 +133,8 @@ impl Branch {
         // TODO: add u turn diagnostic for tuning
         let init_momenta = self.sample_momenta();
         let init_neg_hamiltonian = self.neg_hamiltonian(&init_momenta, x_train, y_train);
-        if self.verbose {
-            debug!("Starting hmc step");
-            debug!("initial hamiltonian: {:?}", init_neg_hamiltonian);
-        }
+        debug!("Starting hmc step");
+        debug!("initial hamiltonian: {:?}", init_neg_hamiltonian);
         let mut momenta = init_momenta.clone();
         let mut ldg = self.log_density_gradient(x_train, y_train);
 
@@ -115,13 +145,11 @@ impl Branch {
             ldg = self.log_density_gradient(x_train, y_train);
             momenta.half_step(&step_sizes, &ldg);
 
-            if self.verbose {
-                debug!(
-                    "step: {:?}, hamiltonian: {:?}",
-                    step,
-                    self.neg_hamiltonian(&momenta, x_train, y_train)
-                )
-            }
+            debug!(
+                "step: {:?}, hamiltonian: {:?}",
+                step,
+                self.neg_hamiltonian(&momenta, x_train, y_train)
+            );
 
             if (self.neg_hamiltonian(&momenta, x_train, y_train) - init_neg_hamiltonian).abs()
                 > max_hamiltonian_error
