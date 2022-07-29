@@ -1,13 +1,50 @@
 use super::branch::branch::Branch;
 use super::branch::branch::BranchCfg;
+use arrayfire::sum_all;
+use arrayfire::Scalar;
 use arrayfire::{dim4, Array};
 use rand::prelude::SliceRandom;
+use rand::rngs::ThreadRng;
 use rand::thread_rng;
+use rand_distr::{Distribution, Gamma, Normal};
+
+struct OutputBias {
+    precision: f64,
+    bias: f64,
+}
+
+impl OutputBias {
+    fn sample_bias(
+        &mut self,
+        error_precision: f64,
+        residual: &Array<f64>,
+        n: usize,
+        rng: &mut ThreadRng,
+    ) {
+        let (sum_r, _) = sum_all(residual);
+        let nu = error_precision / (n as f64 * error_precision + self.precision);
+        let mean = nu * sum_r;
+        let std = (1. / (n as f64 * error_precision + self.precision)).sqrt();
+        self.bias = Normal::new(mean, std).unwrap().sample(rng);
+    }
+
+    fn sample_precision(&mut self, prior_shape: f64, prior_scale: f64, rng: &mut ThreadRng) {
+        self.precision = single_param_precision_posterior(prior_shape, prior_scale, self.bias, rng);
+    }
+
+    fn af_bias(&self) -> Array<f64> {
+        Array::new(&[self.bias], dim4!(1, 1, 1, 1))
+    }
+}
 
 /// The full network model
 struct Net {
+    precision_prior_shape: f64,
+    precision_prior_scale: f64,
     num_branches: usize,
     branch_cfgs: Vec<BranchCfg>,
+    output_bias: OutputBias,
+    error_precision: f64,
 }
 
 impl Net {
@@ -21,7 +58,20 @@ impl Net {
         let mut residual = Array::new(y_train, dim4![num_individuals as u64, 1, 1, 1]);
         let mut branch_ixs = (0..self.num_branches).collect::<Vec<usize>>();
         for ix in 0..chain_length {
-            // TODO: update output bias term (Katya says before everything else), including output residual variance?
+            // sample ouput bias term
+            residual += self.output_bias.af_bias();
+            self.output_bias.sample_bias(
+                self.error_precision,
+                &residual,
+                num_individuals,
+                &mut rng,
+            );
+            self.output_bias.sample_precision(
+                self.precision_prior_shape,
+                self.precision_prior_scale,
+                &mut rng,
+            );
+            residual -= self.output_bias.af_bias();
             // shuffle order in which branches are trained
             branch_ixs.shuffle(&mut rng);
             for &branch_ix in &branch_ixs {
@@ -41,10 +91,10 @@ impl Net {
                 }
                 // update residual
                 residual -= branch.predict(&x);
-                // TODO: update hyperparams!
                 // dump branch cfg
                 self.branch_cfgs[ix] = branch.to_cfg();
             }
+            // update error variance
         }
     }
 }
