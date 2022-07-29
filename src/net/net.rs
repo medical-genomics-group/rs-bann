@@ -1,5 +1,7 @@
 use super::branch::branch::Branch;
 use super::branch::branch::BranchCfg;
+use super::gibbs_steps::multi_param_precision_posterior;
+use super::gibbs_steps::single_param_precision_posterior;
 use arrayfire::sum_all;
 use arrayfire::Scalar;
 use arrayfire::{dim4, Array};
@@ -83,18 +85,27 @@ impl Net {
                 );
                 // load branch cfg
                 let mut branch = Branch::from_cfg(&self.branch_cfgs[branch_ix]);
+                // tell branch about global error precision
+                branch.set_error_precision(self.error_precision);
                 // remove prev contribution from residual
                 residual += branch.predict(&x);
                 // TODO: use some input cfg for hmc params
                 if branch.hmc_step(&x, &residual, 70, None, 1000.) {
                     acceptance_counts[branch_ix] += 1;
                 }
+                branch.sample_precisions(self.precision_prior_shape, self.precision_prior_scale);
                 // update residual
                 residual -= branch.predict(&x);
                 // dump branch cfg
                 self.branch_cfgs[ix] = branch.to_cfg();
             }
-            // update error variance
+            // update error precision
+            self.error_precision = multi_param_precision_posterior(
+                self.precision_prior_shape,
+                self.precision_prior_scale,
+                &residual,
+                &mut rng,
+            );
         }
     }
 }

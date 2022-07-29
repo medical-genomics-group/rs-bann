@@ -1,3 +1,6 @@
+use super::super::gibbs_steps::{
+    multi_param_precision_posterior, single_param_precision_posterior,
+};
 use super::momenta::BranchMomenta;
 use super::params::{BranchHyperparams, BranchParams};
 use super::step_sizes::StepSizes;
@@ -103,6 +106,10 @@ impl Branch {
         self.layer_widths[index]
     }
 
+    pub fn set_error_precision(&mut self, val: f64) {
+        self.hyperparams.error_precision = val;
+    }
+
     pub fn rss(&self, x: &Array<f64>, y: &Array<f64>) -> f64 {
         let r = self.forward_feed(&x).last().unwrap() - y;
         arrayfire::sum_all(&(&r * &r)).0
@@ -112,8 +119,28 @@ impl Branch {
         self.forward_feed(x).last().unwrap().copy()
     }
 
-    /// Take a single parameter sample using HMC.
-    /// Return `false` if final state is rejected, `true` if accepted.
+    /// Samples precision values from their posterior distribution in a Gibbs step.
+    pub fn sample_precisions(&mut self, prior_shape: f64, prior_scale: f64) {
+        for i in 0..self.params.weights.len() {
+            self.hyperparams.weight_precisions[i] = multi_param_precision_posterior(
+                prior_shape,
+                prior_scale,
+                &self.params.weights[i],
+                &mut self.rng,
+            );
+        }
+        for i in 0..self.params.biases.len() {
+            self.hyperparams.bias_precisions[i] = multi_param_precision_posterior(
+                prior_shape,
+                prior_scale,
+                &self.params.biases[i],
+                &mut self.rng,
+            );
+        }
+    }
+
+    /// Takes a single parameter sample using HMC.
+    /// Returns `false` if final state is rejected, `true` if accepted.
     pub fn hmc_step(
         &mut self,
         x_train: &Array<f64>,
