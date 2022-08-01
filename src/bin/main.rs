@@ -2,9 +2,48 @@ use arrayfire::{dim4, randn, Array};
 use clap::Parser;
 use log::info;
 use ndarray::arr1;
+use rand::thread_rng;
+use rand_distr::{Binomial, Distribution, Uniform};
 use rs_bann::net::branch::branch_builder::BranchBuilder;
+use rs_bann::net::{architectures::BlockNetCfg, net::Net};
 use rs_bann::network::MarkerGroup;
 use rs_bedvec::io::BedReader;
+
+/// A small bayesian neural network implementation.
+/// Number of markers per branch: fixed
+/// Depth of branches: same for all branches
+/// Width of branch layers: same within branches, dynamic between branches
+#[derive(Parser, Debug)]
+#[clap(author, version, about, long_about = None)]
+struct BlockNetArgs {
+    /// number of input features per branch (markers)
+    num_markers_per_branch: usize,
+
+    /// number of branches (markers)
+    num_branches: usize,
+
+    /// number of samples (individuals)
+    num_individuals: usize,
+
+    /// width of hidden layer
+    hidden_layer_width: usize,
+
+    /// number of hidden layers in branches
+    branch_depth: usize,
+
+    /// prior shape
+    prior_shape: f64,
+
+    /// prior scale
+    prior_scale: f64,
+
+    /// full model chain length
+    chain_length: usize,
+
+    /// enable debug prints
+    #[clap(short, long)]
+    debug_prints: bool,
+}
 
 /// A small bayesian neural network implementation based on ArrayFire.
 #[derive(Parser, Debug)]
@@ -38,7 +77,7 @@ struct AFArgs {
 }
 
 fn main() {
-    test_crate_af();
+    // test_crate_af();
 }
 
 // TODO:
@@ -63,6 +102,66 @@ fn predict() {
     unimplemented!();
 }
 
+// tests block net architecture
+fn test_block_net() {
+    let args = BlockNetArgs::parse();
+
+    if args.debug_prints {
+        simple_logger::init_with_level(log::Level::Debug).unwrap();
+    } else {
+        simple_logger::init_with_level(log::Level::Info).unwrap();
+    }
+
+    info!("Starting block net test");
+
+    info!("Building true net");
+    let mut true_net_cfg = BlockNetCfg::new()
+        .with_depth(args.branch_depth)
+        .with_precision_prior(args.prior_shape, args.prior_scale);
+    for _ in 0..args.num_branches {
+        true_net_cfg.add_branch(args.num_markers_per_branch, args.hidden_layer_width);
+    }
+    let true_net = true_net_cfg.build_net();
+
+    let mut rng = thread_rng();
+
+    info!("Making random marker data");
+    let gt_per_branch = args.num_markers_per_branch * args.num_individuals;
+    let mut x_train: Vec<Vec<f64>> = vec![vec![0.0; gt_per_branch]];
+    let mut x_test: Vec<Vec<f64>> = vec![vec![0.0; gt_per_branch]];
+    for branch_ix in 0..args.num_branches {
+        for marker_ix in 0..args.num_markers_per_branch {
+            let maf = Uniform::from(0.0..0.5).sample(&mut rng);
+            (0..args.num_individuals).for_each(|i| {
+                x_train[branch_ix][marker_ix * args.num_individuals + i] =
+                    Binomial::new(2, maf).unwrap().sample(&mut rng) as f64
+            });
+            let maf = Uniform::from(0.0..0.5).sample(&mut rng);
+            (0..args.num_individuals).for_each(|i| {
+                x_test[branch_ix][marker_ix * args.num_individuals + i] =
+                    Binomial::new(2, maf).unwrap().sample(&mut rng) as f64
+            });
+        }
+    }
+
+    info!("Making phenotype data");
+    let y_train = true_net.predict(&x_train, args.num_individuals);
+    let y_test = true_net.predict(&x_test, args.num_individuals);
+
+    info!("Building net to train");
+    let mut net_cfg = BlockNetCfg::new()
+        .with_depth(args.branch_depth)
+        .with_precision_prior(args.prior_shape, args.prior_scale);
+    for _ in 0..args.num_branches {
+        net_cfg.add_branch(args.num_markers_per_branch, args.hidden_layer_width);
+    }
+    let mut net = net_cfg.build_net();
+
+    info!("Training net");
+    net.train(&x_train, &y_train, args.chain_length);
+}
+
+// tests single branch impl
 fn test_crate_af() {
     let args = AFArgs::parse();
 
