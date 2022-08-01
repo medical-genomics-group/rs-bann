@@ -13,6 +13,7 @@ pub struct BlockNetCfg {
     widths: Vec<usize>,
     precision_prior_shape: f64,
     precision_prior_scale: f64,
+    initial_random_range: f64,
 }
 
 impl BlockNetCfg {
@@ -23,6 +24,7 @@ impl BlockNetCfg {
             widths: vec![],
             precision_prior_shape: 1.,
             precision_prior_scale: 1.,
+            initial_random_range: 0.05,
         }
     }
 
@@ -42,11 +44,18 @@ impl BlockNetCfg {
         self
     }
 
+    pub fn with_initial_random_range(mut self, val: f64) -> Self {
+        self.initial_random_range = val;
+        self
+    }
+
     pub fn build_net(&self) -> Net {
         let mut branch_cfgs: Vec<BranchCfg> = Vec::new();
         let num_branches = self.widths.len();
         for branch_ix in 0..num_branches {
-            let mut cfg_bld = BranchCfgBuilder::new().with_num_markers(self.num_markers[branch_ix]);
+            let mut cfg_bld = BranchCfgBuilder::new()
+                .with_num_markers(self.num_markers[branch_ix])
+                .with_initial_random_range(self.initial_random_range);
             for _ in 0..self.depth {
                 cfg_bld.add_hidden_layer(self.widths[branch_ix]);
             }
