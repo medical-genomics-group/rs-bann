@@ -66,19 +66,19 @@ impl Net {
         let mut branch_ixs = (0..self.num_branches).collect::<Vec<usize>>();
         for _ in 0..mcmc_cfg.chain_length {
             // sample ouput bias term
-            // residual += self.output_bias.af_bias();
-            // self.output_bias.sample_bias(
-            //     self.error_precision,
-            //     &residual,
-            //     num_individuals,
-            //     &mut rng,
-            // );
-            // self.output_bias.sample_precision(
-            //     self.precision_prior_shape,
-            //     self.precision_prior_scale,
-            //     &mut rng,
-            // );
-            // residual -= self.output_bias.af_bias();
+            residual += self.output_bias.af_bias();
+            self.output_bias.sample_bias(
+                self.error_precision,
+                &residual,
+                num_individuals,
+                &mut rng,
+            );
+            self.output_bias.sample_precision(
+                self.precision_prior_shape,
+                self.precision_prior_scale,
+                &mut rng,
+            );
+            residual -= self.output_bias.af_bias();
             // shuffle order in which branches are trained
             branch_ixs.shuffle(&mut rng);
             for &branch_ix in &branch_ixs {
@@ -91,25 +91,25 @@ impl Net {
                 // load branch cfg
                 let mut branch = Branch::from_cfg(&cfg);
                 // tell branch about global error precision
-                // branch.set_error_precision(self.error_precision);
+                branch.set_error_precision(self.error_precision);
                 // TODO: save last prediction contribution for each branch to reduce compute
                 residual += branch.predict(&x);
                 if branch.hmc_step(&x, &residual, &mcmc_cfg) {
                     acceptance_counts[branch_ix] += 1;
                 }
-                // branch.sample_precisions(self.precision_prior_shape, self.precision_prior_scale);
+                branch.sample_precisions(self.precision_prior_shape, self.precision_prior_scale);
                 // update residual
                 residual -= branch.predict(&x);
                 // dump branch cfg
                 self.branch_cfgs[branch_ix] = branch.to_cfg();
             }
             // update error precision
-            // self.error_precision = multi_param_precision_posterior(
-            //     self.precision_prior_shape,
-            //     self.precision_prior_scale,
-            //     &residual,
-            //     &mut rng,
-            // );
+            self.error_precision = multi_param_precision_posterior(
+                self.precision_prior_shape,
+                self.precision_prior_scale,
+                &residual,
+                &mut rng,
+            );
         }
         let acceptance_rates: Vec<f64> = acceptance_counts
             .iter()
