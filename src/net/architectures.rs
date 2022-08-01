@@ -7,7 +7,7 @@ use super::{
 /// Number of markers per branch: dynamic
 /// Depth of branches: same for all branches
 /// Width of branch layers: same within branches, dynamic between branches
-struct BlockNetCfg {
+pub struct BlockNetCfg {
     num_markers: Vec<usize>,
     depth: usize,
     widths: Vec<usize>,
@@ -16,6 +16,16 @@ struct BlockNetCfg {
 }
 
 impl BlockNetCfg {
+    pub fn new() -> Self {
+        BlockNetCfg {
+            num_markers: vec![],
+            depth: 0,
+            widths: vec![],
+            precision_prior_shape: 1.,
+            precision_prior_scale: 1.,
+        }
+    }
+
     pub fn add_branch(&mut self, num_markers: usize, width: usize) {
         self.num_markers.push(num_markers);
         self.widths.push(width);
