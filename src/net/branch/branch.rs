@@ -137,10 +137,10 @@ impl Branch {
         mcmc_cfg: &MCMCCfg,
     ) -> bool {
         let init_params = self.params.clone();
-        let step_sizes = if let Some(s) = mcmc_cfg.hmc_step_size {
-            self.uniform_step_sizes(s)
+        let step_sizes = if mcmc_cfg.hmc_random_step_sizes {
+            self.random_step_sizes(mcmc_cfg.hmc_step_size)
         } else {
-            self.random_step_sizes()
+            self.uniform_step_sizes(mcmc_cfg.hmc_step_size)
         };
         debug!("step sizes: {:?}", step_sizes);
 
@@ -218,11 +218,11 @@ impl Branch {
         }
     }
 
-    fn random_step_sizes(&mut self) -> StepSizes {
+    fn random_step_sizes(&mut self, const_factor: f64) -> StepSizes {
         let mut wrt_weights = Vec::with_capacity(self.num_layers);
         let mut wrt_biases = Vec::with_capacity(self.num_layers - 1);
         let gamma = Gamma::new(0.25, 0.5).unwrap();
-        let prop_factor = (self.num_params as f64).powf(-0.25);
+        let prop_factor = (self.num_params as f64).powf(-0.25) * const_factor;
         for index in 0..self.num_layers - 1 {
             let n = self.weights(index).elements();
             wrt_weights.push(

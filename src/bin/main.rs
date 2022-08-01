@@ -46,9 +46,12 @@ struct BlockNetArgs {
     /// hmc integration length
     integration_length: usize,
 
-    /// hmc step size
+    /// hmc step size, acts as a modifying factor on random step sizes if enabled
+    step_size: f64,
+
+    /// enable random step sizes
     #[clap(short, long)]
-    step_size: Option<f64>,
+    random_step_sizes: bool,
 
     /// enable debug prints
     #[clap(short, long)]
@@ -77,9 +80,12 @@ struct AFArgs {
     /// max hamiltonian error
     max_hamiltonian_error: f64,
 
-    /// hmc step size
+    /// hmc step size, acts as a modifying factor on random step sizes if enabled
+    step_size: f64,
+
+    /// enable random step sizes
     #[clap(short, long)]
-    step_size: Option<f64>,
+    random_step_sizes: bool,
 
     /// enable debug prints
     #[clap(short, long)]
@@ -180,6 +186,7 @@ fn test_block_net() {
         hmc_max_hamiltonian_error: args.max_hamiltonian_error,
         hmc_integration_length: args.integration_length,
         chain_length: args.chain_length / 10,
+        hmc_random_step_sizes: args.random_step_sizes,
     };
 
     for dec in 0..decades {
@@ -256,6 +263,7 @@ fn test_crate_af() {
         hmc_max_hamiltonian_error: args.max_hamiltonian_error,
         hmc_integration_length: args.integration_length,
         chain_length: args.chain_length,
+        hmc_random_step_sizes: args.random_step_sizes,
     };
 
     for i in 0..args.chain_length {
