@@ -95,19 +95,19 @@ impl Net {
                 if branch.hmc_step(&x, &residual, &mcmc_cfg) {
                     acceptance_counts[branch_ix] += 1;
                 }
-                branch.sample_precisions(self.precision_prior_shape, self.precision_prior_scale);
+                // branch.sample_precisions(self.precision_prior_shape, self.precision_prior_scale);
                 // update residual
                 residual -= branch.predict(&x);
                 // dump branch cfg
                 self.branch_cfgs[branch_ix] = branch.to_cfg();
             }
             // update error precision
-            self.error_precision = multi_param_precision_posterior(
-                self.precision_prior_shape,
-                self.precision_prior_scale,
-                &residual,
-                &mut rng,
-            );
+            // self.error_precision = multi_param_precision_posterior(
+            //     self.precision_prior_shape,
+            //     self.precision_prior_scale,
+            //     &residual,
+            //     &mut rng,
+            // );
         }
         let acceptance_rates: Vec<f64> = acceptance_counts
             .iter()
@@ -161,10 +161,8 @@ impl Net {
     pub fn rss(&self, x_test: &Vec<Vec<f64>>, y_test: &Vec<f64>) -> f64 {
         let y_test_arr = Array::new(y_test, dim4!(y_test.len() as u64, 1, 1, 1));
         let y_hat = self.predict_arr(&x_test, y_test.len());
-        let mut sum_of_squares = vec![0.0];
-        let dotp = arrayfire::dot(&y_test_arr, &y_hat, MatProp::NONE, MatProp::NONE);
-        dotp.host(&mut sum_of_squares);
-        sum_of_squares[0]
+        let residual = y_test_arr - y_hat;
+        super::gibbs_steps::sum_of_squares(&residual)
     }
 }
 
