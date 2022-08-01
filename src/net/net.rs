@@ -162,7 +162,24 @@ impl Net {
         let y_test_arr = Array::new(y_test, dim4!(y_test.len() as u64, 1, 1, 1));
         let y_hat = self.predict_arr(&x_test, y_test.len());
         let mut sum_of_squares = vec![0.0];
-        arrayfire::dot(&y_test_arr, &y_hat, MatProp::NONE, MatProp::NONE).host(&mut sum_of_squares);
+        let dotp = arrayfire::dot(&y_test_arr, &y_hat, MatProp::NONE, MatProp::NONE);
+        dotp.host(&mut sum_of_squares);
         sum_of_squares[0]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::to_host;
+    use arrayfire::{dim4, Array, MatProp};
+
+    #[test]
+    fn test_arrayfire_dot_expected_result() {
+        // this should compute the sum of squares of two arrays, right?
+        let a = Array::new(&[1.0, 2.0, 3.0], dim4!(3, 1, 1, 1));
+        let b = Array::new(&[3.0, 2.0, 1.0], dim4!(3, 1, 1, 1));
+        let exp = 10.0;
+        let dotp = arrayfire::dot(&a, &b, MatProp::NONE, MatProp::NONE);
+        assert_eq!(to_host(&dotp)[0], exp);
     }
 }
