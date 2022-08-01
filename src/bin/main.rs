@@ -77,6 +77,7 @@ struct AFArgs {
 }
 
 fn main() {
+    test_block_net();
     // test_crate_af();
 }
 
@@ -127,8 +128,8 @@ fn test_block_net() {
 
     info!("Making random marker data");
     let gt_per_branch = args.num_markers_per_branch * args.num_individuals;
-    let mut x_train: Vec<Vec<f64>> = vec![vec![0.0; gt_per_branch]];
-    let mut x_test: Vec<Vec<f64>> = vec![vec![0.0; gt_per_branch]];
+    let mut x_train: Vec<Vec<f64>> = vec![vec![0.0; gt_per_branch]; args.num_branches];
+    let mut x_test: Vec<Vec<f64>> = vec![vec![0.0; gt_per_branch]; args.num_branches];
     for branch_ix in 0..args.num_branches {
         for marker_ix in 0..args.num_markers_per_branch {
             let maf = Uniform::from(0.0..0.5).sample(&mut rng);
