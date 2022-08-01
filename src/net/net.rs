@@ -59,7 +59,7 @@ impl Net {
         let num_individuals = y_train.len();
         let mut residual = Array::new(y_train, dim4![num_individuals as u64, 1, 1, 1]);
         let mut branch_ixs = (0..self.num_branches).collect::<Vec<usize>>();
-        for ix in 0..chain_length {
+        for _ in 0..chain_length {
             // sample ouput bias term
             residual += self.output_bias.af_bias();
             self.output_bias.sample_bias(
@@ -97,7 +97,7 @@ impl Net {
                 // update residual
                 residual -= branch.predict(&x);
                 // dump branch cfg
-                self.branch_cfgs[ix] = branch.to_cfg();
+                self.branch_cfgs[branch_ix] = branch.to_cfg();
             }
             // update error precision
             self.error_precision = multi_param_precision_posterior(
