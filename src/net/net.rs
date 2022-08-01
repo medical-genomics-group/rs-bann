@@ -3,7 +3,6 @@ use super::branch::branch::BranchCfg;
 use super::gibbs_steps::multi_param_precision_posterior;
 use super::gibbs_steps::single_param_precision_posterior;
 use arrayfire::sum_all;
-use arrayfire::Scalar;
 use arrayfire::{dim4, Array};
 use rand::prelude::SliceRandom;
 use rand::rngs::ThreadRng;
@@ -38,6 +37,8 @@ impl OutputBias {
         Array::new(&[self.bias], dim4!(1, 1, 1, 1))
     }
 }
+
+struct NetCfg {}
 
 /// The full network model
 struct Net {
