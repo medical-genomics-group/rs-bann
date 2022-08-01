@@ -2,6 +2,7 @@ use super::branch::branch::Branch;
 use super::branch::branch::BranchCfg;
 use super::gibbs_steps::multi_param_precision_posterior;
 use super::gibbs_steps::single_param_precision_posterior;
+use crate::to_host;
 use arrayfire::sum_all;
 use arrayfire::{dim4, Array};
 use rand::prelude::SliceRandom;
@@ -83,7 +84,7 @@ impl Net {
                     dim4!(num_individuals as u64, cfg.num_markers as u64),
                 );
                 // load branch cfg
-                let mut branch = Branch::from_cfg(&self.branch_cfgs[branch_ix]);
+                let mut branch = Branch::from_cfg(&cfg);
                 // tell branch about global error precision
                 branch.set_error_precision(self.error_precision);
                 // remove prev contribution from residual
@@ -106,5 +107,26 @@ impl Net {
                 &mut rng,
             );
         }
+    }
+
+    // TODO: predict using posterior predictive distribution instead of point estimate
+    pub fn predict(&self, x_test: &Vec<Vec<f64>>, num_individuals: usize) -> Vec<f64> {
+        // I expect X to be column major
+        let mut y_hat = Array::new(
+            &vec![0.0; num_individuals],
+            dim4![num_individuals as u64, 1, 1, 1],
+        );
+        // add bias
+        y_hat += self.output_bias.af_bias();
+        // add all branch predictions
+        for branch_ix in 0..self.num_branches {
+            let cfg = &self.branch_cfgs[branch_ix];
+            let x = Array::new(
+                &x_test[branch_ix],
+                dim4!(num_individuals as u64, cfg.num_markers as u64),
+            );
+            y_hat += Branch::from_cfg(&cfg).predict(&x);
+        }
+        to_host(&y_hat)
     }
 }
