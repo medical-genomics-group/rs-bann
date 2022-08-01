@@ -59,23 +59,26 @@ impl Net {
         let mut acceptance_counts: Vec<usize> = vec![0; self.num_branches];
         let mut rng = thread_rng();
         let num_individuals = y_train.len();
-        let mut residual = Array::new(y_train, dim4![num_individuals as u64, 1, 1, 1]);
+        let mut residual = self.residual(
+            x_train,
+            &Array::new(&y_train, dim4!(num_individuals as u64, 1, 1, 1)),
+        );
         let mut branch_ixs = (0..self.num_branches).collect::<Vec<usize>>();
         for _ in 0..mcmc_cfg.chain_length {
             // sample ouput bias term
-            residual += self.output_bias.af_bias();
-            self.output_bias.sample_bias(
-                self.error_precision,
-                &residual,
-                num_individuals,
-                &mut rng,
-            );
-            self.output_bias.sample_precision(
-                self.precision_prior_shape,
-                self.precision_prior_scale,
-                &mut rng,
-            );
-            residual -= self.output_bias.af_bias();
+            // residual += self.output_bias.af_bias();
+            // self.output_bias.sample_bias(
+            //     self.error_precision,
+            //     &residual,
+            //     num_individuals,
+            //     &mut rng,
+            // );
+            // self.output_bias.sample_precision(
+            //     self.precision_prior_shape,
+            //     self.precision_prior_scale,
+            //     &mut rng,
+            // );
+            // residual -= self.output_bias.af_bias();
             // shuffle order in which branches are trained
             branch_ixs.shuffle(&mut rng);
             for &branch_ix in &branch_ixs {
@@ -88,10 +91,9 @@ impl Net {
                 // load branch cfg
                 let mut branch = Branch::from_cfg(&cfg);
                 // tell branch about global error precision
-                branch.set_error_precision(self.error_precision);
-                // remove prev contribution from residual
+                // branch.set_error_precision(self.error_precision);
+                // TODO: save last prediction contribution for each branch to reduce compute
                 residual += branch.predict(&x);
-                // TODO: use some input cfg for hmc params
                 if branch.hmc_step(&x, &residual, &mcmc_cfg) {
                     acceptance_counts[branch_ix] += 1;
                 }
@@ -135,6 +137,10 @@ impl Net {
             y_hat += Branch::from_cfg(&cfg).predict(&x);
         }
         to_host(&y_hat)
+    }
+
+    fn residual(&self, x: &Vec<Vec<f64>>, y: &Array<f64>) -> Array<f64> {
+        y - self.predict_arr(x, y.elements())
     }
 
     // TODO: predict using posterior predictive distribution instead of point estimate
