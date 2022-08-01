@@ -1,8 +1,9 @@
 use super::momenta::BranchMomenta;
 use super::step_sizes::StepSizes;
-use arrayfire::Array;
+use arrayfire::{dim4, Array};
 use std::fmt;
 
+#[derive(Clone)]
 pub(crate) struct BranchHyperparams {
     pub weight_precisions: Vec<f64>,
     pub bias_precisions: Vec<f64>,
@@ -23,6 +24,35 @@ impl fmt::Debug for BranchParams {
 }
 
 impl BranchParams {
+    pub fn from_param_vec(
+        param_vec: &Vec<f64>,
+        layer_widths: &Vec<usize>,
+        num_markers: usize,
+    ) -> Self {
+        let mut weights: Vec<Array<f64>> = vec![];
+        let mut biases: Vec<Array<f64>> = vec![];
+        let mut prev_width = num_markers;
+        let mut read_ix: usize = 0;
+        for width in layer_widths {
+            let num_weights = prev_width * width;
+            weights.push(Array::new(
+                &param_vec[read_ix..read_ix + num_weights],
+                dim4!(prev_width as u64, *width as u64, 1, 1),
+            ));
+            prev_width = *width;
+            read_ix += num_weights;
+        }
+        for width in &layer_widths[..layer_widths.len() - 1] {
+            let num_biases = width;
+            biases.push(Array::new(
+                &param_vec[read_ix..read_ix + num_biases],
+                dim4!(1, *width as u64, 1, 1),
+            ));
+            read_ix += num_biases;
+        }
+        Self { weights, biases }
+    }
+
     pub fn param_vec(&self) -> Vec<f64> {
         let mut host_vec = Vec::new();
         host_vec.resize(self.num_params(), 0.);
@@ -79,18 +109,44 @@ impl BranchParams {
 #[cfg(test)]
 mod tests {
     use super::BranchParams;
+    use crate::to_host;
     use arrayfire::{dim4, Array};
 
-    #[test]
-    fn test_param_vec() {
-        let params = BranchParams {
+    fn test_params() -> BranchParams {
+        BranchParams {
             weights: vec![
                 Array::new(&[0.1, 0.2], dim4![2, 1, 1, 1]),
                 Array::new(&[0.3], dim4![1, 1, 1, 1]),
             ],
             biases: vec![Array::new(&[0.4], dim4![1, 1, 1, 1])],
-        };
+        }
+    }
+
+    #[test]
+    fn test_param_vec() {
+        let params = test_params();
         let exp = vec![0.1, 0.2, 0.3, 0.4];
         assert_eq!(params.param_vec(), exp);
+    }
+
+    #[test]
+    fn test_from_param_vec() {
+        let params = test_params();
+        let param_vec = params.param_vec();
+        let params_loaded = BranchParams::from_param_vec(&param_vec, &vec![1, 1], 2);
+        assert_eq!(params.weights.len(), params_loaded.weights.len());
+        for ix in 0..params.weights.len() {
+            assert_eq!(
+                to_host(&params.weights[ix]),
+                to_host(&params_loaded.weights[ix])
+            );
+        }
+        assert_eq!(params.biases.len(), params_loaded.biases.len());
+        for ix in 0..params.biases.len() {
+            assert_eq!(
+                to_host(&params.biases[ix]),
+                to_host(&params_loaded.biases[ix])
+            );
+        }
     }
 }

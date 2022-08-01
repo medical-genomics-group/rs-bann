@@ -1,3 +1,4 @@
+use super::super::{gibbs_steps::multi_param_precision_posterior, mcmc_cfg::MCMCCfg};
 use super::momenta::BranchMomenta;
 use super::params::{BranchHyperparams, BranchParams};
 use super::step_sizes::StepSizes;
@@ -5,15 +6,15 @@ use arrayfire::{dim4, matmul, tanh, Array, MatProp};
 use log::{debug, info};
 use rand::prelude::ThreadRng;
 use rand::{thread_rng, Rng};
-use rand_distr::{Distribution, Gamma};
+use rand_distr::Gamma;
 
-/// Copy data from device to a host vector.
-// TODO: this should not live in this module.
-fn to_host(a: &Array<f64>) -> Vec<f64> {
-    let mut buffer = Vec::<f64>::new();
-    buffer.resize(a.elements(), 0.);
-    a.host(&mut buffer);
-    buffer
+#[derive(Clone)]
+pub struct BranchCfg {
+    pub(crate) num_params: usize,
+    pub(crate) num_markers: usize,
+    pub(crate) layer_widths: Vec<usize>,
+    pub(crate) params: Vec<f64>,
+    pub(crate) hyperparams: BranchHyperparams,
 }
 
 /// Gradients of the log density w.r.t. the network parameters.
@@ -31,10 +32,33 @@ pub struct Branch {
     pub(crate) layer_widths: Vec<usize>,
     pub(crate) num_layers: usize,
     pub(crate) rng: ThreadRng,
-    pub(crate) verbose: bool,
 }
 
 impl Branch {
+    /// Creates Branch on device with BranchCfg from host memory.
+    pub fn from_cfg(cfg: &BranchCfg) -> Self {
+        Self {
+            num_params: cfg.num_params,
+            num_markers: cfg.num_markers,
+            num_layers: cfg.layer_widths.len(),
+            layer_widths: cfg.layer_widths.clone(),
+            hyperparams: cfg.hyperparams.clone(),
+            params: BranchParams::from_param_vec(&cfg.params, &cfg.layer_widths, cfg.num_markers),
+            rng: thread_rng(),
+        }
+    }
+
+    /// Dumps all branch info into a BranchCfg object stored in host memory.
+    pub fn to_cfg(&self) -> BranchCfg {
+        BranchCfg {
+            num_params: self.num_params,
+            num_markers: self.num_markers,
+            layer_widths: self.layer_widths.clone(),
+            params: self.params.param_vec(),
+            hyperparams: self.hyperparams.clone(),
+        }
+    }
+
     pub fn num_params(&self) -> usize {
         self.num_params
     }
@@ -71,6 +95,10 @@ impl Branch {
         self.layer_widths[index]
     }
 
+    pub fn set_error_precision(&mut self, val: f64) {
+        self.hyperparams.error_precision = val;
+    }
+
     pub fn rss(&self, x: &Array<f64>, y: &Array<f64>) -> f64 {
         let r = self.forward_feed(&x).last().unwrap() - y;
         arrayfire::sum_all(&(&r * &r)).0
@@ -80,18 +108,36 @@ impl Branch {
         self.forward_feed(x).last().unwrap().copy()
     }
 
-    /// Take a single parameter sample using HMC.
-    /// Return `false` if final state is rejected, `true` if accepted.
+    /// Samples precision values from their posterior distribution in a Gibbs step.
+    pub fn sample_precisions(&mut self, prior_shape: f64, prior_scale: f64) {
+        for i in 0..self.params.weights.len() {
+            self.hyperparams.weight_precisions[i] = multi_param_precision_posterior(
+                prior_shape,
+                prior_scale,
+                &self.params.weights[i],
+                &mut self.rng,
+            );
+        }
+        for i in 0..self.params.biases.len() {
+            self.hyperparams.bias_precisions[i] = multi_param_precision_posterior(
+                prior_shape,
+                prior_scale,
+                &self.params.biases[i],
+                &mut self.rng,
+            );
+        }
+    }
+
+    /// Takes a single parameter sample using HMC.
+    /// Returns `false` if final state is rejected, `true` if accepted.
     pub fn hmc_step(
         &mut self,
         x_train: &Array<f64>,
         y_train: &Array<f64>,
-        integration_length: usize,
-        step_size: Option<f64>,
-        max_hamiltonian_error: f64,
+        mcmc_cfg: &MCMCCfg,
     ) -> bool {
         let init_params = self.params.clone();
-        let step_sizes = if let Some(s) = step_size {
+        let step_sizes = if let Some(s) = mcmc_cfg.hmc_step_size {
             self.uniform_step_sizes(s)
         } else {
             self.random_step_sizes()
@@ -101,30 +147,26 @@ impl Branch {
         // TODO: add u turn diagnostic for tuning
         let init_momenta = self.sample_momenta();
         let init_neg_hamiltonian = self.neg_hamiltonian(&init_momenta, x_train, y_train);
-        if self.verbose {
-            debug!("Starting hmc step");
-            debug!("initial hamiltonian: {:?}", init_neg_hamiltonian);
-        }
+        debug!("Starting hmc step");
+        debug!("initial hamiltonian: {:?}", init_neg_hamiltonian);
         let mut momenta = init_momenta.clone();
         let mut ldg = self.log_density_gradient(x_train, y_train);
 
         // leapfrog
-        for step in 0..(integration_length) {
+        for step in 0..(mcmc_cfg.hmc_integration_length) {
             momenta.half_step(&step_sizes, &ldg);
             self.params.full_step(&step_sizes, &momenta);
             ldg = self.log_density_gradient(x_train, y_train);
             momenta.half_step(&step_sizes, &ldg);
 
-            if self.verbose {
-                debug!(
-                    "step: {:?}, hamiltonian: {:?}",
-                    step,
-                    self.neg_hamiltonian(&momenta, x_train, y_train)
-                )
-            }
+            debug!(
+                "step: {:?}, hamiltonian: {:?}",
+                step,
+                self.neg_hamiltonian(&momenta, x_train, y_train)
+            );
 
             if (self.neg_hamiltonian(&momenta, x_train, y_train) - init_neg_hamiltonian).abs()
-                > max_hamiltonian_error
+                > mcmc_cfg.hmc_max_hamiltonian_error
             {
                 info!("hamiltonian error threshold crossed: terminating");
                 self.params = init_params;
@@ -179,7 +221,7 @@ impl Branch {
     fn random_step_sizes(&mut self) -> StepSizes {
         let mut wrt_weights = Vec::with_capacity(self.num_layers);
         let mut wrt_biases = Vec::with_capacity(self.num_layers - 1);
-        let gamma = Gamma::new(0.5, 1.).unwrap();
+        let gamma = Gamma::new(0.25, 0.5).unwrap();
         let prop_factor = (self.num_params as f64).powf(-0.25);
         for index in 0..self.num_layers - 1 {
             let n = self.weights(index).elements();

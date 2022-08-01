@@ -2,9 +2,58 @@ use arrayfire::{dim4, randn, Array};
 use clap::Parser;
 use log::info;
 use ndarray::arr1;
-use rs_bann::branch::branch_builder::BranchBuilder;
+use rand::thread_rng;
+use rand_distr::{Binomial, Distribution, Uniform};
+use rs_bann::net::branch::branch_builder::BranchBuilder;
+use rs_bann::net::{architectures::BlockNetCfg, mcmc_cfg::MCMCCfg, net::Net};
 use rs_bann::network::MarkerGroup;
 use rs_bedvec::io::BedReader;
+
+/// A small bayesian neural network implementation.
+/// Number of markers per branch: fixed
+/// Depth of branches: same for all branches
+/// Width of branch layers: same within branches, dynamic between branches
+#[derive(Parser, Debug)]
+#[clap(author, version, about, long_about = None)]
+struct BlockNetArgs {
+    /// number of input features per branch (markers)
+    num_markers_per_branch: usize,
+
+    /// number of branches (markers)
+    num_branches: usize,
+
+    /// number of samples (individuals)
+    num_individuals: usize,
+
+    /// width of hidden layer
+    hidden_layer_width: usize,
+
+    /// number of hidden layers in branches
+    branch_depth: usize,
+
+    /// prior shape
+    prior_shape: f64,
+
+    /// prior scale
+    prior_scale: f64,
+
+    /// full model chain length
+    chain_length: usize,
+
+    /// hmc max hamiltonian error
+    max_hamiltonian_error: f64,
+
+    /// hmc integration length
+    integration_length: usize,
+
+    /// hmc step size
+    #[clap(short, long)]
+    step_size: Option<f64>,
+
+    /// enable debug prints
+    #[clap(short, long)]
+    debug_prints: bool,
+}
 
 /// A small bayesian neural network implementation based on ArrayFire.
 #[derive(Parser, Debug)]
@@ -38,7 +87,8 @@ struct AFArgs {
 }
 
 fn main() {
-    test_crate_af();
+    test_block_net();
+    // test_crate_af();
 }
 
 // TODO:
@@ -63,6 +113,87 @@ fn predict() {
     unimplemented!();
 }
 
+// tests block net architecture
+fn test_block_net() {
+    let args = BlockNetArgs::parse();
+
+    if args.debug_prints {
+        simple_logger::init_with_level(log::Level::Debug).unwrap();
+    } else {
+        simple_logger::init_with_level(log::Level::Info).unwrap();
+    }
+
+    info!("Starting block net test");
+
+    info!("Building true net");
+    let mut true_net_cfg = BlockNetCfg::new()
+        .with_depth(args.branch_depth)
+        .with_precision_prior(args.prior_shape, args.prior_scale)
+        .with_initial_random_range(2.0);
+    for _ in 0..args.num_branches {
+        true_net_cfg.add_branch(args.num_markers_per_branch, args.hidden_layer_width);
+    }
+    let true_net = true_net_cfg.build_net();
+
+    let mut rng = thread_rng();
+
+    info!("Making random marker data");
+    let gt_per_branch = args.num_markers_per_branch * args.num_individuals;
+    let mut x_train: Vec<Vec<f64>> = vec![vec![0.0; gt_per_branch]; args.num_branches];
+    let mut x_test: Vec<Vec<f64>> = vec![vec![0.0; gt_per_branch]; args.num_branches];
+    for branch_ix in 0..args.num_branches {
+        for marker_ix in 0..args.num_markers_per_branch {
+            let maf = Uniform::from(0.0..0.5).sample(&mut rng);
+            (0..args.num_individuals).for_each(|i| {
+                x_train[branch_ix][marker_ix * args.num_individuals + i] =
+                    Binomial::new(2, maf).unwrap().sample(&mut rng) as f64
+            });
+            let maf = Uniform::from(0.0..0.5).sample(&mut rng);
+            (0..args.num_individuals).for_each(|i| {
+                x_test[branch_ix][marker_ix * args.num_individuals + i] =
+                    Binomial::new(2, maf).unwrap().sample(&mut rng) as f64
+            });
+        }
+    }
+
+    info!("Making phenotype data");
+    let y_train = true_net.predict(&x_train, args.num_individuals);
+    let y_test = true_net.predict(&x_test, args.num_individuals);
+
+    info!("y_test: {:?}", y_test);
+    info!("y_train: {:?}", y_train);
+
+    info!("Building net to train");
+    let mut net_cfg = BlockNetCfg::new()
+        .with_depth(args.branch_depth)
+        .with_precision_prior(args.prior_shape, args.prior_scale);
+    for _ in 0..args.num_branches {
+        net_cfg.add_branch(args.num_markers_per_branch, args.hidden_layer_width);
+    }
+    let mut net = net_cfg.build_net();
+
+    let decades = args.chain_length / 10;
+
+    info!("Training net");
+    let mcmc_cfg = MCMCCfg {
+        hmc_step_size: args.step_size,
+        hmc_max_hamiltonian_error: args.max_hamiltonian_error,
+        hmc_integration_length: args.integration_length,
+        chain_length: args.chain_length / 10,
+    };
+
+    for dec in 0..decades {
+        net.train(&x_train, &y_train, &mcmc_cfg);
+        info!(
+            "decade: {:?} \t| loss (train): {:?} \t| loss (test): {:?}",
+            dec,
+            net.rss(&x_train, &y_train),
+            net.rss(&x_test, &y_test)
+        );
+    }
+}
+
+// tests single branch impl
 fn test_crate_af() {
     let args = AFArgs::parse();
 
@@ -93,7 +224,6 @@ fn test_crate_af() {
         .add_summary_weights(&w1)
         .add_summary_bias(&b1)
         .add_output_weight(&w2)
-        .verbose()
         .build();
 
     let x_train: Array<f64> = randn(dim4![
@@ -116,20 +246,20 @@ fn test_crate_af() {
         .add_hidden_layer(args.hidden_layer_width as usize)
         .with_initial_weights_value(1.)
         .with_initial_bias_value(1.)
-        .verbose()
         .build();
 
     // train
     let mut accepted_samples: u64 = 0;
 
+    let mcmc_cfg = MCMCCfg {
+        hmc_step_size: args.step_size,
+        hmc_max_hamiltonian_error: args.max_hamiltonian_error,
+        hmc_integration_length: args.integration_length,
+        chain_length: args.chain_length,
+    };
+
     for i in 0..args.chain_length {
-        if train_net.hmc_step(
-            &x_train,
-            &y_train,
-            args.integration_length,
-            args.step_size,
-            args.max_hamiltonian_error,
-        ) {
+        if train_net.hmc_step(&x_train, &y_train, &mcmc_cfg) {
             accepted_samples += 1;
             info!(
                 "iteration: {:?} \t| loss (train): {:?} \t| loss (test): {:?}",
