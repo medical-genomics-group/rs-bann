@@ -7,11 +7,11 @@ use arrayfire::{dim4, Array};
 use rand::prelude::SliceRandom;
 use rand::rngs::ThreadRng;
 use rand::thread_rng;
-use rand_distr::{Distribution, Gamma, Normal};
+use rand_distr::{Distribution, Normal};
 
-struct OutputBias {
-    precision: f64,
-    bias: f64,
+pub struct OutputBias {
+    pub(crate) precision: f64,
+    pub(crate) bias: f64,
 }
 
 impl OutputBias {
@@ -38,16 +38,14 @@ impl OutputBias {
     }
 }
 
-struct NetCfg {}
-
 /// The full network model
-struct Net {
-    precision_prior_shape: f64,
-    precision_prior_scale: f64,
-    num_branches: usize,
-    branch_cfgs: Vec<BranchCfg>,
-    output_bias: OutputBias,
-    error_precision: f64,
+pub struct Net {
+    pub(crate) precision_prior_shape: f64,
+    pub(crate) precision_prior_scale: f64,
+    pub(crate) num_branches: usize,
+    pub(crate) branch_cfgs: Vec<BranchCfg>,
+    pub(crate) output_bias: OutputBias,
+    pub(crate) error_precision: f64,
 }
 
 impl Net {
