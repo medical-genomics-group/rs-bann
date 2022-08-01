@@ -5,7 +5,7 @@ use ndarray::arr1;
 use rand::thread_rng;
 use rand_distr::{Binomial, Distribution, Uniform};
 use rs_bann::net::branch::branch_builder::BranchBuilder;
-use rs_bann::net::{architectures::BlockNetCfg, net::Net};
+use rs_bann::net::{architectures::BlockNetCfg, mcmc_cfg::MCMCCfg, net::Net};
 use rs_bann::network::MarkerGroup;
 use rs_bedvec::io::BedReader;
 
@@ -39,6 +39,16 @@ struct BlockNetArgs {
 
     /// full model chain length
     chain_length: usize,
+
+    /// hmc max hamiltonian error
+    max_hamiltonian_error: f64,
+
+    /// hmc integration length
+    integration_length: usize,
+
+    /// hmc step size
+    #[clap(short, long)]
+    step_size: Option<f64>,
 
     /// enable debug prints
     #[clap(short, long)]
@@ -158,8 +168,25 @@ fn test_block_net() {
     }
     let mut net = net_cfg.build_net();
 
+    let decades = args.chain_length / 10;
+
     info!("Training net");
-    net.train(&x_train, &y_train, args.chain_length);
+    let mcmc_cfg = MCMCCfg {
+        hmc_step_size: args.step_size,
+        hmc_max_hamiltonian_error: args.max_hamiltonian_error,
+        hmc_integration_length: args.integration_length,
+        chain_length: args.chain_length / 10,
+    };
+
+    for dec in 0..decades {
+        net.train(&x_train, &y_train, &mcmc_cfg);
+        info!(
+            "decade: {:?} \t| loss (train): {:?} \t| loss (test): {:?}",
+            dec,
+            net.rss(&x_train, &y_train),
+            net.rss(&x_test, &y_test)
+        );
+    }
 }
 
 // tests single branch impl
@@ -220,14 +247,15 @@ fn test_crate_af() {
     // train
     let mut accepted_samples: u64 = 0;
 
+    let mcmc_cfg = MCMCCfg {
+        hmc_step_size: args.step_size,
+        hmc_max_hamiltonian_error: args.max_hamiltonian_error,
+        hmc_integration_length: args.integration_length,
+        chain_length: args.chain_length,
+    };
+
     for i in 0..args.chain_length {
-        if train_net.hmc_step(
-            &x_train,
-            &y_train,
-            args.integration_length,
-            args.step_size,
-            args.max_hamiltonian_error,
-        ) {
+        if train_net.hmc_step(&x_train, &y_train, &mcmc_cfg) {
             accepted_samples += 1;
             info!(
                 "iteration: {:?} \t| loss (train): {:?} \t| loss (test): {:?}",
