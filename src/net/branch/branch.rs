@@ -234,7 +234,7 @@ impl Branch {
     fn random_step_sizes(&mut self) -> StepSizes {
         let mut wrt_weights = Vec::with_capacity(self.num_layers);
         let mut wrt_biases = Vec::with_capacity(self.num_layers - 1);
-        let gamma = Gamma::new(0.5, 1.).unwrap();
+        let gamma = Gamma::new(0.25, 0.5).unwrap();
         let prop_factor = (self.num_params as f64).powf(-0.25);
         for index in 0..self.num_layers - 1 {
             let n = self.weights(index).elements();
