@@ -1,6 +1,4 @@
-use super::super::gibbs_steps::{
-    multi_param_precision_posterior, single_param_precision_posterior,
-};
+use super::super::{gibbs_steps::multi_param_precision_posterior, mcmc_cfg::MCMCCfg};
 use super::momenta::BranchMomenta;
 use super::params::{BranchHyperparams, BranchParams};
 use super::step_sizes::StepSizes;
@@ -8,16 +6,7 @@ use arrayfire::{dim4, matmul, tanh, Array, MatProp};
 use log::{debug, info};
 use rand::prelude::ThreadRng;
 use rand::{thread_rng, Rng};
-use rand_distr::{Distribution, Gamma};
-
-/// Copy data from device to a host vector.
-// TODO: this should not live in this module.
-fn to_host(a: &Array<f64>) -> Vec<f64> {
-    let mut buffer = Vec::<f64>::new();
-    buffer.resize(a.elements(), 0.);
-    a.host(&mut buffer);
-    buffer
-}
+use rand_distr::Gamma;
 
 #[derive(Clone)]
 pub struct BranchCfg {
@@ -145,12 +134,10 @@ impl Branch {
         &mut self,
         x_train: &Array<f64>,
         y_train: &Array<f64>,
-        integration_length: usize,
-        step_size: Option<f64>,
-        max_hamiltonian_error: f64,
+        mcmc_cfg: &MCMCCfg,
     ) -> bool {
         let init_params = self.params.clone();
-        let step_sizes = if let Some(s) = step_size {
+        let step_sizes = if let Some(s) = mcmc_cfg.hmc_step_size {
             self.uniform_step_sizes(s)
         } else {
             self.random_step_sizes()
@@ -166,7 +153,7 @@ impl Branch {
         let mut ldg = self.log_density_gradient(x_train, y_train);
 
         // leapfrog
-        for step in 0..(integration_length) {
+        for step in 0..(mcmc_cfg.hmc_integration_length) {
             momenta.half_step(&step_sizes, &ldg);
             self.params.full_step(&step_sizes, &momenta);
             ldg = self.log_density_gradient(x_train, y_train);
@@ -179,7 +166,7 @@ impl Branch {
             );
 
             if (self.neg_hamiltonian(&momenta, x_train, y_train) - init_neg_hamiltonian).abs()
-                > max_hamiltonian_error
+                > mcmc_cfg.hmc_max_hamiltonian_error
             {
                 info!("hamiltonian error threshold crossed: terminating");
                 self.params = init_params;
