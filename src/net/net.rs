@@ -115,6 +115,14 @@ pub struct Net {
 }
 
 impl Net {
+    fn num_params(&self) -> usize {
+        let mut res = 0;
+        for cfg in &self.branch_cfgs {
+            res += cfg.num_params
+        }
+        res
+    }
+
     // X has to be column major!
     // TODO: X will likely have to be in compressed format on host memory, so Ill have to unpack
     // it before loading it into device memory
@@ -133,6 +141,12 @@ impl Net {
         );
         let mut branch_ixs = (0..self.num_branches).collect::<Vec<usize>>();
         let mut report_interval = 1;
+
+        info!(
+            "Training net with {:} branches, {:} params",
+            self.num_branches,
+            self.num_params()
+        );
 
         // report
         if verbose {
