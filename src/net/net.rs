@@ -48,7 +48,7 @@ impl TrainingStats {
 
     fn print_stats(&self) {
         info!(
-            "acc_rate: {:?} \t | early_reject_rate: {:?} \t | end_reject_rate: {:?}",
+            "acc_rate: {:.2} \t | early_reject_rate: {:.2} \t | end_reject_rate: {:.2}",
             self.acceptance_rate(),
             self.early_rejection_rate(),
             self.end_rejection_rate()
