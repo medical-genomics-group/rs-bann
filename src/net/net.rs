@@ -12,6 +12,16 @@ use rand::rngs::ThreadRng;
 use rand::thread_rng;
 use rand_distr::{Distribution, Normal};
 
+pub struct Data<'data> {
+    x: &'data Vec<Vec<f64>>,
+    y: &'data Vec<f64>,
+}
+
+impl<'data> Data<'data> {
+    pub fn new(x: &'data Vec<Vec<f64>>, y: &'data Vec<f64>) -> Self {
+        Data { x, y }
+    }
+}
 pub(crate) struct TrainingStats {
     num_samples: usize,
     num_accepted: usize,
@@ -103,15 +113,27 @@ impl Net {
     // X has to be column major!
     // TODO: X will likely have to be in compressed format on host memory, so Ill have to unpack
     // it before loading it into device memory
-    pub fn train(&mut self, x_train: &Vec<Vec<f64>>, y_train: &Vec<f64>, mcmc_cfg: &MCMCCfg) {
+    pub fn train(
+        &mut self,
+        train_data: &Data,
+        mcmc_cfg: &MCMCCfg,
+        verbose: bool,
+        test_data: Option<&Data>,
+    ) {
         let mut rng = thread_rng();
-        let num_individuals = y_train.len();
+        let num_individuals = train_data.y.len();
         let mut residual = self.residual(
-            x_train,
-            &Array::new(&y_train, dim4!(num_individuals as u64, 1, 1, 1)),
+            train_data.x,
+            &Array::new(&train_data.y, dim4!(num_individuals as u64, 1, 1, 1)),
         );
         let mut branch_ixs = (0..self.num_branches).collect::<Vec<usize>>();
-        for _ in 0..mcmc_cfg.chain_length {
+
+        // report
+        if verbose {
+            self.report_training_state(0, train_data, test_data);
+        }
+
+        for chain_ix in 0..mcmc_cfg.chain_length {
             // sample ouput bias term
             residual += self.output_bias.af_bias();
             self.output_bias.sample_bias(
@@ -132,7 +154,7 @@ impl Net {
                 let cfg = &self.branch_cfgs[branch_ix];
                 // load marker data onto device
                 let x = Array::new(
-                    &x_train[branch_ix],
+                    &train_data.x[branch_ix],
                     dim4!(num_individuals as u64, cfg.num_markers as u64),
                 );
                 // load branch cfg
@@ -155,6 +177,11 @@ impl Net {
                 &residual,
                 &mut rng,
             );
+
+            // report
+            if verbose {
+                self.report_training_state(chain_ix, train_data, test_data);
+            }
         }
     }
 
@@ -204,14 +231,20 @@ impl Net {
         y_hat
     }
 
-    pub fn rss(&self, x_test: &Vec<Vec<f64>>, y_test: &Vec<f64>) -> f64 {
-        let y_test_arr = Array::new(y_test, dim4!(y_test.len() as u64, 1, 1, 1));
-        let y_hat = self.predict_arr(&x_test, y_test.len());
+    pub fn rss(&self, data: &Data) -> f64 {
+        let y_test_arr = Array::new(data.y, dim4!(data.y.len() as u64, 1, 1, 1));
+        let y_hat = self.predict_arr(&data.x, data.y.len());
         let residual = y_test_arr - y_hat;
         super::gibbs_steps::sum_of_squares(&residual)
     }
 
-    pub fn print_training_stats(&self) {
+    fn report_training_state(&self, iteration: usize, train_data: &Data, test_data: Option<&Data>) {
+        info!("{:}", iteration);
+        self.print_perf(train_data, test_data);
+        self.print_training_stats();
+    }
+
+    fn print_training_stats(&self) {
         self.training_stats.print_stats();
     }
 
@@ -219,8 +252,20 @@ impl Net {
         self.training_stats.add_hmc_step_result(res);
     }
 
-    pub fn reset_training_stats(&mut self) {
+    fn reset_training_stats(&mut self) {
         self.training_stats = TrainingStats::new();
+    }
+
+    fn print_perf(&self, train_data: &Data, test_data: Option<&Data>) {
+        if let Some(d) = test_data {
+            info!(
+                "loss (train): {:.5} \t| loss (test): {:.5}",
+                self.rss(train_data),
+                self.rss(d)
+            );
+        } else {
+            info!("loss (train): {:.5}", self.rss(train_data),);
+        }
     }
 }
 

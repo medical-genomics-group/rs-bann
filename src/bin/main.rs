@@ -8,6 +8,7 @@ use rs_bann::net::{
     architectures::BlockNetCfg,
     branch::{branch::HMCStepResult, branch_builder::BranchBuilder},
     mcmc_cfg::{MCMCCfg, StepSizeMode},
+    net::Data,
 };
 use rs_bann::network::MarkerGroup;
 use rs_bedvec::io::BedReader;
@@ -188,8 +189,6 @@ fn test_block_net() {
     }
     let mut net = net_cfg.build_net();
 
-    let decades = args.chain_length / 10;
-
     let step_size_mode = if args.std_scaled_step_sizes {
         StepSizeMode::StdScaled
     } else if args.random_step_sizes {
@@ -204,25 +203,13 @@ fn test_block_net() {
         hmc_max_hamiltonian_error: args.max_hamiltonian_error,
         hmc_integration_length: args.integration_length,
         hmc_step_size_mode: step_size_mode,
-        chain_length: args.chain_length / 10,
+        chain_length: args.chain_length,
     };
 
-    info!(
-        "initial \t| loss (train): {:?} \t| loss (test): {:?}",
-        net.rss(&x_train, &y_train),
-        net.rss(&x_test, &y_test)
-    );
+    let train_data = Data::new(&x_train, &y_train);
+    let test_data = Data::new(&x_test, &y_test);
 
-    for dec in 0..decades {
-        net.train(&x_train, &y_train, &mcmc_cfg);
-        info!(
-            "decade: {:?} \t| loss (train): {:?} \t| loss (test): {:?}",
-            dec,
-            net.rss(&x_train, &y_train),
-            net.rss(&x_test, &y_test)
-        );
-        net.print_training_stats();
-    }
+    net.train(&train_data, &mcmc_cfg, true, Some(&test_data));
 }
 
 // tests single branch impl
