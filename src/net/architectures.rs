@@ -1,7 +1,7 @@
 use super::{
     branch::branch::BranchCfg,
     branch::branch_builder::BranchCfgBuilder,
-    net::{Net, OutputBias},
+    net::{Net, OutputBias, TrainingStats},
 };
 
 /// Number of markers per branch: dynamic
@@ -71,6 +71,7 @@ impl BlockNetCfg {
                 bias: 0.0,
             },
             error_precision: 1.0,
+            training_stats: TrainingStats::new(),
         }
     }
 }

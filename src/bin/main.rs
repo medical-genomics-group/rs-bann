@@ -4,11 +4,10 @@ use log::info;
 use ndarray::arr1;
 use rand::thread_rng;
 use rand_distr::{Binomial, Distribution, Uniform};
-use rs_bann::net::branch::branch_builder::BranchBuilder;
 use rs_bann::net::{
     architectures::BlockNetCfg,
+    branch::{branch::HMCStepResult, branch_builder::BranchBuilder},
     mcmc_cfg::{MCMCCfg, StepSizeMode},
-    net::Net,
 };
 use rs_bann::network::MarkerGroup;
 use rs_bedvec::io::BedReader;
@@ -211,6 +210,12 @@ fn test_block_net() {
         chain_length: args.chain_length / 10,
     };
 
+    info!(
+        "initial \t| loss (train): {:?} \t| loss (test): {:?}",
+        net.rss(&x_train, &y_train),
+        net.rss(&x_test, &y_test)
+    );
+
     for dec in 0..decades {
         net.train(&x_train, &y_train, &mcmc_cfg);
         info!(
@@ -219,6 +224,7 @@ fn test_block_net() {
             net.rss(&x_train, &y_train),
             net.rss(&x_test, &y_test)
         );
+        net.print_training_stats();
     }
 }
 
@@ -297,7 +303,10 @@ fn test_crate_af() {
     };
 
     for i in 0..args.chain_length {
-        if train_net.hmc_step(&x_train, &y_train, &mcmc_cfg) {
+        if matches!(
+            train_net.hmc_step(&x_train, &y_train, &mcmc_cfg),
+            HMCStepResult::Accepted
+        ) {
             accepted_samples += 1;
             info!(
                 "iteration: {:?} \t| loss (train): {:?} \t| loss (test): {:?}",

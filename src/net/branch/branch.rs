@@ -8,10 +8,16 @@ use super::{
     step_sizes::StepSizes,
 };
 use arrayfire::{dim4, matmul, tanh, Array, MatProp};
-use log::{debug, info};
+use log::debug;
 use rand::prelude::ThreadRng;
 use rand::{thread_rng, Rng};
 use rand_distr::Gamma;
+
+pub enum HMCStepResult {
+    RejectedEarly,
+    Rejected,
+    Accepted,
+}
 
 #[derive(Clone)]
 pub struct BranchCfg {
@@ -140,7 +146,7 @@ impl Branch {
         x_train: &Array<f64>,
         y_train: &Array<f64>,
         mcmc_cfg: &MCMCCfg,
-    ) -> bool {
+    ) -> HMCStepResult {
         let init_params = self.params.clone();
         let step_sizes = match mcmc_cfg.hmc_step_size_mode {
             StepSizeMode::StdScaled => self.std_scaled_step_sizes(mcmc_cfg.hmc_step_size_factor),
@@ -173,9 +179,9 @@ impl Branch {
             if (self.neg_hamiltonian(&momenta, x_train, y_train) - init_neg_hamiltonian).abs()
                 > mcmc_cfg.hmc_max_hamiltonian_error
             {
-                info!("hamiltonian error threshold crossed: terminating");
+                debug!("hamiltonian error threshold crossed: terminating");
                 self.params = init_params;
-                return false;
+                return HMCStepResult::RejectedEarly;
             }
         }
 
@@ -189,11 +195,11 @@ impl Branch {
         };
         if self.is_accepted(acc_probability) {
             debug!("accepted state with acc prob: {:?}", acc_probability);
-            true
+            HMCStepResult::Accepted
         } else {
             debug!("rejected state with acc prob: {:?}", acc_probability);
             self.params = init_params;
-            false
+            HMCStepResult::Rejected
         }
     }
 
@@ -494,22 +500,22 @@ mod tests {
     fn test_forward_feed() {
         let num_individuals = 4;
         let num_markers = 3;
-        let Branch = test_branch();
+        let branch = test_branch();
         let x_train: Array<f64> = Array::new(
             &[1., 0., 0., 2., 1., 1., 2., 0., 0., 2., 0., 1.],
             dim4![num_individuals, num_markers, 1, 1],
         );
-        let activations = Branch.forward_feed(&x_train);
+        let activations = branch.forward_feed(&x_train);
 
         // correct number of activations
-        assert_eq!(activations.len(), Branch.num_layers);
+        assert_eq!(activations.len(), branch.num_layers);
 
         // correct dimensions of activations
-        for i in 0..(Branch.num_layers) {
+        for i in 0..(branch.num_layers) {
             println!("{:?}", i);
             assert_eq!(
                 activations[i].dims(),
-                dim4![num_individuals, Branch.layer_widths[i] as u64, 1, 1]
+                dim4![num_individuals, branch.layer_widths[i] as u64, 1, 1]
             );
         }
 
@@ -547,7 +553,7 @@ mod tests {
             ),
         ];
         // correct values of activations
-        for i in 0..(Branch.num_layers) {
+        for i in 0..(branch.num_layers) {
             println!("{:?}", i);
             assert_eq!(to_host(&activations[i]), to_host(&exp_activations[i]));
         }
@@ -557,25 +563,25 @@ mod tests {
     fn test_backpropagation() {
         let num_individuals = 4;
         let num_markers = 3;
-        let Branch = test_branch();
+        let branch = test_branch();
         let x_train: Array<f64> = Array::new(
             &[1., 0., 0., 2., 1., 1., 2., 0., 0., 2., 0., 1.],
             dim4![num_individuals, num_markers, 1, 1],
         );
         let y_train: Array<f64> = Array::new(&[0.0, 2.0, 1.0, 1.5], dim4![4, 1, 1, 1]);
-        let (weights_gradient, bias_gradient) = Branch.backpropagate(&x_train, &y_train);
+        let (weights_gradient, bias_gradient) = branch.backpropagate(&x_train, &y_train);
 
         // correct number of gradients
-        assert_eq!(weights_gradient.len(), Branch.num_layers);
-        assert_eq!(bias_gradient.len(), Branch.num_layers - 1);
+        assert_eq!(weights_gradient.len(), branch.num_layers);
+        assert_eq!(bias_gradient.len(), branch.num_layers - 1);
 
         // correct dimensions of gradients
-        for i in 0..(Branch.num_layers) {
+        for i in 0..(branch.num_layers) {
             println!("{:?}", i);
-            assert_eq!(weights_gradient[i].dims(), Branch.weights(i).dims());
+            assert_eq!(weights_gradient[i].dims(), branch.weights(i).dims());
         }
-        for i in 0..(Branch.num_layers - 1) {
-            assert_eq!(bias_gradient[i].dims(), Branch.biases(i).dims());
+        for i in 0..(branch.num_layers - 1) {
+            assert_eq!(bias_gradient[i].dims(), branch.biases(i).dims());
         }
 
         let exp_weight_grad = [
@@ -606,10 +612,10 @@ mod tests {
         ];
 
         // correct values of gradient
-        for i in 0..(Branch.num_layers) {
+        for i in 0..(branch.num_layers) {
             assert_eq!(to_host(&weights_gradient[i]), to_host(&exp_weight_grad[i]));
         }
-        for i in 0..(Branch.num_layers - 1) {
+        for i in 0..(branch.num_layers - 1) {
             println!("{:?}", i);
             assert_eq!(to_host(&bias_gradient[i]), to_host(&exp_bias_grad[i]));
         }

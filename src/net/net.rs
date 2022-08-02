@@ -1,16 +1,63 @@
-use super::branch::branch::Branch;
-use super::branch::branch::BranchCfg;
-use super::gibbs_steps::multi_param_precision_posterior;
-use super::gibbs_steps::single_param_precision_posterior;
-use super::mcmc_cfg::MCMCCfg;
+use super::{
+    branch::branch::{Branch, BranchCfg, HMCStepResult},
+    gibbs_steps::{multi_param_precision_posterior, single_param_precision_posterior},
+    mcmc_cfg::MCMCCfg,
+};
 use crate::to_host;
 use arrayfire::sum_all;
-use arrayfire::{dim4, Array, MatProp};
+use arrayfire::{dim4, Array};
 use log::info;
 use rand::prelude::SliceRandom;
 use rand::rngs::ThreadRng;
 use rand::thread_rng;
 use rand_distr::{Distribution, Normal};
+
+pub(crate) struct TrainingStats {
+    num_samples: usize,
+    num_accepted: usize,
+    num_early_rejected: usize,
+}
+
+impl TrainingStats {
+    pub(crate) fn new() -> Self {
+        Self {
+            num_samples: 0,
+            num_accepted: 0,
+            num_early_rejected: 0,
+        }
+    }
+
+    fn add_hmc_step_result(&mut self, res: HMCStepResult) {
+        self.num_samples += 1;
+        match res {
+            HMCStepResult::Accepted => self.num_accepted += 1,
+            HMCStepResult::RejectedEarly => self.num_early_rejected += 1,
+            HMCStepResult::Rejected => {}
+        }
+    }
+
+    fn print_stats(&self) {
+        info!(
+            "acc_rate: {:?} \t | early_reject_rate: {:?} \t | end_reject_rate: {:?}",
+            self.acceptance_rate(),
+            self.early_rejection_rate(),
+            self.end_rejection_rate()
+        );
+    }
+
+    fn acceptance_rate(&self) -> f64 {
+        self.num_accepted as f64 / self.num_samples as f64
+    }
+
+    fn early_rejection_rate(&self) -> f64 {
+        self.num_early_rejected as f64 / self.num_samples as f64
+    }
+
+    fn end_rejection_rate(&self) -> f64 {
+        (self.num_samples - self.num_early_rejected - self.num_accepted) as f64
+            / self.num_samples as f64
+    }
+}
 
 pub struct OutputBias {
     pub(crate) precision: f64,
@@ -49,6 +96,7 @@ pub struct Net {
     pub(crate) branch_cfgs: Vec<BranchCfg>,
     pub(crate) output_bias: OutputBias,
     pub(crate) error_precision: f64,
+    pub(crate) training_stats: TrainingStats,
 }
 
 impl Net {
@@ -56,7 +104,6 @@ impl Net {
     // TODO: X will likely have to be in compressed format on host memory, so Ill have to unpack
     // it before loading it into device memory
     pub fn train(&mut self, x_train: &Vec<Vec<f64>>, y_train: &Vec<f64>, mcmc_cfg: &MCMCCfg) {
-        let mut acceptance_counts: Vec<usize> = vec![0; self.num_branches];
         let mut rng = thread_rng();
         let num_individuals = y_train.len();
         let mut residual = self.residual(
@@ -94,9 +141,7 @@ impl Net {
                 branch.set_error_precision(self.error_precision);
                 // TODO: save last prediction contribution for each branch to reduce compute
                 residual += branch.predict(&x);
-                if branch.hmc_step(&x, &residual, &mcmc_cfg) {
-                    acceptance_counts[branch_ix] += 1;
-                }
+                self.note_hmc_step_result(branch.hmc_step(&x, &residual, &mcmc_cfg));
                 branch.sample_precisions(self.precision_prior_shape, self.precision_prior_scale);
                 // update residual
                 residual -= branch.predict(&x);
@@ -111,11 +156,6 @@ impl Net {
                 &mut rng,
             );
         }
-        let acceptance_rates: Vec<f64> = acceptance_counts
-            .iter()
-            .map(|e| *e as f64 / mcmc_cfg.chain_length as f64)
-            .collect();
-        info!("acceptace rates per branch: {:?}", acceptance_rates);
     }
 
     // TODO: predict using posterior predictive distribution instead of point estimate
@@ -169,6 +209,18 @@ impl Net {
         let y_hat = self.predict_arr(&x_test, y_test.len());
         let residual = y_test_arr - y_hat;
         super::gibbs_steps::sum_of_squares(&residual)
+    }
+
+    pub fn print_training_stats(&self) {
+        self.training_stats.print_stats();
+    }
+
+    fn note_hmc_step_result(&mut self, res: HMCStepResult) {
+        self.training_stats.add_hmc_step_result(res);
+    }
+
+    pub fn reset_training_stats(&mut self) {
+        self.training_stats = TrainingStats::new();
     }
 }
 

@@ -427,7 +427,7 @@ mod tests {
         let exp_layer_widths = [2, 1, 1];
         let exp_weight_dims = [dim4![3, 2, 1, 1], dim4![2, 1, 1, 1], dim4![1, 1, 1, 1]];
         let exp_bias_dims = [dim4![1, 2, 1, 1], dim4![1, 1, 1, 1]];
-        let Branch = BranchBuilder::new()
+        let branch = BranchBuilder::new()
             .with_num_markers(3)
             .add_hidden_layer(2)
             .add_layer_biases(&exp_biases[0])
@@ -438,26 +438,26 @@ mod tests {
             .build();
 
         // network size
-        assert_eq!(Branch.num_params(), 6 + 2 + 2 + 1 + 1);
-        assert_eq!(Branch.num_layers(), 3);
-        assert_eq!(Branch.num_markers(), 3);
-        for i in 0..Branch.num_layers() {
+        assert_eq!(branch.num_params(), 6 + 2 + 2 + 1 + 1);
+        assert_eq!(branch.num_layers(), 3);
+        assert_eq!(branch.num_markers(), 3);
+        for i in 0..branch.num_layers() {
             println!("{:?}", i);
-            assert_eq!(Branch.layer_widths(i), exp_layer_widths[i]);
-            assert_eq!(Branch.weights(i).dims(), exp_weight_dims[i]);
-            if i < Branch.num_layers() - 1 {
-                assert_eq!(Branch.biases(i).dims(), exp_bias_dims[i]);
+            assert_eq!(branch.layer_widths(i), exp_layer_widths[i]);
+            assert_eq!(branch.weights(i).dims(), exp_weight_dims[i]);
+            if i < branch.num_layers() - 1 {
+                assert_eq!(branch.biases(i).dims(), exp_bias_dims[i]);
             }
         }
 
         // param values
         // weights
-        for i in 0..Branch.num_layers() {
-            assert_eq!(to_host(&Branch.weights(i)), to_host(&exp_weights[i]));
+        for i in 0..branch.num_layers() {
+            assert_eq!(to_host(&branch.weights(i)), to_host(&exp_weights[i]));
         }
         // biases
-        for i in 0..Branch.num_layers() - 1 {
-            assert_eq!(to_host(&Branch.biases(i)), to_host(&exp_biases[i]));
+        for i in 0..branch.num_layers() - 1 {
+            assert_eq!(to_host(&branch.biases(i)), to_host(&exp_biases[i]));
         }
     }
 }
