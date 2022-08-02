@@ -179,9 +179,6 @@ fn test_block_net() {
     let y_train = true_net.predict(&x_train, args.num_individuals);
     let y_test = true_net.predict(&x_test, args.num_individuals);
 
-    info!("y_test: {:?}", y_test);
-    info!("y_train: {:?}", y_train);
-
     info!("Building net to train");
     let mut net_cfg = BlockNetCfg::new()
         .with_depth(args.branch_depth)
