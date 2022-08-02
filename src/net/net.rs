@@ -46,15 +46,6 @@ impl TrainingStats {
         }
     }
 
-    fn print_stats(&self) {
-        info!(
-            "acc_rate: {:.2} \t | early_reject_rate: {:.2} \t | end_reject_rate: {:.2}",
-            self.acceptance_rate(),
-            self.early_rejection_rate(),
-            self.end_rejection_rate()
-        );
-    }
-
     fn acceptance_rate(&self) -> f64 {
         self.num_accepted as f64 / self.num_samples as f64
     }
@@ -133,7 +124,7 @@ impl Net {
             self.report_training_state(0, train_data, test_data);
         }
 
-        for chain_ix in 0..mcmc_cfg.chain_length {
+        for chain_ix in 1..=mcmc_cfg.chain_length {
             // sample ouput bias term
             residual += self.output_bias.af_bias();
             self.output_bias.sample_bias(
@@ -239,13 +230,24 @@ impl Net {
     }
 
     fn report_training_state(&self, iteration: usize, train_data: &Data, test_data: Option<&Data>) {
-        info!("{:}", iteration);
-        self.print_perf(train_data, test_data);
-        self.print_training_stats();
-    }
-
-    fn print_training_stats(&self) {
-        self.training_stats.print_stats();
+        if let Some(tst) = test_data {
+            info!(
+                "iteration: {:} \t | acc: {:.2} \t | early_rej: {:.2} \t | end_rej: {:.2} \t | loss(trn): {:.4} \t | loss(tst): {:.4}",
+                iteration,
+                self.training_stats.acceptance_rate(),
+                self.training_stats.early_rejection_rate(),
+                self.training_stats.end_rejection_rate(),
+                self.rss(train_data),
+                self.rss(tst));
+        } else {
+            info!(
+                "iteration: {:} \t | acc: {:.2} \t | early_rej: {:.2} \t | end_rej: {:.2} \t | loss(trn): {:.4}",
+                iteration,
+                self.training_stats.acceptance_rate(),
+                self.training_stats.early_rejection_rate(),
+                self.training_stats.end_rejection_rate(),
+                self.rss(train_data));
+        }
     }
 
     fn note_hmc_step_result(&mut self, res: HMCStepResult) {
@@ -254,18 +256,6 @@ impl Net {
 
     fn reset_training_stats(&mut self) {
         self.training_stats = TrainingStats::new();
-    }
-
-    fn print_perf(&self, train_data: &Data, test_data: Option<&Data>) {
-        if let Some(d) = test_data {
-            info!(
-                "loss (train): {:.5} \t| loss (test): {:.5}",
-                self.rss(train_data),
-                self.rss(d)
-            );
-        } else {
-            info!("loss (train): {:.5}", self.rss(train_data),);
-        }
     }
 }
 
