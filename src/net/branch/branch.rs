@@ -1,7 +1,12 @@
-use super::super::{gibbs_steps::multi_param_precision_posterior, mcmc_cfg::MCMCCfg};
-use super::momenta::BranchMomenta;
-use super::params::{BranchHyperparams, BranchParams};
-use super::step_sizes::StepSizes;
+use super::{
+    super::{
+        gibbs_steps::multi_param_precision_posterior,
+        mcmc_cfg::{MCMCCfg, StepSizeMode},
+    },
+    momenta::BranchMomenta,
+    params::{BranchHyperparams, BranchParams},
+    step_sizes::StepSizes,
+};
 use arrayfire::{dim4, matmul, tanh, Array, MatProp};
 use log::{debug, info};
 use rand::prelude::ThreadRng;
@@ -137,10 +142,10 @@ impl Branch {
         mcmc_cfg: &MCMCCfg,
     ) -> bool {
         let init_params = self.params.clone();
-        let step_sizes = if mcmc_cfg.hmc_random_step_sizes {
-            self.random_step_sizes(mcmc_cfg.hmc_step_size)
-        } else {
-            self.uniform_step_sizes(mcmc_cfg.hmc_step_size)
+        let step_sizes = match mcmc_cfg.hmc_step_size_mode {
+            StepSizeMode::StdScaled => self.std_scaled_step_sizes(mcmc_cfg.hmc_step_size_factor),
+            StepSizeMode::Random => self.random_step_sizes(mcmc_cfg.hmc_step_size_factor),
+            StepSizeMode::Uniform => self.uniform_step_sizes(mcmc_cfg.hmc_step_size_factor),
         };
         debug!("step sizes: {:?}", step_sizes);
 
@@ -281,6 +286,40 @@ impl Branch {
         // output layer weights
         wrt_weights.push(Array::new(
             &vec![val; self.weights(self.num_layers - 1).elements()],
+            self.weights(self.num_layers - 1).dims(),
+        ));
+        StepSizes {
+            wrt_weights,
+            wrt_biases,
+        }
+    }
+
+    /// Sets step sizes proportional to the prior standard deviation of each parameter.
+    fn std_scaled_step_sizes(&self, const_factor: f64) -> StepSizes {
+        let mut wrt_weights = Vec::with_capacity(self.num_layers);
+        let mut wrt_biases = Vec::with_capacity(self.num_layers - 1);
+        for index in 0..self.num_layers - 1 {
+            wrt_weights.push(Array::new(
+                &vec![
+                    const_factor * (1. / self.weight_precision(index)).sqrt();
+                    self.weights(index).elements()
+                ],
+                self.weights(index).dims(),
+            ));
+            wrt_biases.push(Array::new(
+                &vec![
+                    const_factor * (1. / self.bias_precision(index)).sqrt();
+                    self.biases(index).elements()
+                ],
+                self.biases(index).dims(),
+            ));
+        }
+        // output layer weights
+        wrt_weights.push(Array::new(
+            &vec![
+                const_factor * (1. / self.weight_precision(self.num_layers - 1)).sqrt();
+                self.weights(self.num_layers - 1).elements()
+            ],
             self.weights(self.num_layers - 1).dims(),
         ));
         StepSizes {

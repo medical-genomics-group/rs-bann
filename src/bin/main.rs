@@ -5,7 +5,11 @@ use ndarray::arr1;
 use rand::thread_rng;
 use rand_distr::{Binomial, Distribution, Uniform};
 use rs_bann::net::branch::branch_builder::BranchBuilder;
-use rs_bann::net::{architectures::BlockNetCfg, mcmc_cfg::MCMCCfg, net::Net};
+use rs_bann::net::{
+    architectures::BlockNetCfg,
+    mcmc_cfg::{MCMCCfg, StepSizeMode},
+    net::Net,
+};
 use rs_bann::network::MarkerGroup;
 use rs_bedvec::io::BedReader;
 
@@ -53,6 +57,11 @@ struct BlockNetArgs {
     #[clap(short, long)]
     random_step_sizes: bool,
 
+    /// enable step sizes scales by prior standard deviation.
+    /// Takes precedence of random_step_sizes if enabled.
+    #[clap(short, long)]
+    std_scaled_step_sizes: bool,
+
     /// enable debug prints
     #[clap(short, long)]
     debug_prints: bool,
@@ -80,12 +89,17 @@ struct AFArgs {
     /// max hamiltonian error
     max_hamiltonian_error: f64,
 
-    /// hmc step size, acts as a modifying factor on random step sizes if enabled
+    /// hmc step size, acts as a modifying factor on random or scaled step size if enables
     step_size: f64,
 
     /// enable random step sizes
     #[clap(short, long)]
     random_step_sizes: bool,
+
+    /// enable step sizes scales by prior standard deviation.
+    /// Takes precedence of random_step_sizes if enabled.
+    #[clap(short, long)]
+    std_scaled_step_sizes: bool,
 
     /// enable debug prints
     #[clap(short, long)]
@@ -180,13 +194,21 @@ fn test_block_net() {
 
     let decades = args.chain_length / 10;
 
+    let step_size_mode = if args.std_scaled_step_sizes {
+        StepSizeMode::StdScaled
+    } else if args.random_step_sizes {
+        StepSizeMode::Random
+    } else {
+        StepSizeMode::Uniform
+    };
+
     info!("Training net");
     let mcmc_cfg = MCMCCfg {
-        hmc_step_size: args.step_size,
+        hmc_step_size_factor: args.step_size,
         hmc_max_hamiltonian_error: args.max_hamiltonian_error,
         hmc_integration_length: args.integration_length,
+        hmc_step_size_mode: step_size_mode,
         chain_length: args.chain_length / 10,
-        hmc_random_step_sizes: args.random_step_sizes,
     };
 
     for dec in 0..decades {
@@ -258,12 +280,20 @@ fn test_crate_af() {
     // train
     let mut accepted_samples: u64 = 0;
 
+    let step_size_mode = if args.std_scaled_step_sizes {
+        StepSizeMode::StdScaled
+    } else if args.random_step_sizes {
+        StepSizeMode::Random
+    } else {
+        StepSizeMode::Uniform
+    };
+
     let mcmc_cfg = MCMCCfg {
-        hmc_step_size: args.step_size,
+        hmc_step_size_factor: args.step_size,
         hmc_max_hamiltonian_error: args.max_hamiltonian_error,
         hmc_integration_length: args.integration_length,
         chain_length: args.chain_length,
-        hmc_random_step_sizes: args.random_step_sizes,
+        hmc_step_size_mode: step_size_mode,
     };
 
     for i in 0..args.chain_length {
