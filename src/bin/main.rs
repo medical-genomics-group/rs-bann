@@ -8,7 +8,7 @@ use rs_bann::net::{
     architectures::BlockNetCfg,
     branch::{branch::HMCStepResult, branch_builder::BranchBuilder},
     mcmc_cfg::{MCMCCfg, StepSizeMode},
-    net::Data,
+    net::{Data, ReportCfg},
 };
 use rs_bann::network::MarkerGroup;
 use rs_bedvec::io::BedReader;
@@ -52,6 +52,9 @@ struct BlockNetArgs {
 
     /// hmc step size, acts as a modifying factor on random step sizes if enabled
     step_size: f64,
+
+    /// training stats report interval
+    report_interval: usize,
 
     /// enable random step sizes
     #[clap(short, long)]
@@ -208,8 +211,9 @@ fn test_block_net() {
 
     let train_data = Data::new(&x_train, &y_train);
     let test_data = Data::new(&x_test, &y_test);
+    let report_cfg = ReportCfg::new(args.report_interval, Some(&test_data));
 
-    net.train(&train_data, &mcmc_cfg, true, Some(&test_data));
+    net.train(&train_data, &mcmc_cfg, true, Some(report_cfg));
 }
 
 // tests single branch impl

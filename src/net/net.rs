@@ -12,6 +12,20 @@ use rand::rngs::ThreadRng;
 use rand::thread_rng;
 use rand_distr::{Distribution, Normal};
 
+pub struct ReportCfg<'data> {
+    interval: usize,
+    test_data: Option<&'data Data<'data>>,
+}
+
+impl<'data> ReportCfg<'data> {
+    pub fn new(interval: usize, test_data: Option<&'data Data<'data>>) -> Self {
+        Self {
+            interval,
+            test_data,
+        }
+    }
+}
+
 pub struct Data<'data> {
     x: &'data Vec<Vec<f64>>,
     y: &'data Vec<f64>,
@@ -109,7 +123,7 @@ impl Net {
         train_data: &Data,
         mcmc_cfg: &MCMCCfg,
         verbose: bool,
-        test_data: Option<&Data>,
+        report_cfg: Option<ReportCfg>,
     ) {
         let mut rng = thread_rng();
         let num_individuals = train_data.y.len();
@@ -118,10 +132,12 @@ impl Net {
             &Array::new(&train_data.y, dim4!(num_individuals as u64, 1, 1, 1)),
         );
         let mut branch_ixs = (0..self.num_branches).collect::<Vec<usize>>();
+        let mut report_interval = 1;
 
         // report
         if verbose {
-            self.report_training_state(0, train_data, test_data);
+            self.report_training_state(0, train_data, report_cfg.as_ref().unwrap().test_data);
+            report_interval = report_cfg.as_ref().unwrap().interval;
         }
 
         for chain_ix in 1..=mcmc_cfg.chain_length {
@@ -170,8 +186,12 @@ impl Net {
             );
 
             // report
-            if verbose {
-                self.report_training_state(chain_ix, train_data, test_data);
+            if verbose && chain_ix % report_interval == 0 {
+                self.report_training_state(
+                    chain_ix,
+                    train_data,
+                    report_cfg.as_ref().unwrap().test_data,
+                );
             }
         }
     }
