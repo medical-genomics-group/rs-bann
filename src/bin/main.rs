@@ -200,6 +200,11 @@ fn test_block_net() {
         StepSizeMode::Uniform
     };
 
+    info!(
+        "Built net with {:} params per branch.",
+        net.num_branch_params(0)
+    );
+
     info!("Training net");
     let mcmc_cfg = MCMCCfg {
         hmc_step_size_factor: args.step_size,
