@@ -14,11 +14,11 @@ use rand_distr::{Distribution, Normal};
 
 pub struct ReportCfg<'data> {
     interval: usize,
-    test_data: Option<&'data Data<'data>>,
+    test_data: Option<&'data Data>,
 }
 
 impl<'data> ReportCfg<'data> {
-    pub fn new(interval: usize, test_data: Option<&'data Data<'data>>) -> Self {
+    pub fn new(interval: usize, test_data: Option<&'data Data>) -> Self {
         Self {
             interval,
             test_data,
@@ -26,13 +26,13 @@ impl<'data> ReportCfg<'data> {
     }
 }
 
-pub struct Data<'data> {
-    x: &'data Vec<Vec<f64>>,
-    y: &'data Vec<f64>,
+pub struct Data {
+    x: Vec<Vec<f64>>,
+    y: Vec<f64>,
 }
 
-impl<'data> Data<'data> {
-    pub fn new(x: &'data Vec<Vec<f64>>, y: &'data Vec<f64>) -> Self {
+impl Data {
+    pub fn new(x: Vec<Vec<f64>>, y: Vec<f64>) -> Self {
         Data { x, y }
     }
 }
@@ -140,7 +140,7 @@ impl Net {
         let mut rng = thread_rng();
         let num_individuals = train_data.y.len();
         let mut residual = self.residual(
-            train_data.x,
+            &train_data.x,
             &Array::new(&train_data.y, dim4!(num_individuals as u64, 1, 1, 1)),
         );
         let mut branch_ixs = (0..self.num_branches).collect::<Vec<usize>>();
@@ -262,7 +262,7 @@ impl Net {
     }
 
     pub fn rss(&self, data: &Data) -> f64 {
-        let y_test_arr = Array::new(data.y, dim4!(data.y.len() as u64, 1, 1, 1));
+        let y_test_arr = Array::new(&data.y, dim4!(data.y.len() as u64, 1, 1, 1));
         let y_hat = self.predict_arr(&data.x, data.y.len());
         let residual = y_test_arr - y_hat;
         super::gibbs_steps::sum_of_squares(&residual)

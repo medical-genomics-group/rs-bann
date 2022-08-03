@@ -214,8 +214,8 @@ fn test_block_net() {
         chain_length: args.chain_length,
     };
 
-    let train_data = Data::new(&x_train, &y_train);
-    let test_data = Data::new(&x_test, &y_test);
+    let train_data = Data::new(x_train, y_train);
+    let test_data = Data::new(x_test, y_test);
     let report_cfg = ReportCfg::new(args.report_interval, Some(&test_data));
 
     net.train(&train_data, &mcmc_cfg, true, Some(report_cfg));
