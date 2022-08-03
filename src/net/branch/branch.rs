@@ -7,6 +7,7 @@ use super::{
     params::{BranchHyperparams, BranchParams},
     step_sizes::StepSizes,
 };
+use crate::to_host;
 use arrayfire::{dim4, matmul, tanh, Array, MatProp};
 use log::debug;
 use rand::prelude::ThreadRng;
@@ -163,17 +164,12 @@ impl Branch {
         let mut ldg = self.log_density_gradient(x_train, y_train);
 
         // leapfrog
-        for step in 0..(mcmc_cfg.hmc_integration_length) {
+        for _step in 0..(mcmc_cfg.hmc_integration_length) {
             momenta.half_step(&step_sizes, &ldg);
             self.params.full_step(&step_sizes, &momenta);
             ldg = self.log_density_gradient(x_train, y_train);
-            momenta.half_step(&step_sizes, &ldg);
 
-            debug!(
-                "step: {:?}, hamiltonian: {:?}",
-                step,
-                self.neg_hamiltonian(&momenta, x_train, y_train)
-            );
+            momenta.half_step(&step_sizes, &ldg);
 
             if (self.neg_hamiltonian(&momenta, x_train, y_train) - init_neg_hamiltonian).abs()
                 > mcmc_cfg.hmc_max_hamiltonian_error
@@ -182,6 +178,18 @@ impl Branch {
                 self.params = init_params;
                 return HMCStepResult::RejectedEarly;
             }
+        }
+
+        debug!("final gradients");
+        for lix in 0..ldg.wrt_weights.len() {
+            debug!(
+                "layer: {:}; weight grad: {:?}",
+                lix,
+                to_host(&ldg.wrt_weights[lix])
+            );
+        }
+        for lix in 0..ldg.wrt_biases.len() {
+            debug!("layer: {:}; {:?}", lix, to_host(&ldg.wrt_biases[lix]));
         }
 
         // accept or reject

@@ -6,7 +6,7 @@ use super::{
 use crate::to_host;
 use arrayfire::sum_all;
 use arrayfire::{dim4, Array};
-use log::info;
+use log::{debug, info};
 use rand::prelude::SliceRandom;
 use rand::rngs::ThreadRng;
 use rand::thread_rng;
@@ -176,6 +176,7 @@ impl Net {
             // shuffle order in which branches are trained
             branch_ixs.shuffle(&mut rng);
             for &branch_ix in &branch_ixs {
+                debug!("Updating branch {:}", branch_ix);
                 let cfg = &self.branch_cfgs[branch_ix];
                 // load marker data onto device
                 let x = Array::new(
