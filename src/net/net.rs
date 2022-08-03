@@ -6,11 +6,15 @@ use super::{
 use crate::to_host;
 use arrayfire::sum_all;
 use arrayfire::{dim4, Array};
+use bincode::serialize_into;
 use log::{debug, info};
 use rand::prelude::SliceRandom;
 use rand::rngs::ThreadRng;
 use rand::thread_rng;
 use rand_distr::{Distribution, Normal};
+use serde::{Deserialize, Serialize};
+use std::fs::File;
+use std::io::BufWriter;
 
 pub struct ReportCfg<'data> {
     interval: usize,
@@ -26,6 +30,7 @@ impl<'data> ReportCfg<'data> {
     }
 }
 
+#[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub struct Data {
     x: Vec<Vec<f64>>,
     y: Vec<f64>,
@@ -34,6 +39,11 @@ pub struct Data {
 impl Data {
     pub fn new(x: Vec<Vec<f64>>, y: Vec<f64>) -> Self {
         Data { x, y }
+    }
+
+    pub fn to_file(&self, path: &str) {
+        let mut f = BufWriter::new(File::create(path).unwrap());
+        serialize_into(&mut f, self).unwrap();
     }
 }
 pub(crate) struct TrainingStats {
