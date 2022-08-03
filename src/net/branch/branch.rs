@@ -153,7 +153,6 @@ impl Branch {
             StepSizeMode::Random => self.random_step_sizes(mcmc_cfg.hmc_step_size_factor),
             StepSizeMode::Uniform => self.uniform_step_sizes(mcmc_cfg.hmc_step_size_factor),
         };
-        debug!("step sizes: {:?}", step_sizes);
 
         // TODO: add u turn diagnostic for tuning
         let init_momenta = self.sample_momenta();
