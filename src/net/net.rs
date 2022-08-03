@@ -115,12 +115,16 @@ pub struct Net {
 }
 
 impl Net {
-    fn num_params(&self) -> usize {
+    pub fn num_params(&self) -> usize {
         let mut res = 0;
         for cfg in &self.branch_cfgs {
             res += cfg.num_params
         }
         res
+    }
+
+    pub fn num_branch_params(&self, branch_ix: usize) -> usize {
+        self.branch_cfgs[branch_ix].num_params
     }
 
     // X has to be column major!
