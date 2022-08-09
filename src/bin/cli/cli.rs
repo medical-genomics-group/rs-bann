@@ -46,11 +46,8 @@ pub(crate) struct SimulateArgs {
 /// Width of branch layers: same within branches, dynamic between branches
 #[derive(Args, Debug)]
 pub(crate) struct BaseModelArgs {
-    /// path to train data
-    pub train_data: String,
-
-    /// path to test data
-    pub test_data: String,
+    /// input directory with train.bin and test.bin files
+    pub indir: String,
 
     /// width of hidden layer
     pub hidden_layer_width: usize,
@@ -86,11 +83,15 @@ pub(crate) struct BaseModelArgs {
     /// enable step sizes scales by prior standard deviation.
     /// Takes precedence of random_step_sizes if enabled.
     #[clap(short, long)]
-    pub std_scaled_step_sizes: bool,
+    pub precision_scaled_step_sizes: bool,
 
     /// enable debug prints
     #[clap(short, long)]
     pub debug_prints: bool,
+
+    /// standardize input data
+    #[clap(short, long)]
+    pub standardize: bool,
 }
 
 /// A small bayesian neural network implementation based on ArrayFire.

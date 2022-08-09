@@ -150,8 +150,14 @@ fn base_model(args: BaseModelArgs) {
     }
 
     info!("Loading data");
-    let train_data = Data::from_file(Path::new(&args.train_data));
-    let test_data = Data::from_file(Path::new(&args.test_data));
+    let mut train_data = Data::from_file(&Path::new(&args.indir).join("train.bin"));
+    let mut test_data = Data::from_file(&Path::new(&args.indir).join("test.bin"));
+
+    if args.standardize {
+        info!("Standardizing data");
+        train_data.standardize();
+        test_data.standardize();
+    }
 
     info!("Building net");
     let mut net_cfg = BlockNetCfg::new()
@@ -162,7 +168,7 @@ fn base_model(args: BaseModelArgs) {
     }
     let mut net = net_cfg.build_net();
 
-    let step_size_mode = if args.std_scaled_step_sizes {
+    let step_size_mode = if args.precision_scaled_step_sizes {
         StepSizeMode::StdScaled
     } else if args.random_step_sizes {
         StepSizeMode::Random
