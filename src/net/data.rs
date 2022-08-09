@@ -12,6 +12,9 @@ pub struct Data {
     pub y: Vec<f64>,
     pub x_means: Vec<Vec<f64>>,
     pub x_stds: Vec<Vec<f64>>,
+    num_markers_per_branch: usize,
+    num_individuals: usize,
+    standardized: bool,
 }
 
 impl Data {
@@ -20,12 +23,18 @@ impl Data {
         y: Vec<f64>,
         x_means: Vec<Vec<f64>>,
         x_stds: Vec<Vec<f64>>,
+        num_markers_per_branch: usize,
+        num_individuals: usize,
+        standardized: bool,
     ) -> Self {
         Data {
             x,
             y,
             x_means,
             x_stds,
+            num_markers_per_branch,
+            num_individuals,
+            standardized,
         }
     }
 
@@ -41,5 +50,29 @@ impl Data {
 
     pub fn num_branches(&self) -> usize {
         self.x.len()
+    }
+
+    pub fn num_markers_per_branch(&self) -> usize {
+        self.num_markers_per_branch
+    }
+
+    pub fn num_individuals(&self) -> usize {
+        self.num_individuals
+    }
+
+    pub fn standardize(&mut self) {
+        if !self.standardized {
+            for branch_ix in 0..self.num_branches() {
+                for marker_ix in 0..self.num_markers_per_branch {
+                    (0..self.num_individuals).for_each(|i| {
+                        let val = self.x[branch_ix][self.num_individuals * marker_ix + i];
+                        self.x[branch_ix][self.num_individuals * marker_ix + i] = (val
+                            - self.x_means[branch_ix][marker_ix])
+                            / self.x_stds[branch_ix][marker_ix];
+                    })
+                }
+            }
+            self.standardized = true;
+        }
     }
 }
