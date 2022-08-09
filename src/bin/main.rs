@@ -1,5 +1,4 @@
 use arrayfire::{dim4, randn, Array};
-use bincode::serialize_into;
 use clap::Parser;
 use log::info;
 use ndarray::arr1;
@@ -8,13 +7,12 @@ use rand_distr::{Binomial, Distribution, Uniform};
 use rs_bann::net::{
     architectures::BlockNetCfg,
     branch::{branch::HMCStepResult, branch_builder::BranchBuilder},
+    data::Data,
     mcmc_cfg::{MCMCCfg, StepSizeMode},
-    net::{Data, ReportCfg},
+    net::ReportCfg,
 };
 use rs_bann::network::MarkerGroup;
 use rs_bedvec::io::BedReader;
-use std::fs::File;
-use std::io::BufWriter;
 
 /// A small bayesian neural network implementation.
 /// Number of markers per branch: fixed
