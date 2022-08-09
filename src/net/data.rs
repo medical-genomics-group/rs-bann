@@ -38,4 +38,8 @@ impl Data {
         let mut f = BufWriter::new(File::create(path).unwrap());
         serialize_into(&mut f, self).unwrap();
     }
+
+    pub fn num_branches(&self) -> usize {
+        self.x.len()
+    }
 }
