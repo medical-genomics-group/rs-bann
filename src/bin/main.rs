@@ -1,7 +1,7 @@
 mod cli;
 
-use crate::cli::{BaseModelArgs, Cli, SimulateArgs, SubCmd};
 use clap::Parser;
+use cli::cli::{BaseModelArgs, Cli, SimulateArgs, SubCmd};
 use log::info;
 use rand::thread_rng;
 use rand_distr::{Binomial, Distribution, Normal, Uniform};
