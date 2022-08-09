@@ -1,9 +1,12 @@
+mod cli;
+
+use crate::cli::{BaseModelArgs, Cli, SimulateArgs, SubCmd};
 use arrayfire::{dim4, randn, Array};
 use clap::Parser;
 use log::info;
 use ndarray::arr1;
 use rand::thread_rng;
-use rand_distr::{Binomial, Distribution, Uniform};
+use rand_distr::{Binomial, Distribution, Normal, Uniform};
 use rs_bann::net::{
     architectures::BlockNetCfg,
     branch::{branch::HMCStepResult, branch_builder::BranchBuilder},
@@ -13,106 +16,14 @@ use rs_bann::net::{
 };
 use rs_bann::network::MarkerGroup;
 use rs_bedvec::io::BedReader;
-
-/// A small bayesian neural network implementation.
-/// Number of markers per branch: fixed
-/// Depth of branches: same for all branches
-/// Width of branch layers: same within branches, dynamic between branches
-#[derive(Parser, Debug)]
-#[clap(author, version, about, long_about = None)]
-struct BlockNetArgs {
-    /// number of input features per branch (markers)
-    num_markers_per_branch: usize,
-
-    /// number of branches (markers)
-    num_branches: usize,
-
-    /// number of samples (individuals)
-    num_individuals: usize,
-
-    /// width of hidden layer
-    hidden_layer_width: usize,
-
-    /// number of hidden layers in branches
-    branch_depth: usize,
-
-    /// prior shape
-    prior_shape: f64,
-
-    /// prior scale
-    prior_scale: f64,
-
-    /// full model chain length
-    chain_length: usize,
-
-    /// hmc max hamiltonian error
-    max_hamiltonian_error: f64,
-
-    /// hmc integration length
-    integration_length: usize,
-
-    /// hmc step size, acts as a modifying factor on random step sizes if enabled
-    step_size: f64,
-
-    /// training stats report interval
-    report_interval: usize,
-
-    /// enable random step sizes
-    #[clap(short, long)]
-    random_step_sizes: bool,
-
-    /// enable step sizes scales by prior standard deviation.
-    /// Takes precedence of random_step_sizes if enabled.
-    #[clap(short, long)]
-    std_scaled_step_sizes: bool,
-
-    /// enable debug prints
-    #[clap(short, long)]
-    debug_prints: bool,
-}
-
-/// A small bayesian neural network implementation based on ArrayFire.
-#[derive(Parser, Debug)]
-#[clap(author, version, about, long_about = None)]
-struct AFArgs {
-    /// number of input feature (markers)
-    num_markers: usize,
-
-    /// number of samples (individuals)
-    num_individuals: usize,
-
-    /// width of hidden layer
-    hidden_layer_width: usize,
-
-    /// hmc integration length
-    integration_length: usize,
-
-    /// chain length (number of hmc samples)
-    chain_length: usize,
-
-    /// max hamiltonian error
-    max_hamiltonian_error: f64,
-
-    /// hmc step size, acts as a modifying factor on random or scaled step size if enables
-    step_size: f64,
-
-    /// enable random step sizes
-    #[clap(short, long)]
-    random_step_sizes: bool,
-
-    /// enable step sizes scales by prior standard deviation.
-    /// Takes precedence over random_step_sizes if enabled.
-    #[clap(short, long)]
-    std_scaled_step_sizes: bool,
-
-    /// enable debug prints
-    #[clap(short, long)]
-    debug_prints: bool,
-}
+use statrs::statistics::Statistics;
+use std::path::Path;
 
 fn main() {
-    test_block_net();
-    // test_crate_af();
+    match Cli::parse().cmd {
+        SubCmd::Simulate(args) => simulate(args),
+        SubCmd::BaseModel(args) => base_model(args),
+    }
 }
 
 // TODO:
@@ -137,10 +48,91 @@ fn predict() {
     unimplemented!();
 }
 
-// tests block net architecture
-fn test_block_net() {
-    let args = BlockNetArgs::parse();
+fn simulate(args: SimulateArgs) {
+    if let Some(val) = args.heritability {
+        if !(val >= 0. && val <= 1.) {
+            panic!("Heritability must be within [0, 1].");
+        }
+    }
+    let path = Path::new(&args.path);
+    let train_path = path
+        .parent()
+        .unwrap()
+        .join(path.file_stem().unwrap())
+        .join("_train.bin");
+    let test_path = path
+        .parent()
+        .unwrap()
+        .join(path.file_stem().unwrap())
+        .join("_test.bin");
 
+    info!("Building model");
+    let mut net_cfg = BlockNetCfg::new()
+        .with_depth(args.branch_depth)
+        .with_initial_random_range(2.0);
+    for _ in 0..args.num_branches {
+        net_cfg.add_branch(args.num_markers_per_branch, args.hidden_layer_width);
+    }
+    let net = net_cfg.build_net();
+
+    let mut rng = thread_rng();
+
+    info!("Generating random marker data");
+    let gt_per_branch = args.num_markers_per_branch * args.num_individuals;
+    let mut x_train: Vec<Vec<f64>> = vec![vec![0.0; gt_per_branch]; args.num_branches];
+    let mut x_test: Vec<Vec<f64>> = vec![vec![0.0; gt_per_branch]; args.num_branches];
+    let mut x_means: Vec<Vec<f64>> =
+        vec![vec![0.0; args.num_markers_per_branch]; args.num_branches];
+    let mut x_stds: Vec<Vec<f64>> = vec![vec![0.0; args.num_markers_per_branch]; args.num_branches];
+    for branch_ix in 0..args.num_branches {
+        for marker_ix in 0..args.num_markers_per_branch {
+            let maf = Uniform::from(0.0..0.5).sample(&mut rng);
+            x_means[branch_ix][marker_ix] = 2. * maf;
+            x_stds[branch_ix][marker_ix] = (2. * maf * (1. - maf)).sqrt();
+
+            let binom = Binomial::new(2, maf).unwrap();
+            (0..args.num_individuals).for_each(|i| {
+                x_train[branch_ix][marker_ix * args.num_individuals + i] =
+                    binom.sample(&mut rng) as f64
+            });
+
+            let maf = Uniform::from(0.0..0.5).sample(&mut rng);
+            let binom = Binomial::new(2, maf).unwrap();
+            (0..args.num_individuals).for_each(|i| {
+                x_test[branch_ix][marker_ix * args.num_individuals + i] =
+                    binom.sample(&mut rng) as f64
+            });
+        }
+    }
+
+    info!("Making phenotype data");
+    let mut y_train = net.predict(&x_train, args.num_individuals);
+    let mut y_test = net.predict(&x_test, args.num_individuals);
+
+    if let Some(h) = args.heritability {
+        let s2_train = y_train.variance();
+        let train_residual_variance = s2_train * (1. / h - 1.);
+        let rv_train_dist = Normal::new(0.0, train_residual_variance).unwrap();
+        y_train
+            .iter_mut()
+            .for_each(|e| *e += rv_train_dist.sample(&mut rng) as f64);
+        info!("Train data: Added residual variance of {:2} to variance explained {:2} (total variance: {:2})", train_residual_variance, s2_train, y_train.variance());
+
+        let s2_test = y_test.variance();
+        let test_residual_variance = s2_test * (1. / h - 1.);
+        let rv_test_dist = Normal::new(0.0, test_residual_variance).unwrap();
+        y_test
+            .iter_mut()
+            .for_each(|e| *e += rv_test_dist.sample(&mut rng) as f64);
+        info!("Test data: Added residual variance of {:2} to variance explained {:2} (total variance: {:2})", test_residual_variance, s2_test, y_test.variance());
+    }
+
+    Data::new(x_train, y_train, x_means, x_stds).to_file(&train_path);
+    Data::new(x_test, y_test, x_means, x_stds).to_file(&test_path);
+}
+
+// tests block net architecture
+fn base_model(args: BaseModelArgs) {
     if args.debug_prints {
         simple_logger::init_with_level(log::Level::Debug).unwrap();
     } else {
