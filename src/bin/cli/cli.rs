@@ -18,8 +18,8 @@ pub(crate) enum SubCmd {
 
 #[derive(Args, Debug)]
 pub(crate) struct SimulateArgs {
-    /// path to output file(s)
-    pub path: String,
+    /// path to output dir. Will be created if it does not exist
+    pub outdir: String,
 
     /// number of input features per branch (markers)
     pub num_markers_per_branch: usize,
