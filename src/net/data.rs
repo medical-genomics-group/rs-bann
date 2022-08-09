@@ -1,4 +1,5 @@
 use bincode::{deserialize_from, serialize_into};
+use log::info;
 use serde::{Deserialize, Serialize};
 use std::{
     fs::File,
@@ -44,6 +45,7 @@ impl Data {
     }
 
     pub fn to_file(&self, path: &Path) {
+        info!("Creating: {:?}", path);
         let mut f = BufWriter::new(File::create(path).unwrap());
         serialize_into(&mut f, self).unwrap();
     }
