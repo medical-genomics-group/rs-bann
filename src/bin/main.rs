@@ -44,22 +44,19 @@ fn predict() {
 }
 
 fn simulate(args: SimulateArgs) {
+    simple_logger::init_with_level(log::Level::Info).unwrap();
+
     if let Some(val) = args.heritability {
         if !(val >= 0. && val <= 1.) {
             panic!("Heritability must be within [0, 1].");
         }
     }
-    let path = Path::new(&args.path);
-    let train_path = path
-        .parent()
-        .unwrap()
-        .join(path.file_stem().unwrap())
-        .join("_train.bin");
-    let test_path = path
-        .parent()
-        .unwrap()
-        .join(path.file_stem().unwrap())
-        .join("_test.bin");
+    let path = Path::new(&args.outdir);
+    if !path.exists() {
+        std::fs::create_dir_all(path).expect("Could not create output directory!");
+    }
+    let train_path = path.join("train.bin");
+    let test_path = path.join("test.bin");
 
     info!("Building model");
     let mut net_cfg = BlockNetCfg::new()
@@ -107,7 +104,7 @@ fn simulate(args: SimulateArgs) {
     if let Some(h) = args.heritability {
         let s2_train = (&y_train).variance();
         let train_residual_variance = s2_train * (1. / h - 1.);
-        let rv_train_dist = Normal::new(0.0, train_residual_variance).unwrap();
+        let rv_train_dist = Normal::new(0.0, train_residual_variance.sqrt()).unwrap();
         y_train
             .iter_mut()
             .for_each(|e| *e += rv_train_dist.sample(&mut rng) as f64);
@@ -115,7 +112,7 @@ fn simulate(args: SimulateArgs) {
 
         let s2_test = (&y_test).variance();
         let test_residual_variance = s2_test * (1. / h - 1.);
-        let rv_test_dist = Normal::new(0.0, test_residual_variance).unwrap();
+        let rv_test_dist = Normal::new(0.0, test_residual_variance.sqrt()).unwrap();
         y_test
             .iter_mut()
             .for_each(|e| *e += rv_test_dist.sample(&mut rng) as f64);
