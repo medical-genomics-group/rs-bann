@@ -101,7 +101,7 @@ struct AFArgs {
     random_step_sizes: bool,
 
     /// enable step sizes scales by prior standard deviation.
-    /// Takes precedence of random_step_sizes if enabled.
+    /// Takes precedence over random_step_sizes if enabled.
     #[clap(short, long)]
     std_scaled_step_sizes: bool,
 
