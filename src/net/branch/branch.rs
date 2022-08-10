@@ -148,6 +148,7 @@ impl Branch {
         y_train: &Array<f64>,
         mcmc_cfg: &MCMCCfg,
     ) -> HMCStepResult {
+        let mut u_turned = false;
         let init_params = self.params.clone();
         let step_sizes = match mcmc_cfg.hmc_step_size_mode {
             StepSizeMode::StdScaled => self.std_scaled_step_sizes(mcmc_cfg.hmc_step_size_factor),
@@ -179,8 +180,9 @@ impl Branch {
                 return HMCStepResult::RejectedEarly;
             }
 
-            if self.is_u_turn(&init_params, &momenta) {
+            if !u_turned && self.is_u_turn(&init_params, &momenta) {
                 warn!("U turn in HMC trajectory at step {}", _step);
+                u_turned = true;
             }
         }
 
