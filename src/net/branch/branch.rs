@@ -8,7 +8,7 @@ use super::{
     step_sizes::StepSizes,
 };
 use crate::{scalar_to_host, to_host};
-use arrayfire::{diag_extract, dim4, dot, matmul, sum, tanh, Array, MatProp};
+use arrayfire::{diag_extract, dim4, dot, matmul, randu, sum, tanh, Array, MatProp};
 use log::{debug, warn};
 use rand::prelude::ThreadRng;
 use rand::{thread_rng, Rng};
@@ -285,47 +285,21 @@ impl Branch {
         }
     }
 
+    // TODO: this is much slower than std_scaled_step_sizes for some reason
     fn random_step_sizes(&mut self, const_factor: f64) -> StepSizes {
         let mut wrt_weights = Vec::with_capacity(self.num_layers);
         let mut wrt_biases = Vec::with_capacity(self.num_layers - 1);
-        let gamma = Gamma::new(0.25, 0.5).unwrap();
         let prop_factor = (self.num_params as f64).powf(-0.25) * const_factor;
-        for index in 0..self.num_layers - 1 {
+
+        for index in 0..self.num_layers {
             let n = self.weights(index).elements();
-            wrt_weights.push(
-                Array::new(
-                    (&mut self.rng)
-                        .sample_iter(gamma)
-                        .take(n)
-                        .collect::<Vec<f64>>()
-                        .as_slice(),
-                    self.weights(index).dims(),
-                ) * prop_factor,
-            );
-            let n = self.biases(index).elements();
-            wrt_biases.push(
-                Array::new(
-                    (&mut self.rng)
-                        .sample_iter(gamma)
-                        .take(n)
-                        .collect::<Vec<f64>>()
-                        .as_slice(),
-                    self.biases(index).dims(),
-                ) * prop_factor,
-            );
+            wrt_weights.push(randu::<f64>(self.weights(index).dims()) * prop_factor);
         }
-        // output layer weights
-        let n = self.weights(self.num_layers - 1).elements();
-        wrt_weights.push(
-            Array::new(
-                (&mut self.rng)
-                    .sample_iter(gamma)
-                    .take(n)
-                    .collect::<Vec<f64>>()
-                    .as_slice(),
-                self.weights(self.num_layers - 1).dims(),
-            ) * prop_factor,
-        );
+
+        for index in 0..(self.num_layers - 1) {
+            let n = self.biases(index).elements();
+            wrt_biases.push(randu::<f64>(self.biases(index).dims()) * prop_factor);
+        }
         StepSizes {
             wrt_weights,
             wrt_biases,
