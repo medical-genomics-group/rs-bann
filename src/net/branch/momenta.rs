@@ -37,4 +37,12 @@ impl BranchMomenta {
         }
         log_density
     }
+
+    pub fn wrt_weights(&self, index: usize) -> &Array<f64> {
+        &self.wrt_weights[index]
+    }
+
+    pub fn wrt_biases(&self, index: usize) -> &Array<f64> {
+        &self.wrt_biases[index]
+    }
 }

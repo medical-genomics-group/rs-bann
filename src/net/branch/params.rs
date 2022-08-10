@@ -104,6 +104,14 @@ impl BranchParams {
         }
         log_density
     }
+
+    pub fn weights(&self, index: usize) -> &Array<f64> {
+        &self.weights[index]
+    }
+
+    pub fn biases(&self, index: usize) -> &Array<f64> {
+        &self.biases[index]
+    }
 }
 
 #[cfg(test)]
