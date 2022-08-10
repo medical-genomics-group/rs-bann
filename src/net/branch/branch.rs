@@ -254,7 +254,7 @@ impl Branch {
     }
 
     fn is_u_turn(&self, init_params: &BranchParams, momenta: &BranchMomenta) -> bool {
-        self.net_movement(init_params, momenta) > 0.0
+        self.net_movement(init_params, momenta) < 0.0
     }
 
     // this is -H = (-U) + (-K)
