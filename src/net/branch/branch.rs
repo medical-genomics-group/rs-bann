@@ -7,9 +7,9 @@ use super::{
     params::{BranchHyperparams, BranchParams},
     step_sizes::StepSizes,
 };
-use crate::to_host;
-use arrayfire::{dim4, matmul, tanh, Array, MatProp};
-use log::debug;
+use crate::{scalar_to_host, to_host};
+use arrayfire::{diag_extract, dim4, dot, matmul, sum, tanh, Array, MatProp};
+use log::{debug, warn};
 use rand::prelude::ThreadRng;
 use rand::{thread_rng, Rng};
 use rand_distr::Gamma;
@@ -178,6 +178,10 @@ impl Branch {
                 self.params = init_params;
                 return HMCStepResult::RejectedEarly;
             }
+
+            if self.is_u_turn(&init_params, &momenta) {
+                warn!("U turn in HMC trajectory at step {}", _step);
+            }
         }
 
         debug!("final gradients");
@@ -208,6 +212,49 @@ impl Branch {
             self.params = init_params;
             HMCStepResult::Rejected
         }
+    }
+
+    /// Quantify change of distance from starting point
+    fn net_movement(&self, init_params: &BranchParams, momenta: &BranchMomenta) -> f64 {
+        let mut dot_p = Array::new(&[0.0], dim4!(1, 1, 1, 1));
+        for ix in 0..self.num_layers() {
+            if self.weights(ix).is_vector() {
+                dot_p += dot(
+                    &(self.weights(ix) - init_params.weights(ix)),
+                    momenta.wrt_weights(ix),
+                    MatProp::NONE,
+                    MatProp::NONE,
+                );
+            } else if self.weights(ix).is_scalar() {
+                dot_p += (self.weights(ix) - init_params.weights(ix)) * momenta.wrt_weights(ix);
+            } else {
+                dot_p += sum(
+                    &diag_extract(
+                        &matmul(
+                            &(self.weights(ix) - init_params.weights(ix)),
+                            momenta.wrt_weights(ix),
+                            MatProp::TRANS,
+                            MatProp::NONE,
+                        ),
+                        0,
+                    ),
+                    0,
+                );
+            }
+        }
+        for ix in 0..(self.num_layers() - 1) {
+            dot_p += matmul(
+                &(self.biases(ix) - init_params.biases(ix)),
+                &momenta.wrt_biases(ix),
+                MatProp::NONE,
+                MatProp::TRANS,
+            );
+        }
+        scalar_to_host(&dot_p)
+    }
+
+    fn is_u_turn(&self, init_params: &BranchParams, momenta: &BranchMomenta) -> bool {
+        self.net_movement(init_params, momenta) > 0.0
     }
 
     // this is -H = (-U) + (-K)
@@ -470,6 +517,8 @@ mod tests {
     use super::super::branch_builder::BranchBuilder;
     use super::Branch;
 
+    use crate::net::branch::momenta::BranchMomenta;
+    use crate::net::branch::params::BranchParams;
     use crate::to_host;
 
     // #[test]
@@ -481,7 +530,7 @@ mod tests {
     //     af_print!("Create a 5-by-3 matrix of random floats on the GPU", a);
     // }
 
-    fn test_branch() -> Branch {
+    fn make_test_branch() -> Branch {
         let exp_weights = [
             Array::new(&[0., 1., 2., 3., 4., 5.], dim4![3, 2, 1, 1]),
             Array::new(&[1., 2.], dim4![2, 1, 1, 1]),
@@ -503,11 +552,44 @@ mod tests {
             .build()
     }
 
+    fn make_test_uniform_params(c: f64) -> BranchParams {
+        let weights = [
+            Array::new(&[c; 6], dim4![3, 2, 1, 1]),
+            Array::new(&[c; 2], dim4![2, 1, 1, 1]),
+            Array::new(&[c], dim4![1, 1, 1, 1]),
+        ]
+        .to_vec();
+        let biases = [
+            Array::new(&[c; 2], dim4![1, 2, 1, 1]),
+            Array::new(&[c], dim4![1, 1, 1, 1]),
+        ]
+        .to_vec();
+        BranchParams { weights, biases }
+    }
+
+    fn make_test_uniform_momenta(c: f64) -> BranchMomenta {
+        let wrt_weights = [
+            Array::new(&[c; 6], dim4![3, 2, 1, 1]),
+            Array::new(&[c; 2], dim4![2, 1, 1, 1]),
+            Array::new(&[c], dim4![1, 1, 1, 1]),
+        ]
+        .to_vec();
+        let wrt_biases = [
+            Array::new(&[c; 2], dim4![1, 2, 1, 1]),
+            Array::new(&[c], dim4![1, 1, 1, 1]),
+        ]
+        .to_vec();
+        BranchMomenta {
+            wrt_weights,
+            wrt_biases,
+        }
+    }
+
     #[test]
     fn test_forward_feed() {
         let num_individuals = 4;
         let num_markers = 3;
-        let branch = test_branch();
+        let branch = make_test_branch();
         let x_train: Array<f64> = Array::new(
             &[1., 0., 0., 2., 1., 1., 2., 0., 0., 2., 0., 1.],
             dim4![num_individuals, num_markers, 1, 1],
@@ -570,7 +652,7 @@ mod tests {
     fn test_backpropagation() {
         let num_individuals = 4;
         let num_markers = 3;
-        let branch = test_branch();
+        let branch = make_test_branch();
         let x_train: Array<f64> = Array::new(
             &[1., 0., 0., 2., 1., 1., 2., 0., 0., 2., 0., 1.],
             dim4![num_individuals, num_markers, 1, 1],
@@ -632,7 +714,7 @@ mod tests {
     fn test_log_density_gradient() {
         let num_individuals = 4;
         let num_markers = 3;
-        let branch = test_branch();
+        let branch = make_test_branch();
         let x_train: Array<f64> = Array::new(
             &[1., 0., 0., 2., 1., 1., 2., 0., 0., 2., 0., 1.],
             dim4![num_individuals, num_markers, 1, 1],
@@ -692,7 +774,7 @@ mod tests {
 
     #[test]
     fn test_uniform_step_sizes() {
-        let branch = test_branch();
+        let branch = make_test_branch();
         let val = 1.0;
         let step_sizes = branch.uniform_step_sizes(val);
         for i in 0..(branch.num_layers - 1) {
@@ -703,5 +785,15 @@ mod tests {
         }
         let obs = to_host(&step_sizes.wrt_weights[branch.num_layers - 1]);
         assert_eq!(obs, vec![val; obs.len()]);
+    }
+
+    #[test]
+    fn test_net_movement() {
+        let branch = make_test_branch();
+        let momenta = make_test_uniform_momenta(1.);
+        let init_params = make_test_uniform_params(0.);
+        assert!(branch.net_movement(&init_params, &momenta) > 0.0);
+        let init_params = make_test_uniform_params(100.);
+        assert!(branch.net_movement(&init_params, &momenta) < 0.0);
     }
 }
