@@ -1,6 +1,6 @@
 use super::{
     branch::branch::BranchCfg,
-    branch::branch_builder::BranchCfgBuilder,
+    branch::branch_cfg_builder::BranchCfgBuilder,
     net::{Net, OutputBias, TrainingStats},
 };
 
