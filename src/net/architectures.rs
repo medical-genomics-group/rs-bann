@@ -20,6 +20,8 @@ impl BlockNetCfg {
     pub fn new() -> Self {
         BlockNetCfg {
             num_markers: vec![],
+            // TODO: rename! this is not network depth, but the number
+            // of hidden layers in a single branch, i.e. depth -2
             depth: 0,
             widths: vec![],
             precision_prior_shape: 1.,
@@ -73,5 +75,20 @@ impl BlockNetCfg {
             error_precision: 1.0,
             training_stats: TrainingStats::new(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::BlockNetCfg;
+
+    #[test]
+    fn test_block_net_architecture_num_params_in_branch() {
+        let mut cfg = BlockNetCfg::new().with_depth(1);
+        cfg.add_branch(3, 3);
+        cfg.add_branch(3, 3);
+        let net = cfg.build_net();
+        assert_eq!(net.branch_cfgs[0].num_params, 17);
+        assert_eq!(net.branch_cfgs[1].num_params, 17);
     }
 }
