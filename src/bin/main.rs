@@ -188,6 +188,7 @@ fn base_model(args: BaseModelArgs) {
         hmc_integration_length: args.integration_length,
         hmc_step_size_mode: step_size_mode,
         chain_length: args.chain_length,
+        trace_file: args.trace_file_path,
     };
 
     let report_cfg = ReportCfg::new(args.report_interval, Some(&test_data));
