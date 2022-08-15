@@ -92,6 +92,11 @@ pub(crate) struct BaseModelArgs {
     /// standardize input data
     #[clap(short, long)]
     pub standardize: bool,
+
+    /// Path for trace file.
+    /// Trace output will only be generated if this path is specified.
+    #[clap(short, long)]
+    pub trace_file_path: Option<String>,
 }
 
 /// A small bayesian neural network implementation based on ArrayFire.
