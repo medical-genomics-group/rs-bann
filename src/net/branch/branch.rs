@@ -12,7 +12,6 @@ use arrayfire::{diag_extract, dim4, dot, matmul, randu, sum, tanh, Array, MatPro
 use log::{debug, warn};
 use rand::prelude::ThreadRng;
 use rand::{thread_rng, Rng};
-use rand_distr::Gamma;
 
 pub enum HMCStepResult {
     RejectedEarly,
@@ -292,12 +291,10 @@ impl Branch {
         let prop_factor = (self.num_params as f64).powf(-0.25) * const_factor;
 
         for index in 0..self.num_layers {
-            let n = self.weights(index).elements();
             wrt_weights.push(randu::<f64>(self.weights(index).dims()) * prop_factor);
         }
 
         for index in 0..(self.num_layers - 1) {
-            let n = self.biases(index).elements();
             wrt_biases.push(randu::<f64>(self.biases(index).dims()) * prop_factor);
         }
         StepSizes {
