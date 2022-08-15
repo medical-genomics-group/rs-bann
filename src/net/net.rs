@@ -6,10 +6,13 @@ use super::{
 };
 use crate::to_host;
 use arrayfire::{dim4, sum_all, Array};
-
 use log::{debug, info};
 use rand::{prelude::SliceRandom, rngs::ThreadRng, thread_rng};
 use rand_distr::{Distribution, Normal};
+use std::{
+    fs::File,
+    io::{BufWriter, Write},
+};
 
 pub struct ReportCfg<'data> {
     interval: usize,
@@ -126,6 +129,13 @@ impl Net {
         verbose: bool,
         report_cfg: Option<ReportCfg>,
     ) {
+        let mut write_trace = false;
+        let mut trace_file = None;
+        if let Some(s) = &mcmc_cfg.trace_file {
+            trace_file = Some(BufWriter::new(File::create(s).unwrap()));
+            write_trace = true;
+        }
+
         let mut rng = thread_rng();
         let num_individuals = train_data.y.len();
         let mut residual = self.residual(
@@ -145,6 +155,17 @@ impl Net {
         if verbose {
             self.report_training_state(0, train_data, report_cfg.as_ref().unwrap().test_data);
             report_interval = report_cfg.as_ref().unwrap().interval;
+        }
+
+        if write_trace {
+            for &branch_ix in &branch_ixs {
+                writeln!(
+                    trace_file.as_mut().unwrap(),
+                    "{:?}",
+                    self.branch_cfgs[branch_ix].params
+                )
+                .expect("Failed to write trace.");
+            }
         }
 
         for chain_ix in 1..=mcmc_cfg.chain_length {
@@ -200,6 +221,17 @@ impl Net {
                     train_data,
                     report_cfg.as_ref().unwrap().test_data,
                 );
+            }
+
+            if write_trace {
+                for &branch_ix in &branch_ixs {
+                    writeln!(
+                        trace_file.as_mut().unwrap(),
+                        "{:?}",
+                        self.branch_cfgs[branch_ix].params
+                    )
+                    .expect("Failed to write trace.");
+                }
             }
         }
     }
