@@ -9,7 +9,7 @@ use rs_bann::net::{
     architectures::BlockNetCfg,
     data::Data,
     mcmc_cfg::{MCMCCfg, StepSizeMode},
-    net::ReportCfg,
+    train_stats::ReportCfg,
 };
 use statrs::statistics::Statistics;
 use std::{

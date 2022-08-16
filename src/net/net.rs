@@ -3,6 +3,7 @@ use super::{
     data::Data,
     gibbs_steps::{multi_param_precision_posterior, single_param_precision_posterior},
     mcmc_cfg::MCMCCfg,
+    train_stats::{ReportCfg, TrainingStats},
 };
 use crate::to_host;
 use arrayfire::{dim4, sum_all, Array};
@@ -13,58 +14,6 @@ use std::{
     fs::File,
     io::{BufWriter, Write},
 };
-
-pub struct ReportCfg<'data> {
-    interval: usize,
-    test_data: Option<&'data Data>,
-}
-
-impl<'data> ReportCfg<'data> {
-    pub fn new(interval: usize, test_data: Option<&'data Data>) -> Self {
-        Self {
-            interval,
-            test_data,
-        }
-    }
-}
-
-pub(crate) struct TrainingStats {
-    num_samples: usize,
-    num_accepted: usize,
-    num_early_rejected: usize,
-}
-
-impl TrainingStats {
-    pub(crate) fn new() -> Self {
-        Self {
-            num_samples: 0,
-            num_accepted: 0,
-            num_early_rejected: 0,
-        }
-    }
-
-    fn add_hmc_step_result(&mut self, res: HMCStepResult) {
-        self.num_samples += 1;
-        match res {
-            HMCStepResult::Accepted => self.num_accepted += 1,
-            HMCStepResult::RejectedEarly => self.num_early_rejected += 1,
-            HMCStepResult::Rejected => {}
-        }
-    }
-
-    fn acceptance_rate(&self) -> f64 {
-        self.num_accepted as f64 / self.num_samples as f64
-    }
-
-    fn early_rejection_rate(&self) -> f64 {
-        self.num_early_rejected as f64 / self.num_samples as f64
-    }
-
-    fn end_rejection_rate(&self) -> f64 {
-        (self.num_samples - self.num_early_rejected - self.num_accepted) as f64
-            / self.num_samples as f64
-    }
-}
 
 pub struct OutputBias {
     pub(crate) precision: f64,

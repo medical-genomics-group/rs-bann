@@ -4,3 +4,4 @@ pub mod data;
 pub mod gibbs_steps;
 pub mod mcmc_cfg;
 pub mod net;
+pub mod train_stats;

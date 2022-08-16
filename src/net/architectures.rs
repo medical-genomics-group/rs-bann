@@ -1,7 +1,8 @@
 use super::{
     branch::branch::BranchCfg,
     branch::branch_cfg_builder::BranchCfgBuilder,
-    net::{Net, OutputBias, TrainingStats},
+    net::{Net, OutputBias},
+    train_stats::TrainingStats,
 };
 
 /// Number of markers per branch: dynamic
