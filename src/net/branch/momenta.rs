@@ -1,4 +1,4 @@
-use super::base_branch::BranchLogDensityGradient;
+use super::branch::BranchLogDensityGradient;
 use super::step_sizes::StepSizes;
 use arrayfire::Array;
 
