@@ -107,6 +107,10 @@ pub struct Net {
 }
 
 impl Net {
+    pub fn branch_cfg(&self, branch_ix: usize) -> &BranchCfg {
+        &self.branch_cfgs[branch_ix]
+    }
+
     pub fn num_params(&self) -> usize {
         let mut res = 0;
         for cfg in &self.branch_cfgs {

@@ -12,7 +12,11 @@ use rs_bann::net::{
     net::ReportCfg,
 };
 use statrs::statistics::Statistics;
-use std::path::Path;
+use std::{
+    fs::File,
+    io::{BufWriter, Write},
+    path::Path,
+};
 
 fn main() {
     match Cli::parse().cmd {
@@ -58,6 +62,7 @@ fn simulate(args: SimulateArgs) {
     let train_path = path.join("train.bin");
     let test_path = path.join("test.bin");
     let args_path = path.join("args.json");
+    let params_path = path.join("model.params");
 
     info!("Building model");
     let mut net_cfg = BlockNetCfg::new()
@@ -67,6 +72,17 @@ fn simulate(args: SimulateArgs) {
         net_cfg.add_branch(args.num_markers_per_branch, args.hidden_layer_width);
     }
     let net = net_cfg.build_net();
+
+    info!("Saving model params.");
+    let mut net_params_file = BufWriter::new(File::create(params_path).unwrap());
+    for branch_ix in 0..args.num_branches {
+        writeln!(
+            &mut net_params_file,
+            "{:?}",
+            net.branch_cfg(branch_ix).params()
+        )
+        .expect("Failed to write model params.");
+    }
 
     let mut rng = thread_rng();
 

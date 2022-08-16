@@ -28,6 +28,12 @@ pub struct BranchCfg {
     pub(crate) hyperparams: BranchHyperparams,
 }
 
+impl BranchCfg {
+    pub fn params(&self) -> &Vec<f64> {
+        &self.params
+    }
+}
+
 /// Gradients of the log density w.r.t. the network parameters.
 #[derive(Clone)]
 pub(crate) struct BranchLogDensityGradient {
