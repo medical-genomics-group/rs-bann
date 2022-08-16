@@ -57,6 +57,7 @@ fn simulate(args: SimulateArgs) {
     }
     let train_path = path.join("train.bin");
     let test_path = path.join("test.bin");
+    let args_path = path.join("args.json");
 
     info!("Building model");
     let mut net_cfg = BlockNetCfg::new()
@@ -139,6 +140,8 @@ fn simulate(args: SimulateArgs) {
         false,
     )
     .to_file(&test_path);
+
+    args.to_file(&args_path);
 }
 
 // tests block net architecture

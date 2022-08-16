@@ -707,6 +707,7 @@ dependencies = [
  "rs-bedvec",
  "rs-hmc",
  "serde",
+ "serde_json",
  "simple_logger",
  "statrs",
 ]

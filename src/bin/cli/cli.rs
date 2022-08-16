@@ -1,4 +1,8 @@
 use clap::{Args, Parser, Subcommand};
+use log::info;
+use serde::{Deserialize, Serialize};
+use serde_json::to_writer_pretty;
+use std::{fs::File, path::Path};
 
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
@@ -16,7 +20,7 @@ pub(crate) enum SubCmd {
     BaseModel(BaseModelArgs),
 }
 
-#[derive(Args, Debug)]
+#[derive(Args, Debug, Serialize, Deserialize)]
 pub(crate) struct SimulateArgs {
     /// path to output dir. Will be created if it does not exist
     pub outdir: String,
@@ -38,6 +42,13 @@ pub(crate) struct SimulateArgs {
 
     /// heritability (determines amount of Gaussian noise added), must be in [0, 1]
     pub heritability: Option<f64>,
+}
+
+impl SimulateArgs {
+    pub fn to_file(&self, path: &Path) {
+        info!("Creating: {:?}", path);
+        to_writer_pretty(File::create(path).unwrap(), self).unwrap();
+    }
 }
 
 /// A small bayesian neural network implementation.
