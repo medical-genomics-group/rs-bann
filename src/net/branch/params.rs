@@ -23,6 +23,10 @@ impl fmt::Debug for BranchParams {
     }
 }
 
+// TODO: wrap everything except for log_density fn
+// in param trait with blanket implementations,
+// might need to implement getters on each struct with that trait
+// then though, but that will be less verbose than copying the whole from param vec stuff etc.
 impl BranchParams {
     pub fn from_param_vec(
         param_vec: &Vec<f64>,
