@@ -1,9 +1,9 @@
-use super::branch::Branch;
+use super::base_branch::BaseBranch;
 use super::params::{BranchHyperparams, BranchParams};
 use arrayfire::{dim4, Array};
 use rand::thread_rng;
 
-pub struct BranchBuilder {
+pub struct BaseBranchBuilder {
     num_params: usize,
     num_markers: usize,
     layer_widths: Vec<usize>,
@@ -15,7 +15,7 @@ pub struct BranchBuilder {
     weights: Vec<Option<Array<f64>>>,
 }
 
-impl BranchBuilder {
+impl BaseBranchBuilder {
     pub fn new() -> Self {
         Self {
             num_params: 0,
@@ -133,7 +133,7 @@ impl BranchBuilder {
         self
     }
 
-    pub fn build(&mut self) -> Branch {
+    pub fn build(&mut self) -> BaseBranch {
         let mut widths: Vec<usize> = vec![self.num_markers];
         // summary and output node
         self.layer_widths.push(1);
@@ -194,7 +194,7 @@ impl BranchBuilder {
             }
         }
 
-        Branch {
+        BaseBranch {
             num_params: self.num_params,
             num_markers: self.num_markers,
             params: BranchParams { weights, biases },
@@ -216,14 +216,15 @@ mod tests {
     use arrayfire::{dim4, Array};
     // use arrayfire::{af_print, randu};
 
-    use super::BranchBuilder;
+    use super::super::branch::Branch;
+    use super::BaseBranchBuilder;
 
     use crate::to_host;
 
     #[test]
     #[should_panic(expected = "bias dim 1 does not match width of last added layer")]
     fn test_build_branch_bias_dim_zero_failure() {
-        let _branch = BranchBuilder::new()
+        let _branch = BaseBranchBuilder::new()
             .with_num_markers(3)
             .add_hidden_layer(2)
             .add_layer_biases(&Array::new(&[0., 1., 2.], dim4![1, 3, 1, 1]))
@@ -235,7 +236,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "incorrect weight dims in dim 0")]
     fn test_build_branch_weight_dim_zero_failure() {
-        let _branch = BranchBuilder::new()
+        let _branch = BaseBranchBuilder::new()
             .with_num_markers(3)
             .add_hidden_layer(2)
             .add_layer_biases(&Array::new(&[0., 1.], dim4![1, 2, 1, 1]))
@@ -247,7 +248,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "incorrect weight dims in dim 1")]
     fn test_build_branch_weight_dim_one_failure() {
-        let _branch = BranchBuilder::new()
+        let _branch = BaseBranchBuilder::new()
             .with_num_markers(3)
             .add_hidden_layer(2)
             .add_layer_biases(&Array::new(&[0., 1.], dim4![1, 2, 1, 1]))
@@ -262,7 +263,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "incorrect summary weight dims in dim 0")]
     fn test_build_branch_summary_weight_dim_zero_failure() {
-        let _branch = BranchBuilder::new()
+        let _branch = BaseBranchBuilder::new()
             .with_num_markers(3)
             .add_hidden_layer(2)
             .add_layer_biases(&Array::new(&[0., 1.], dim4![1, 2, 1, 1]))
@@ -275,7 +276,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "incorrect summary weight dims in dim 1: has to be 1")]
     fn test_build_branch_summary_weight_dim_one_failure() {
-        let _branch = BranchBuilder::new()
+        let _branch = BaseBranchBuilder::new()
             .with_num_markers(3)
             .add_hidden_layer(2)
             .add_layer_biases(&Array::new(&[0., 1.], dim4![1, 2, 1, 1]))
@@ -288,7 +289,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "incorrect output weight dims in dim 0: has to be 1")]
     fn test_build_branch_output_weight_dim_zero_failure() {
-        let _branch = BranchBuilder::new()
+        let _branch = BaseBranchBuilder::new()
             .with_num_markers(3)
             .add_hidden_layer(2)
             .add_layer_biases(&Array::new(&[0., 1.], dim4![1, 2, 1, 1]))
@@ -301,7 +302,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "incorrect output weight dims in dim 1: has to be 1")]
     fn test_build_branch_output_weight_dim_one_failure() {
-        let _branch = BranchBuilder::new()
+        let _branch = BaseBranchBuilder::new()
             .with_num_markers(3)
             .add_hidden_layer(2)
             .add_layer_biases(&Array::new(&[0., 1.], dim4![1, 2, 1, 1]))
@@ -325,7 +326,7 @@ mod tests {
         let exp_layer_widths = [2, 1, 1];
         let exp_weight_dims = [dim4![3, 2, 1, 1], dim4![2, 1, 1, 1], dim4![1, 1, 1, 1]];
         let exp_bias_dims = [dim4![1, 2, 1, 1], dim4![1, 1, 1, 1]];
-        let branch = BranchBuilder::new()
+        let branch = BaseBranchBuilder::new()
             .with_num_markers(3)
             .add_hidden_layer(2)
             .add_layer_biases(&exp_biases[0])

@@ -7,6 +7,7 @@ use rand::thread_rng;
 use rand_distr::{Binomial, Distribution, Normal, Uniform};
 use rs_bann::net::{
     architectures::BlockNetCfg,
+    branch::base_branch::BaseBranch,
     data::Data,
     mcmc_cfg::{MCMCCfg, StepSizeMode},
     train_stats::ReportCfg,
@@ -65,7 +66,7 @@ fn simulate(args: SimulateArgs) {
     let params_path = path.join("model.params");
 
     info!("Building model");
-    let mut net_cfg = BlockNetCfg::new()
+    let mut net_cfg = BlockNetCfg::<BaseBranch>::new()
         .with_depth(args.branch_depth)
         .with_initial_random_range(2.0);
     for _ in 0..args.num_branches {
@@ -180,7 +181,7 @@ fn base_model(args: BaseModelArgs) {
     }
 
     info!("Building net");
-    let mut net_cfg = BlockNetCfg::new()
+    let mut net_cfg = BlockNetCfg::<BaseBranch>::new()
         .with_depth(args.branch_depth)
         .with_precision_prior(args.prior_shape, args.prior_scale);
     for _ in 0..train_data.num_branches() {

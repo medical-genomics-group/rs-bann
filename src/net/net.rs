@@ -13,6 +13,7 @@ use rand_distr::{Distribution, Normal};
 use std::{
     fs::File,
     io::{BufWriter, Write},
+    marker::PhantomData,
 };
 
 pub struct OutputBias {
@@ -45,7 +46,7 @@ impl OutputBias {
 }
 
 /// The full network model
-pub struct Net {
+pub struct Net<B: Branch> {
     pub(crate) precision_prior_shape: f64,
     pub(crate) precision_prior_scale: f64,
     pub(crate) num_branches: usize,
@@ -53,9 +54,10 @@ pub struct Net {
     pub(crate) output_bias: OutputBias,
     pub(crate) error_precision: f64,
     pub(crate) training_stats: TrainingStats,
+    pub(crate) branch_type: PhantomData<B>,
 }
 
-impl Net {
+impl<B: Branch> Net<B> {
     pub fn branch_cfg(&self, branch_ix: usize) -> &BranchCfg {
         &self.branch_cfgs[branch_ix]
     }
@@ -147,7 +149,7 @@ impl Net {
                     dim4!(num_individuals as u64, cfg.num_markers as u64),
                 );
                 // load branch cfg
-                let mut branch = Branch::from_cfg(&cfg);
+                let mut branch = B::from_cfg(&cfg);
                 // tell branch about global error precision
                 branch.set_error_precision(self.error_precision);
                 // TODO: save last prediction contribution for each branch to reduce compute
@@ -205,7 +207,7 @@ impl Net {
                 &x_test[branch_ix],
                 dim4!(num_individuals as u64, cfg.num_markers as u64),
             );
-            y_hat += Branch::from_cfg(&cfg).predict(&x);
+            y_hat += B::from_cfg(&cfg).predict(&x);
         }
         to_host(&y_hat)
     }
@@ -230,7 +232,7 @@ impl Net {
                 &x_test[branch_ix],
                 dim4!(num_individuals as u64, cfg.num_markers as u64),
             );
-            y_hat += Branch::from_cfg(&cfg).predict(&x);
+            y_hat += B::from_cfg(&cfg).predict(&x);
         }
         y_hat
     }
