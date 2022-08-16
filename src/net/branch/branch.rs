@@ -25,6 +25,13 @@ pub trait Branch {
     ) -> HMCStepResult;
 }
 
+/// Gradients of the log density w.r.t. the network parameters.
+#[derive(Clone)]
+pub(crate) struct BranchLogDensityGradient {
+    pub wrt_weights: Vec<Array<f64>>,
+    pub wrt_biases: Vec<Array<f64>>,
+}
+
 #[derive(Clone)]
 pub struct BranchCfg {
     pub(crate) num_params: usize,
