@@ -73,7 +73,8 @@ fn simulate(args: SimulateArgs) {
     }
     let net = net_cfg.build_net();
 
-    info!("Saving model params.");
+    info!("Saving model params");
+    info!("Creating: {:?}", params_path);
     let mut net_params_file = BufWriter::new(File::create(params_path).unwrap());
     for branch_ix in 0..args.num_branches {
         writeln!(
@@ -81,7 +82,7 @@ fn simulate(args: SimulateArgs) {
             "{:?}",
             net.branch_cfg(branch_ix).params()
         )
-        .expect("Failed to write model params.");
+        .expect("Failed to write model params");
     }
 
     let mut rng = thread_rng();
