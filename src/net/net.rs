@@ -262,11 +262,11 @@ impl Net {
     }
 
     fn residual(&self, x: &Vec<Vec<f64>>, y: &Array<f64>) -> Array<f64> {
-        y - self.predict_arr(x, y.elements())
+        y - self.predict_device(x, y.elements())
     }
 
     // TODO: predict using posterior predictive distribution instead of point estimate
-    fn predict_arr(&self, x_test: &Vec<Vec<f64>>, num_individuals: usize) -> Array<f64> {
+    fn predict_device(&self, x_test: &Vec<Vec<f64>>, num_individuals: usize) -> Array<f64> {
         // I expect X to be column major
         let mut y_hat = Array::new(
             &vec![0.0; num_individuals],
@@ -288,7 +288,7 @@ impl Net {
 
     pub fn rss(&self, data: &Data) -> f64 {
         let y_test_arr = Array::new(&data.y, dim4!(data.y.len() as u64, 1, 1, 1));
-        let y_hat = self.predict_arr(&data.x, data.y.len());
+        let y_hat = self.predict_device(&data.x, data.y.len());
         let residual = y_test_arr - y_hat;
         super::gibbs_steps::sum_of_squares(&residual)
     }
