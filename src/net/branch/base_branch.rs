@@ -2,8 +2,10 @@ use super::{
     super::gibbs_steps::multi_param_precision_posterior,
     branch::{Branch, BranchCfg, BranchLogDensityGradient},
     params::{BranchHyperparams, BranchParams},
+    step_sizes::StepSizes,
 };
-use arrayfire::Array;
+use crate::scalar_to_host;
+use arrayfire::{dim4, Array};
 use rand::prelude::ThreadRng;
 use rand::thread_rng;
 
@@ -78,12 +80,43 @@ impl Branch for BaseBranch {
         self.hyperparams.error_precision = val;
     }
 
+    fn std_scaled_step_sizes(&self, const_factor: f64) -> StepSizes {
+        let mut wrt_weights = Vec::with_capacity(self.num_layers());
+        let mut wrt_biases = Vec::with_capacity(self.num_layers() - 1);
+
+        for index in 0..self.num_layers() {
+            wrt_weights.push(Array::new(
+                &vec![
+                    const_factor * (1. / scalar_to_host(&self.weight_precisions(index))).sqrt();
+                    self.weights(index).elements()
+                ],
+                self.weights(index).dims(),
+            ));
+        }
+        for index in 0..self.num_layers() - 1 {
+            wrt_biases.push(Array::new(
+                &vec![
+                    const_factor * (1. / self.bias_precision(index)).sqrt();
+                    self.biases(index).elements()
+                ],
+                self.biases(index).dims(),
+            ));
+        }
+
+        StepSizes {
+            wrt_weights,
+            wrt_biases,
+        }
+    }
+
     fn log_density(&self, params: &BranchParams, hyperparams: &BranchHyperparams, rss: f64) -> f64 {
         let mut log_density: f64 = -0.5 * hyperparams.error_precision * rss;
         for i in 0..self.num_layers() {
-            log_density -= hyperparams.weight_precisions[i]
-                * 0.5
-                * arrayfire::sum_all(&(params.weights(i) * params.weights(i))).0;
+            log_density -= 0.5
+                * arrayfire::sum_all(
+                    &(&hyperparams.weight_precisions[i] * &(params.weights(i) * params.weights(i))),
+                )
+                .0;
         }
         for i in 0..self.num_layers() - 1 {
             log_density -= hyperparams.bias_precisions[i]
@@ -103,7 +136,7 @@ impl Branch for BaseBranch {
         let mut ldg_wrt_biases: Vec<Array<f64>> = Vec::with_capacity(self.num_layers - 1);
         for layer_index in 0..self.num_layers - 1 {
             ldg_wrt_weights.push(
-                -self.weight_precision(layer_index) * self.weights(layer_index)
+                -self.weight_precisions(layer_index) * self.weights(layer_index)
                     - self.error_precision() * &d_rss_wrt_weights[layer_index],
             );
             ldg_wrt_biases.push(
@@ -113,7 +146,7 @@ impl Branch for BaseBranch {
         }
         // output layer gradient
         ldg_wrt_weights.push(
-            -self.weight_precision(self.num_layers - 1) * self.weights(self.num_layers - 1)
+            -self.weight_precisions(self.num_layers - 1) * self.weights(self.num_layers - 1)
                 - self.error_precision() * &d_rss_wrt_weights[self.num_layers - 1],
         );
         BranchLogDensityGradient {
@@ -125,11 +158,14 @@ impl Branch for BaseBranch {
     /// Samples precision values from their posterior distribution in a Gibbs step.
     fn sample_precisions(&mut self, prior_shape: f64, prior_scale: f64) {
         for i in 0..self.params.weights.len() {
-            self.hyperparams.weight_precisions[i] = multi_param_precision_posterior(
-                prior_shape,
-                prior_scale,
-                &self.params.weights[i],
-                &mut self.rng,
+            self.hyperparams.weight_precisions[i] = Array::new(
+                &[multi_param_precision_posterior(
+                    prior_shape,
+                    prior_scale,
+                    &self.params.weights[i],
+                    &mut self.rng,
+                )],
+                dim4!(1, 1, 1, 1),
             );
         }
         for i in 0..self.params.biases.len() {
