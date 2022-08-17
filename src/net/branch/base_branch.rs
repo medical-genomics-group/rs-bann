@@ -173,7 +173,11 @@ impl Branch for BaseBranch {
             );
         }
         for lix in 0..ldg.wrt_biases.len() {
-            debug!("layer: {:}; {:?}", lix, to_host(&ldg.wrt_biases[lix]));
+            debug!(
+                "layer: {:}; bias grad: {:?}",
+                lix,
+                to_host(&ldg.wrt_biases[lix])
+            );
         }
 
         // accept or reject
