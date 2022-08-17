@@ -51,7 +51,7 @@ pub trait Branch {
         &self.params().biases[index]
     }
 
-    fn weight_precision(&self, index: usize) -> f64 {
+    fn weight_precisions(&self, index: usize) -> Array<f64> {
         self.hyperparams().weight_precisions[index]
     }
 
@@ -170,38 +170,7 @@ pub trait Branch {
     }
 
     /// Sets step sizes proportional to the prior standard deviation of each parameter.
-    fn std_scaled_step_sizes(&self, const_factor: f64) -> StepSizes {
-        let mut wrt_weights = Vec::with_capacity(self.num_layers());
-        let mut wrt_biases = Vec::with_capacity(self.num_layers() - 1);
-        for index in 0..self.num_layers() - 1 {
-            wrt_weights.push(Array::new(
-                &vec![
-                    const_factor * (1. / self.weight_precision(index)).sqrt();
-                    self.weights(index).elements()
-                ],
-                self.weights(index).dims(),
-            ));
-            wrt_biases.push(Array::new(
-                &vec![
-                    const_factor * (1. / self.bias_precision(index)).sqrt();
-                    self.biases(index).elements()
-                ],
-                self.biases(index).dims(),
-            ));
-        }
-        // output layer weights
-        wrt_weights.push(Array::new(
-            &vec![
-                const_factor * (1. / self.weight_precision(self.num_layers() - 1)).sqrt();
-                self.weights(self.num_layers() - 1).elements()
-            ],
-            self.weights(self.num_layers() - 1).dims(),
-        ));
-        StepSizes {
-            wrt_weights,
-            wrt_biases,
-        }
-    }
+    fn std_scaled_step_sizes(&self, const_factor: f64) -> StepSizes;
 
     fn forward_feed(&self, x_train: &Array<f64>) -> Vec<Array<f64>> {
         let mut activations: Vec<Array<f64>> = Vec::with_capacity(self.num_layers() - 1);
