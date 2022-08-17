@@ -1,9 +1,10 @@
+use super::ard_branch::ArdBranch;
 use super::base_branch::BaseBranch;
 use super::params::{BranchHyperparams, BranchParams};
-use arrayfire::{dim4, Array};
+use arrayfire::{constant, dim4, Array};
 use rand::thread_rng;
 
-pub struct BaseBranchBuilder {
+pub struct BranchBuilder {
     num_params: usize,
     num_markers: usize,
     layer_widths: Vec<usize>,
@@ -15,7 +16,7 @@ pub struct BaseBranchBuilder {
     weights: Vec<Option<Array<f64>>>,
 }
 
-impl BaseBranchBuilder {
+impl BranchBuilder {
     pub fn new() -> Self {
         Self {
             num_params: 0,
@@ -133,7 +134,7 @@ impl BaseBranchBuilder {
         self
     }
 
-    pub fn build(&mut self) -> BaseBranch {
+    pub fn build_base(&mut self) -> BaseBranch {
         let mut widths: Vec<usize> = vec![self.num_markers];
         // summary and output node
         self.layer_widths.push(1);
@@ -209,6 +210,83 @@ impl BaseBranchBuilder {
             rng: thread_rng(),
         }
     }
+
+    pub fn build_ard(&mut self) -> ArdBranch {
+        let mut widths: Vec<usize> = vec![self.num_markers];
+        // summary and output node
+        self.layer_widths.push(1);
+        self.layer_widths.push(1);
+        widths.append(&mut self.layer_widths.clone());
+
+        // get total number of params in network
+        for i in 1..=self.num_layers {
+            self.num_params += widths[i - 1] * widths[i] + widths[i];
+        }
+        // remove count for output bias
+        self.num_params -= 1;
+
+        // add None if weights or biases not added for last layers
+        for _ in 0..self.num_layers - self.weights.len() {
+            self.weights.push(None);
+        }
+
+        for _ in 0..self.num_layers - 1 - self.biases.len() {
+            self.biases.push(None);
+        }
+
+        let mut weights: Vec<Array<f64>> = vec![];
+        let mut biases: Vec<Array<f64>> = vec![];
+
+        for index in 0..self.num_layers {
+            if let Some(w) = &self.weights[index] {
+                weights.push(w.copy());
+            } else if let Some(v) = self.initial_weight_value {
+                weights.push(arrayfire::constant!(
+                    v;
+                    widths[index] as u64,
+                    widths[index + 1] as u64
+                ));
+            } else {
+                let dims = dim4![widths[index] as u64, widths[index + 1] as u64, 1, 1];
+                weights.push(
+                    // this does not includes the bias term.
+                    self.initial_random_range * arrayfire::randu::<f64>(dims)
+                        - self.initial_random_range / 2f64,
+                );
+            }
+
+            // we don't include the output neurons bias here
+            if index == self.num_layers - 1 {
+                break;
+            }
+            if let Some(b) = &self.biases[index] {
+                biases.push(b.copy());
+            } else if let Some(v) = self.initial_bias_value {
+                biases.push(arrayfire::constant!(v; 1, widths[index + 1] as u64));
+            } else {
+                biases.push(
+                    self.initial_random_range
+                        * arrayfire::randu::<f64>(dim4![1, widths[index + 1] as u64, 1, 1])
+                        - self.initial_random_range / 2f64,
+                );
+            }
+        }
+
+        ArdBranch {
+            num_params: self.num_params,
+            num_markers: self.num_markers,
+            params: BranchParams { weights, biases },
+            // TODO: impl build method for setting precisions
+            hyperparams: BranchHyperparams {
+                weight_precisions: widths.iter().map(|w| constant!(1.0; *w as u64)).collect(),
+                bias_precisions: vec![1.0; self.num_layers - 1],
+                error_precision: 1.0,
+            },
+            layer_widths: self.layer_widths.clone(),
+            num_layers: self.num_layers,
+            rng: thread_rng(),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -217,38 +295,38 @@ mod tests {
     // use arrayfire::{af_print, randu};
 
     use super::super::branch::Branch;
-    use super::BaseBranchBuilder;
+    use super::BranchBuilder;
 
     use crate::to_host;
 
     #[test]
     #[should_panic(expected = "bias dim 1 does not match width of last added layer")]
     fn test_build_branch_bias_dim_zero_failure() {
-        let _branch = BaseBranchBuilder::new()
+        let _branch = BranchBuilder::new()
             .with_num_markers(3)
             .add_hidden_layer(2)
             .add_layer_biases(&Array::new(&[0., 1., 2.], dim4![1, 3, 1, 1]))
             .add_layer_weights(&Array::new(&[0., 1., 2., 3., 4., 5.], dim4![3, 2, 1, 1]))
             .add_output_weight(&Array::new(&[1., 2.], dim4![2, 1, 1, 1]))
-            .build();
+            .build_base();
     }
 
     #[test]
     #[should_panic(expected = "incorrect weight dims in dim 0")]
     fn test_build_branch_weight_dim_zero_failure() {
-        let _branch = BaseBranchBuilder::new()
+        let _branch = BranchBuilder::new()
             .with_num_markers(3)
             .add_hidden_layer(2)
             .add_layer_biases(&Array::new(&[0., 1.], dim4![1, 2, 1, 1]))
             .add_layer_weights(&Array::new(&[0., 1., 2., 3., 4., 5.], dim4![2, 3, 1, 1]))
             .add_output_weight(&Array::new(&[1., 2.], dim4![2, 1, 1, 1]))
-            .build();
+            .build_base();
     }
 
     #[test]
     #[should_panic(expected = "incorrect weight dims in dim 1")]
     fn test_build_branch_weight_dim_one_failure() {
-        let _branch = BaseBranchBuilder::new()
+        let _branch = BranchBuilder::new()
             .with_num_markers(3)
             .add_hidden_layer(2)
             .add_layer_biases(&Array::new(&[0., 1.], dim4![1, 2, 1, 1]))
@@ -257,59 +335,59 @@ mod tests {
                 dim4![3, 3, 1, 1],
             ))
             .add_output_weight(&Array::new(&[1., 2.], dim4![2, 1, 1, 1]))
-            .build();
+            .build_base();
     }
 
     #[test]
     #[should_panic(expected = "incorrect summary weight dims in dim 0")]
     fn test_build_branch_summary_weight_dim_zero_failure() {
-        let _branch = BaseBranchBuilder::new()
+        let _branch = BranchBuilder::new()
             .with_num_markers(3)
             .add_hidden_layer(2)
             .add_layer_biases(&Array::new(&[0., 1.], dim4![1, 2, 1, 1]))
             .add_layer_weights(&Array::new(&[0., 1., 2., 3., 4., 5.], dim4![3, 2, 1, 1]))
             .add_summary_weights(&Array::new(&[1., 2.], dim4![1, 2, 1, 1]))
             .add_output_weight(&Array::new(&[1.], dim4![1, 1, 1, 1]))
-            .build();
+            .build_base();
     }
 
     #[test]
     #[should_panic(expected = "incorrect summary weight dims in dim 1: has to be 1")]
     fn test_build_branch_summary_weight_dim_one_failure() {
-        let _branch = BaseBranchBuilder::new()
+        let _branch = BranchBuilder::new()
             .with_num_markers(3)
             .add_hidden_layer(2)
             .add_layer_biases(&Array::new(&[0., 1.], dim4![1, 2, 1, 1]))
             .add_layer_weights(&Array::new(&[0., 1., 2., 3., 4., 5.], dim4![3, 2, 1, 1]))
             .add_summary_weights(&Array::new(&[1., 2., 1., 2.], dim4![2, 2, 1, 1]))
             .add_output_weight(&Array::new(&[1.], dim4![1, 1, 1, 1]))
-            .build();
+            .build_base();
     }
 
     #[test]
     #[should_panic(expected = "incorrect output weight dims in dim 0: has to be 1")]
     fn test_build_branch_output_weight_dim_zero_failure() {
-        let _branch = BaseBranchBuilder::new()
+        let _branch = BranchBuilder::new()
             .with_num_markers(3)
             .add_hidden_layer(2)
             .add_layer_biases(&Array::new(&[0., 1.], dim4![1, 2, 1, 1]))
             .add_layer_weights(&Array::new(&[0., 1., 2., 3., 4., 5.], dim4![3, 2, 1, 1]))
             .add_summary_weights(&Array::new(&[1., 2.], dim4![2, 1, 1, 1]))
             .add_output_weight(&Array::new(&[1., 2.], dim4![2, 1, 1, 1]))
-            .build();
+            .build_base();
     }
 
     #[test]
     #[should_panic(expected = "incorrect output weight dims in dim 1: has to be 1")]
     fn test_build_branch_output_weight_dim_one_failure() {
-        let _branch = BaseBranchBuilder::new()
+        let _branch = BranchBuilder::new()
             .with_num_markers(3)
             .add_hidden_layer(2)
             .add_layer_biases(&Array::new(&[0., 1.], dim4![1, 2, 1, 1]))
             .add_layer_weights(&Array::new(&[0., 1., 2., 3., 4., 5.], dim4![3, 2, 1, 1]))
             .add_summary_weights(&Array::new(&[1., 2.], dim4![2, 1, 1, 1]))
             .add_output_weight(&Array::new(&[1., 2.], dim4![1, 2, 1, 1]))
-            .build();
+            .build_base();
     }
 
     #[test]
@@ -326,7 +404,7 @@ mod tests {
         let exp_layer_widths = [2, 1, 1];
         let exp_weight_dims = [dim4![3, 2, 1, 1], dim4![2, 1, 1, 1], dim4![1, 1, 1, 1]];
         let exp_bias_dims = [dim4![1, 2, 1, 1], dim4![1, 1, 1, 1]];
-        let branch = BaseBranchBuilder::new()
+        let branch = BranchBuilder::new()
             .with_num_markers(3)
             .add_hidden_layer(2)
             .add_layer_biases(&exp_biases[0])
@@ -334,7 +412,7 @@ mod tests {
             .add_summary_weights(&exp_weights[1])
             .add_summary_bias(&exp_biases[1])
             .add_output_weight(&exp_weights[2])
-            .build();
+            .build_base();
 
         // network size
         assert_eq!(branch.num_params(), 6 + 2 + 2 + 1 + 1);

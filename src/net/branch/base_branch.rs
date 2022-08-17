@@ -187,7 +187,7 @@ mod tests {
     use arrayfire::{dim4, Array};
     // use arrayfire::{af_print, randu};
 
-    use super::super::{branch::Branch, branch_builder::BaseBranchBuilder};
+    use super::super::{branch::Branch, branch_builder::BranchBuilder};
     use super::BaseBranch;
 
     use crate::net::branch::momenta::BranchMomenta;
@@ -214,7 +214,7 @@ mod tests {
             Array::new(&[2.], dim4![1, 1, 1, 1]),
         ];
 
-        BaseBranchBuilder::new()
+        BranchBuilder::new()
             .with_num_markers(3)
             .add_hidden_layer(2)
             .add_layer_biases(&exp_biases[0])
@@ -222,7 +222,7 @@ mod tests {
             .add_summary_weights(&exp_weights[1])
             .add_summary_bias(&exp_biases[1])
             .add_output_weight(&exp_weights[2])
-            .build()
+            .build_base()
     }
 
     fn make_test_uniform_params(c: f64) -> BranchParams {
