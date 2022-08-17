@@ -1,6 +1,7 @@
 use super::{
     super::gibbs_steps::multi_param_precision_posterior,
     branch::{Branch, BranchCfg, BranchLogDensityGradient},
+    branch_cfg_builder::BranchCfgBuilder,
     params::{BranchHyperparams, BranchParams},
     step_sizes::StepSizes,
 };
@@ -20,6 +21,10 @@ pub struct BaseBranch {
 }
 
 impl Branch for BaseBranch {
+    fn build_cfg(cfg_bld: BranchCfgBuilder) -> BranchCfg {
+        cfg_bld.build_base()
+    }
+
     /// Creates Branch on device with BranchCfg from host memory.
     fn from_cfg(cfg: &BranchCfg) -> Self {
         Self {
@@ -134,21 +139,19 @@ impl Branch for BaseBranch {
         let (d_rss_wrt_weights, d_rss_wrt_biases) = self.backpropagate(x_train, y_train);
         let mut ldg_wrt_weights: Vec<Array<f64>> = Vec::with_capacity(self.num_layers);
         let mut ldg_wrt_biases: Vec<Array<f64>> = Vec::with_capacity(self.num_layers - 1);
-        for layer_index in 0..self.num_layers - 1 {
+        for layer_index in 0..self.num_layers() {
             ldg_wrt_weights.push(
-                -self.weight_precisions(layer_index) * self.weights(layer_index)
-                    - self.error_precision() * &d_rss_wrt_weights[layer_index],
+                -(self.error_precision() * &d_rss_wrt_weights[layer_index]
+                    + self.weight_precisions(layer_index) * self.weights(layer_index)),
             );
+        }
+        for layer_index in 0..self.num_layers() - 1 {
             ldg_wrt_biases.push(
                 -self.bias_precision(layer_index) * self.biases(layer_index)
                     - self.error_precision() * &d_rss_wrt_biases[layer_index],
             );
         }
-        // output layer gradient
-        ldg_wrt_weights.push(
-            -self.weight_precisions(self.num_layers - 1) * self.weights(self.num_layers - 1)
-                - self.error_precision() * &d_rss_wrt_weights[self.num_layers - 1],
-        );
+
         BranchLogDensityGradient {
             wrt_weights: ldg_wrt_weights,
             wrt_biases: ldg_wrt_biases,

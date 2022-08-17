@@ -1,6 +1,7 @@
 use super::{
     super::gibbs_steps::multi_param_precision_posterior,
     branch::{Branch, BranchCfg, BranchLogDensityGradient},
+    branch_cfg_builder::BranchCfgBuilder,
     params::{BranchHyperparams, BranchParams},
     step_sizes::StepSizes,
 };
@@ -23,6 +24,10 @@ pub struct ArdBranch {
 // Weights in this branch are grouped by the node they
 // are going out of.
 impl Branch for ArdBranch {
+    fn build_cfg(cfg_bld: BranchCfgBuilder) -> BranchCfg {
+        cfg_bld.build_ard()
+    }
+
     /// Creates Branch on device with BranchCfg from host memory.
     fn from_cfg(cfg: &BranchCfg) -> Self {
         Self {
@@ -126,8 +131,8 @@ impl Branch for ArdBranch {
 
         for layer_index in 0..self.num_layers() {
             ldg_wrt_weights.push(
-                -self.weight_precisions(layer_index) * self.weights(layer_index)
-                    - self.error_precision() * &d_rss_wrt_weights[layer_index],
+                -(self.error_precision() * &d_rss_wrt_weights[layer_index]
+                    + self.weight_precisions(layer_index) * self.weights(layer_index)),
             );
         }
 
@@ -150,15 +155,18 @@ impl Branch for ArdBranch {
             let posterior_shape = self.layer_widths(i) as f64 / 2. + prior_shape;
             // compute sums of squares of all rows
             self.hyperparams.weight_precisions[i] = Array::new(
-                &to_host(&sum(&(self.params.weights[i] * self.params.weights[i]), 0))
-                    .iter()
-                    .map(|sum_squares| {
-                        let posterior_scale = 2. * prior_scale / (2. + prior_scale * sum_squares);
-                        Gamma::new(posterior_shape, posterior_scale)
-                            .unwrap()
-                            .sample(self.rng())
-                    })
-                    .collect::<Vec<f64>>(),
+                &to_host(&sum(
+                    &(&self.params.weights[i] * &self.params.weights[i]),
+                    0,
+                ))
+                .iter()
+                .map(|sum_squares| {
+                    let posterior_scale = 2. * prior_scale / (2. + prior_scale * sum_squares);
+                    Gamma::new(posterior_shape, posterior_scale)
+                        .unwrap()
+                        .sample(self.rng())
+                })
+                .collect::<Vec<f64>>(),
                 self.hyperparams.weight_precisions[i].dims(),
             );
         }

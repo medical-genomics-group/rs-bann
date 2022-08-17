@@ -200,7 +200,7 @@ impl BaseBranchBuilder {
             params: BranchParams { weights, biases },
             // TODO: impl build method for setting precisions
             hyperparams: BranchHyperparams {
-                weight_precisions: vec![1.0; self.num_layers],
+                weight_precisions: vec![Array::new(&[1.0], dim4!(1, 1, 1, 1)); self.num_layers],
                 bias_precisions: vec![1.0; self.num_layers - 1],
                 error_precision: 1.0,
             },

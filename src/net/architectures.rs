@@ -1,7 +1,9 @@
 use super::{
     branch::branch::Branch,
     branch::branch::BranchCfg,
-    branch::branch_cfg_builder::BranchCfgBuilder,
+    branch::{
+        ard_branch::ArdBranch, base_branch::BaseBranch, branch_cfg_builder::BranchCfgBuilder,
+    },
     net::{Net, OutputBias},
     train_stats::TrainingStats,
 };
@@ -66,7 +68,7 @@ impl<B: Branch> BlockNetCfg<B> {
             for _ in 0..self.depth {
                 cfg_bld.add_hidden_layer(self.widths[branch_ix]);
             }
-            branch_cfgs.push(cfg_bld.build());
+            branch_cfgs.push(B::build_cfg(cfg_bld));
         }
         Net {
             precision_prior_shape: self.precision_prior_shape,

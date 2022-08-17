@@ -1,5 +1,6 @@
 use super::{
     super::mcmc_cfg::{MCMCCfg, StepSizeMode},
+    branch_cfg_builder::BranchCfgBuilder,
     momenta::BranchMomenta,
     params::BranchHyperparams,
     params::BranchParams,
@@ -11,6 +12,8 @@ use log::{debug, warn};
 use rand::{prelude::ThreadRng, Rng};
 
 pub trait Branch {
+    fn build_cfg(cfg_bld: BranchCfgBuilder) -> BranchCfg;
+
     fn from_cfg(cfg: &BranchCfg) -> Self;
 
     fn to_cfg(&self) -> BranchCfg;
@@ -51,8 +54,8 @@ pub trait Branch {
         &self.params().biases[index]
     }
 
-    fn weight_precisions(&self, index: usize) -> Array<f64> {
-        self.hyperparams().weight_precisions[index]
+    fn weight_precisions(&self, index: usize) -> &Array<f64> {
+        &self.hyperparams().weight_precisions[index]
     }
 
     fn bias_precision(&self, index: usize) -> f64 {
