@@ -3,7 +3,7 @@ use super::step_sizes::StepSizes;
 use arrayfire::Array;
 
 #[derive(Clone)]
-pub(crate) struct BranchMomenta {
+pub struct BranchMomenta {
     pub wrt_weights: Vec<Array<f64>>,
     pub wrt_biases: Vec<Array<f64>>,
 }

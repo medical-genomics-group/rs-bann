@@ -339,7 +339,7 @@ mod tests {
         // network size
         assert_eq!(branch.num_params(), 6 + 2 + 2 + 1 + 1);
         assert_eq!(branch.num_layers(), 3);
-        assert_eq!(branch.num_markers(), 3);
+        assert_eq!(branch.num_markers, 3);
         for i in 0..branch.num_layers() {
             println!("{:?}", i);
             assert_eq!(branch.layer_widths(i), exp_layer_widths[i]);

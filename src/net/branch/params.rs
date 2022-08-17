@@ -4,7 +4,7 @@ use arrayfire::{dim4, Array};
 use std::fmt;
 
 #[derive(Clone)]
-pub(crate) struct BranchHyperparams {
+pub struct BranchHyperparams {
     pub weight_precisions: Vec<f64>,
     pub bias_precisions: Vec<f64>,
     pub error_precision: f64,
@@ -12,7 +12,7 @@ pub(crate) struct BranchHyperparams {
 
 /// Weights and biases
 #[derive(Clone)]
-pub(crate) struct BranchParams {
+pub struct BranchParams {
     pub weights: Vec<Array<f64>>,
     pub biases: Vec<Array<f64>>,
 }
@@ -92,21 +92,6 @@ impl BranchParams {
         for i in 0..self.biases.len() {
             self.biases[i] += &step_sizes.wrt_biases[i] * &mom.wrt_biases[i];
         }
-    }
-
-    pub fn log_density(&self, hyperparams: &BranchHyperparams, rss: f64) -> f64 {
-        let mut log_density: f64 = -0.5 * hyperparams.error_precision * rss;
-        for i in 0..self.weights.len() {
-            log_density -= hyperparams.weight_precisions[i]
-                * 0.5
-                * arrayfire::sum_all(&(&self.weights[i] * &self.weights[i])).0;
-        }
-        for i in 0..self.biases.len() {
-            log_density -= hyperparams.bias_precisions[i]
-                * 0.5
-                * arrayfire::sum_all(&(&self.biases[i] * &self.biases[i])).0;
-        }
-        log_density
     }
 
     pub fn weights(&self, index: usize) -> &Array<f64> {
