@@ -6,7 +6,7 @@ use super::{
     step_sizes::StepSizes,
 };
 use crate::to_host;
-use arrayfire::{matmul, sum, sum_all, Array, MatProp};
+use arrayfire::{dim4, matmul, sum, sum_all, Array, MatProp};
 use rand::prelude::ThreadRng;
 use rand::thread_rng;
 use rand_distr::{Distribution, Gamma};
@@ -99,6 +99,7 @@ impl Branch for ArdBranch {
         }
     }
 
+    // TODO: write test
     fn log_density(&self, params: &BranchParams, hyperparams: &BranchHyperparams, rss: f64) -> f64 {
         let mut log_density: f64 = -0.5 * hyperparams.error_precision * rss;
 
@@ -120,6 +121,7 @@ impl Branch for ArdBranch {
         log_density
     }
 
+    // TODO: test with non-uniform precisions
     fn log_density_gradient(
         &self,
         x_train: &Array<f64>,
@@ -130,13 +132,19 @@ impl Branch for ArdBranch {
         let mut ldg_wrt_biases: Vec<Array<f64>> = Vec::with_capacity(self.num_layers - 1);
 
         for layer_index in 0..self.num_layers() {
+            let prec_m = arrayfire::tile(
+                self.weight_precisions(layer_index),
+                dim4!(1, self.weights(layer_index).dims().get()[1], 1, 1),
+            );
+
             ldg_wrt_weights.push(
                 -(self.error_precision() * &d_rss_wrt_weights[layer_index]
-                    + self.weight_precisions(layer_index) * self.weights(layer_index)),
+                    + prec_m * self.weights(layer_index)),
             );
         }
 
         for layer_index in 0..self.num_layers - 1 {
+            println!("layer {} (biases)", layer_index);
             ldg_wrt_biases.push(
                 -self.bias_precision(layer_index) * self.biases(layer_index)
                     - self.error_precision() * &d_rss_wrt_biases[layer_index],
