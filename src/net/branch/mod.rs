@@ -5,4 +5,5 @@ pub mod branch_builder;
 pub mod branch_cfg_builder;
 mod momenta;
 mod params;
+pub mod std_normal_branch;
 mod step_sizes;
