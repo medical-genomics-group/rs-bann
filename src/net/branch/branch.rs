@@ -10,6 +10,7 @@ use crate::{scalar_to_host, to_host};
 use arrayfire::{diag_extract, dim4, dot, matmul, randu, sum, tanh, Array, MatProp};
 use log::{debug, warn};
 use rand::{prelude::ThreadRng, Rng};
+use serde::{Deserialize, Serialize};
 
 pub trait Branch {
     fn build_cfg(cfg_bld: BranchCfgBuilder) -> BranchCfg;
@@ -368,7 +369,7 @@ pub struct BranchLogDensityGradient {
     pub wrt_biases: Vec<Array<f64>>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize)]
 pub struct BranchCfg {
     pub(crate) num_params: usize,
     pub(crate) num_markers: usize,

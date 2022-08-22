@@ -1,6 +1,8 @@
 use super::momenta::BranchMomenta;
 use super::step_sizes::StepSizes;
+use crate::to_host;
 use arrayfire::{dim4, Array};
+use serde::ser::{Serialize, SerializeStruct, Serializer};
 use std::fmt;
 
 #[derive(Clone)]
@@ -8,6 +10,30 @@ pub struct BranchHyperparams {
     pub weight_precisions: Vec<Array<f64>>,
     pub bias_precisions: Vec<f64>,
     pub error_precision: f64,
+}
+
+impl BranchHyperparams {
+    fn weight_precisions_to_host(&self) -> Vec<Vec<f64>> {
+        let mut res = Vec::with_capacity(self.weight_precisions.len());
+        for arr in &self.weight_precisions {
+            res.push(to_host(arr));
+        }
+        res
+    }
+}
+
+impl Serialize for BranchHyperparams {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut state = serializer.serialize_struct("BranchHyperparams", 3)?;
+        // 3 is the number of fields in the struct.
+        state.serialize_field("weight_precisions", &self.weight_precisions_to_host())?;
+        state.serialize_field("bias_precisions", &self.bias_precisions)?;
+        state.serialize_field("error_precision", &self.error_precision)?;
+        state.end()
+    }
 }
 
 /// Weights and biases

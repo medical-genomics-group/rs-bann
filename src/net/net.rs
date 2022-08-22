@@ -10,6 +10,7 @@ use arrayfire::{dim4, sum_all, Array};
 use log::{debug, info};
 use rand::{prelude::SliceRandom, rngs::ThreadRng, thread_rng};
 use rand_distr::{Distribution, Normal};
+use serde_json::to_writer;
 use std::{
     fs::File,
     io::{BufWriter, Write},
@@ -113,14 +114,8 @@ impl<B: Branch> Net<B> {
         }
 
         if write_trace {
-            for &branch_ix in &branch_ixs {
-                writeln!(
-                    trace_file.as_mut().unwrap(),
-                    "{:?}",
-                    self.branch_cfgs[branch_ix].params
-                )
-                .expect("Failed to write trace.");
-            }
+            to_writer(trace_file.as_mut().unwrap(), &self.branch_cfgs).unwrap();
+            trace_file.as_mut().unwrap().write(b"\n").unwrap();
         }
 
         for chain_ix in 1..=mcmc_cfg.chain_length {
@@ -179,14 +174,8 @@ impl<B: Branch> Net<B> {
             }
 
             if write_trace {
-                for &branch_ix in &branch_ixs {
-                    writeln!(
-                        trace_file.as_mut().unwrap(),
-                        "{:?}",
-                        self.branch_cfgs[branch_ix].params
-                    )
-                    .expect("Failed to write trace.");
-                }
+                to_writer(trace_file.as_mut().unwrap(), &self.branch_cfgs).unwrap();
+                trace_file.as_mut().unwrap().write(b"\n").unwrap();
             }
         }
     }
