@@ -189,7 +189,9 @@ fn base_model(args: BaseModelArgs) {
     }
     let mut net = net_cfg.build_net();
 
-    let step_size_mode = if args.precision_scaled_step_sizes {
+    let step_size_mode = if args.izmailov_step_sizes {
+        StepSizeMode::Izmailov
+    } else if args.precision_scaled_step_sizes {
         StepSizeMode::StdScaled
     } else if args.random_step_sizes {
         StepSizeMode::Random

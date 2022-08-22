@@ -7,10 +7,10 @@ use super::{
     step_sizes::StepSizes,
 };
 use crate::{scalar_to_host, to_host};
-use arrayfire::{diag_extract, dim4, dot, matmul, randu, sum, tanh, Array, MatProp};
+use arrayfire::{diag_extract, dim4, dot, matmul, randu, sqrt, sum, tanh, Array, MatProp};
 use log::{debug, warn};
 use rand::{prelude::ThreadRng, Rng};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 pub trait Branch {
     fn build_cfg(cfg_bld: BranchCfgBuilder) -> BranchCfg;
@@ -176,6 +176,38 @@ pub trait Branch {
     /// Sets step sizes proportional to the prior standard deviation of each parameter.
     fn std_scaled_step_sizes(&self, const_factor: f64) -> StepSizes;
 
+    fn izmailov_step_sizes(&mut self, integration_length: usize) -> StepSizes {
+        let mut wrt_weights = Vec::with_capacity(self.num_layers());
+        let mut wrt_biases = Vec::with_capacity(self.num_layers() - 1);
+
+        for index in 0..self.num_layers() {
+            wrt_weights.push(
+                std::f64::consts::PI
+                    / (2.
+                        * sqrt(&self.hyperparams().weight_precisions[index])
+                        * integration_length as f64),
+            );
+        }
+
+        for index in 0..self.num_layers() - 1 {
+            wrt_biases.push(Array::new(
+                &vec![
+                    std::f64::consts::PI
+                        / (2.
+                            * &self.hyperparams().bias_precisions[index].sqrt()
+                            * integration_length as f64);
+                    self.biases(index).elements()
+                ],
+                self.biases(index).dims(),
+            ));
+        }
+
+        StepSizes {
+            wrt_weights,
+            wrt_biases,
+        }
+    }
+
     fn forward_feed(&self, x_train: &Array<f64>) -> Vec<Array<f64>> {
         let mut activations: Vec<Array<f64>> = Vec::with_capacity(self.num_layers() - 1);
         activations.push(self.mid_layer_activation(0, x_train));
@@ -295,6 +327,7 @@ pub trait Branch {
             StepSizeMode::StdScaled => self.std_scaled_step_sizes(mcmc_cfg.hmc_step_size_factor),
             StepSizeMode::Random => self.random_step_sizes(mcmc_cfg.hmc_step_size_factor),
             StepSizeMode::Uniform => self.uniform_step_sizes(mcmc_cfg.hmc_step_size_factor),
+            StepSizeMode::Izmailov => self.izmailov_step_sizes(mcmc_cfg.hmc_integration_length),
         };
 
         // TODO: add u turn diagnostic for tuning

@@ -12,4 +12,5 @@ pub enum StepSizeMode {
     Uniform,
     Random,
     StdScaled,
+    Izmailov,
 }

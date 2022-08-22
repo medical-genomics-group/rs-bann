@@ -91,6 +91,11 @@ pub(crate) struct BaseModelArgs {
     #[clap(short, long)]
     pub random_step_sizes: bool,
 
+    /// Set step sizes to pi / (2 * prior_std_deviation * integration_length).
+    /// Takes precedence over other step size flags.
+    #[clap(short, long)]
+    pub izmailov_step_sizes: bool,
+
     /// enable step sizes scales by prior standard deviation.
     /// Takes precedence of random_step_sizes if enabled.
     #[clap(short, long)]
