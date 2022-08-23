@@ -111,10 +111,16 @@ pub(crate) struct BaseModelArgs {
     #[clap(short, long)]
     pub standardize: bool,
 
-    /// Path for trace file.
+    /// Path to trace file.
     /// Trace output will only be generated if this path is specified.
     #[clap(short, long)]
     pub trace_file_path: Option<String>,
+
+    /// Path to micro trace file.
+    /// Complete HMC trajectories (all states visited during a single update) will be saved here.
+    /// Micro trace output will only be generated if this path is specified.
+    #[clap(short, long)]
+    pub micro_trace_file_path: Option<String>,
 }
 
 /// A small bayesian neural network implementation.
@@ -170,10 +176,16 @@ pub(crate) struct StdNormalModelArgs {
     #[clap(short, long)]
     pub standardize: bool,
 
-    /// Path for trace file.
+    /// Path to trace file.
     /// Trace output will only be generated if this path is specified.
     #[clap(short, long)]
     pub trace_file_path: Option<String>,
+
+    /// Path to micro trace file.
+    /// Complete HMC trajectories (all states visited during a single update) will be saved here.
+    /// Micro trace output will only be generated if this path is specified.
+    #[clap(short, long)]
+    pub micro_trace_file_path: Option<String>,
 }
 
 /// A small bayesian neural network implementation based on ArrayFire.

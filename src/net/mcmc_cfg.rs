@@ -6,6 +6,7 @@ pub struct MCMCCfg {
     pub hmc_step_size_mode: StepSizeMode,
     pub chain_length: usize,
     pub trace_file: Option<String>,
+    pub micro_trace_file: Option<String>,
 }
 
 pub enum StepSizeMode {

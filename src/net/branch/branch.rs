@@ -6,11 +6,16 @@ use super::{
     params::BranchParams,
     step_sizes::StepSizes,
 };
-use crate::{scalar_to_host, to_host};
+use crate::{net::branch::micro_trace::MicroTrace, scalar_to_host, to_host};
 use arrayfire::{diag_extract, dim4, dot, matmul, randu, sqrt, sum, tanh, Array, MatProp};
 use log::{debug, warn};
 use rand::{prelude::ThreadRng, Rng};
 use serde::Serialize;
+use serde_json::to_writer;
+use std::{
+    fs::File,
+    io::{BufWriter, Write},
+};
 
 pub trait Branch {
     fn build_cfg(cfg_bld: BranchCfgBuilder) -> BranchCfg;
@@ -321,6 +326,14 @@ pub trait Branch {
         y_train: &Array<f64>,
         mcmc_cfg: &MCMCCfg,
     ) -> HMCStepResult {
+        let mut write_trace = false;
+        let mut trace_file = None;
+        let mut trace = MicroTrace::new();
+        if let Some(file) = &mcmc_cfg.micro_trace_file {
+            trace_file = Some(BufWriter::new(File::create(file).unwrap()));
+            write_trace = true;
+        }
+
         let mut u_turned = false;
         let init_params = self.params().clone();
         let step_sizes = match mcmc_cfg.hmc_step_size_mode {
@@ -345,6 +358,8 @@ pub trait Branch {
 
             momenta.half_step(&step_sizes, &ldg);
 
+            // diagnostics and logging
+
             if (self.neg_hamiltonian(&momenta, x_train, y_train) - init_neg_hamiltonian).abs()
                 > mcmc_cfg.hmc_max_hamiltonian_error
             {
@@ -357,6 +372,15 @@ pub trait Branch {
                 warn!("U turn in HMC trajectory at step {}", _step);
                 u_turned = true;
             }
+
+            if write_trace {
+                trace.add(self.params().param_vec());
+            }
+        }
+
+        if write_trace {
+            to_writer(trace_file.as_mut().unwrap(), &trace).unwrap();
+            trace_file.as_mut().unwrap().write(b"\n").unwrap();
         }
 
         debug!("final gradients");

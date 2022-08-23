@@ -213,6 +213,7 @@ fn base_model(args: BaseModelArgs) {
         hmc_step_size_mode: step_size_mode,
         chain_length: args.chain_length,
         trace_file: args.trace_file_path,
+        micro_trace_file: args.micro_trace_file_path,
     };
 
     let report_cfg = ReportCfg::new(args.report_interval, Some(&test_data));
@@ -267,6 +268,7 @@ fn std_normal_model(args: StdNormalModelArgs) {
         hmc_step_size_mode: step_size_mode,
         chain_length: args.chain_length,
         trace_file: args.trace_file_path,
+        micro_trace_file: args.micro_trace_file_path,
     };
 
     let report_cfg = ReportCfg::new(args.report_interval, Some(&test_data));

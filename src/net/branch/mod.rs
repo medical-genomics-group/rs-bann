@@ -3,6 +3,7 @@ pub mod base_branch;
 pub mod branch;
 pub mod branch_builder;
 pub mod branch_cfg_builder;
+pub(crate) mod micro_trace;
 mod momenta;
 mod params;
 pub mod std_normal_branch;
