@@ -24,6 +24,7 @@ class ModelCfg:
             self.num_markers = d["num_markers"]
             self.layer_widths = d["layer_widths"] 
 
+
 @dataclass
 class Trajectory:
     traj: np.array
@@ -48,7 +49,7 @@ class Trajectory:
             pix += prev_width * self.layer_width(i)
             prev_width = self.layer_width(i)
         
-        return self.params[:, pix:pix + prev_width * self.layer_width(lix)]
+        return self.traj[:, pix:pix + prev_width * self.layer_width(lix)]
     
     def bias_start_pix(self):
         pix = 0
@@ -63,12 +64,24 @@ class Trajectory:
         for i in range(lix):
             pix += self.layer_width(i)
         
-        return self.params[:, pix:pix+self.layer_width(lix)]
+        return self.traj[:, pix:pix+self.layer_width(lix)]
     
     def plot(self):
+        fig, axes = plt.subplots(2, self.depth(), sharex=True, figsize=(15, 10))
+                
+        # weights
+        for lix in range(self.depth()):
+            axes[0, lix].set_title(f"LAYER {lix + 1}")
+            axes[0, lix].plot(self.layer_weights(lix))
+        axes[0, 0].set_ylabel(r"$W$")
+
+        # biases
+        for lix in range(self.depth() - 1):
+            axes[1, lix].plot(self.layer_biases(lix))
+        axes[1, 0].set_ylabel(r"$b$")
+                
+        plt.tight_layout()
         
-        
-    
     
 @dataclass
 class Trace:
@@ -113,7 +126,8 @@ class Trace:
             pix += self.layer_width(i)
         
         return self.params[:, pix:pix+self.layer_width(lix)]
-        
+
+
 def load_json_trace(wdir: str):
     params = []
     wp = []
@@ -134,17 +148,17 @@ def load_json_trace(wdir: str):
         np.asarray(bp),
         np.asarray(ep))
 
+
 def load_json_traj(wdir: str):
     res = []
     mcfg = ModelCfg(wdir + '/meta')
     with open(wdir + '/traj', 'r') as fin:
         for line in fin:
             l = json.loads(line)
-            res.append(Trajectory(l["params"], mcfg))
+            res.append(Trajectory(np.asarray(l["params"]), mcfg))
     return res
             
-            
-    
+
 def plot_single_arm_trace(file: str):
     trace = load_json_trace(file)
     fig, axes = plt.subplots(4, trace.depth(), sharex=True, figsize=(15, 10))
