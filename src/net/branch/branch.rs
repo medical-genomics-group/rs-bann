@@ -330,7 +330,6 @@ pub trait Branch {
             StepSizeMode::Izmailov => self.izmailov_step_sizes(mcmc_cfg.hmc_integration_length),
         };
 
-        // TODO: add u turn diagnostic for tuning
         let init_momenta = self.sample_momenta();
         let init_neg_hamiltonian = self.neg_hamiltonian(&init_momenta, x_train, y_train);
         debug!("Starting hmc step");

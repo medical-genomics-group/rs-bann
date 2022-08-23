@@ -120,19 +120,19 @@ impl<B: Branch> Net<B> {
 
         for chain_ix in 1..=mcmc_cfg.chain_length {
             // sample ouput bias term
-            residual += self.output_bias.af_bias();
-            self.output_bias.sample_bias(
-                self.error_precision,
-                &residual,
-                num_individuals,
-                &mut rng,
-            );
-            self.output_bias.sample_precision(
-                self.precision_prior_shape,
-                self.precision_prior_scale,
-                &mut rng,
-            );
-            residual -= self.output_bias.af_bias();
+            // residual += self.output_bias.af_bias();
+            // self.output_bias.sample_bias(
+            //     self.error_precision,
+            //     &residual,
+            //     num_individuals,
+            //     &mut rng,
+            // );
+            // self.output_bias.sample_precision(
+            //     self.precision_prior_shape,
+            //     self.precision_prior_scale,
+            //     &mut rng,
+            // );
+            // residual -= self.output_bias.af_bias();
             // shuffle order in which branches are trained
             branch_ixs.shuffle(&mut rng);
             for &branch_ix in &branch_ixs {

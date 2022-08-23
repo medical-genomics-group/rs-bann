@@ -1,9 +1,7 @@
 use super::{
     branch::branch::Branch,
     branch::branch::BranchCfg,
-    branch::{
-        ard_branch::ArdBranch, base_branch::BaseBranch, branch_cfg_builder::BranchCfgBuilder,
-    },
+    branch::branch_cfg_builder::BranchCfgBuilder,
     net::{Net, OutputBias},
     train_stats::TrainingStats,
 };

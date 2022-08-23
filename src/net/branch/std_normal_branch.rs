@@ -1,12 +1,11 @@
 use super::{
-    super::gibbs_steps::multi_param_precision_posterior,
     branch::{Branch, BranchCfg, BranchLogDensityGradient},
     branch_cfg_builder::BranchCfgBuilder,
     params::{BranchHyperparams, BranchParams},
     step_sizes::StepSizes,
 };
 use crate::scalar_to_host;
-use arrayfire::{dim4, Array};
+use arrayfire::Array;
 use rand::prelude::ThreadRng;
 use rand::thread_rng;
 
@@ -150,25 +149,5 @@ impl Branch for StdNormalBranch {
     }
 
     /// Samples precision values from their posterior distribution in a Gibbs step.
-    fn sample_precisions(&mut self, prior_shape: f64, prior_scale: f64) {
-        for i in 0..self.params.weights.len() {
-            self.hyperparams.weight_precisions[i] = Array::new(
-                &[multi_param_precision_posterior(
-                    prior_shape,
-                    prior_scale,
-                    &self.params.weights[i],
-                    &mut self.rng,
-                )],
-                dim4!(1, 1, 1, 1),
-            );
-        }
-        for i in 0..self.params.biases.len() {
-            self.hyperparams.bias_precisions[i] = multi_param_precision_posterior(
-                prior_shape,
-                prior_scale,
-                &self.params.biases[i],
-                &mut self.rng,
-            );
-        }
-    }
+    fn sample_precisions(&mut self, _prior_shape: f64, _prior_scale: f64) {}
 }

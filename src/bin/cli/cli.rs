@@ -18,6 +18,8 @@ pub(crate) enum SubCmd {
     Simulate(SimulateArgs),
     /// Run BaseModel
     BaseModel(BaseModelArgs),
+    /// Run StdNormalModel
+    StdNormalModel(StdNormalModelArgs),
 }
 
 #[derive(Args, Debug, Serialize, Deserialize)]
@@ -71,6 +73,65 @@ pub(crate) struct BaseModelArgs {
 
     /// prior scale
     pub prior_scale: f64,
+
+    /// full model chain length
+    pub chain_length: usize,
+
+    /// hmc max hamiltonian error
+    pub max_hamiltonian_error: f64,
+
+    /// hmc integration length
+    pub integration_length: usize,
+
+    /// hmc step size, acts as a modifying factor on random step sizes if enabled
+    pub step_size: f64,
+
+    /// training stats report interval
+    pub report_interval: usize,
+
+    /// enable random step sizes
+    #[clap(short, long)]
+    pub random_step_sizes: bool,
+
+    /// Set step sizes to pi / (2 * prior_std_deviation * integration_length).
+    /// Takes precedence over other step size flags.
+    #[clap(short, long)]
+    pub izmailov_step_sizes: bool,
+
+    /// enable step sizes scales by prior standard deviation.
+    /// Takes precedence of random_step_sizes if enabled.
+    #[clap(short, long)]
+    pub precision_scaled_step_sizes: bool,
+
+    /// enable debug prints
+    #[clap(short, long)]
+    pub debug_prints: bool,
+
+    /// standardize input data
+    #[clap(short, long)]
+    pub standardize: bool,
+
+    /// Path for trace file.
+    /// Trace output will only be generated if this path is specified.
+    #[clap(short, long)]
+    pub trace_file_path: Option<String>,
+}
+
+/// A small bayesian neural network implementation.
+/// Number of markers per branch: fixed
+/// Depth of branches: same for all branches
+/// Width of branch layers: same within branches, dynamic between branches
+/// Weight and bias priors are std normals.
+#[derive(Args, Debug)]
+pub(crate) struct StdNormalModelArgs {
+    /// input directory with train.bin and test.bin files
+    pub indir: String,
+
+    /// width of hidden layer
+    pub hidden_layer_width: usize,
+
+    /// number of hidden layers in branches
+    pub branch_depth: usize,
 
     /// full model chain length
     pub chain_length: usize,
