@@ -5,8 +5,9 @@ use super::{
     params::BranchHyperparams,
     params::BranchParams,
     step_sizes::StepSizes,
+    trajectory::Trajectory,
 };
-use crate::{net::branch::micro_trace::MicroTrace, scalar_to_host, to_host};
+use crate::{scalar_to_host, to_host};
 use arrayfire::{diag_extract, dim4, dot, matmul, randu, sqrt, sum, tanh, Array, MatProp};
 use log::{debug, warn};
 use rand::{prelude::ThreadRng, Rng};
@@ -326,12 +327,16 @@ pub trait Branch {
         y_train: &Array<f64>,
         mcmc_cfg: &MCMCCfg,
     ) -> HMCStepResult {
-        let mut write_trace = false;
-        let mut trace_file = None;
-        let mut trace = MicroTrace::new();
-        if let Some(file) = &mcmc_cfg.micro_trace_file {
-            trace_file = Some(BufWriter::new(File::create(file).unwrap()));
-            write_trace = true;
+        let mut traj_file = None;
+        let mut traj = Trajectory::new();
+        if mcmc_cfg.trajectories {
+            traj_file = Some(BufWriter::new(
+                File::options()
+                    .append(true)
+                    .create(true)
+                    .open(mcmc_cfg.trajectories_path())
+                    .unwrap(),
+            ));
         }
 
         let mut u_turned = false;
@@ -352,6 +357,7 @@ pub trait Branch {
 
         // leapfrog
         for _step in 0..(mcmc_cfg.hmc_integration_length) {
+            debug!("step: {}", _step);
             momenta.half_step(&step_sizes, &ldg);
             self.params_mut().full_step(&step_sizes, &momenta);
             ldg = self.log_density_gradient(x_train, y_train);
@@ -360,10 +366,20 @@ pub trait Branch {
 
             // diagnostics and logging
 
+            if mcmc_cfg.trajectories {
+                traj.add(self.params().param_vec());
+            }
+
             if (self.neg_hamiltonian(&momenta, x_train, y_train) - init_neg_hamiltonian).abs()
                 > mcmc_cfg.hmc_max_hamiltonian_error
             {
                 debug!("hamiltonian error threshold crossed: terminating");
+
+                if mcmc_cfg.trajectories {
+                    to_writer(traj_file.as_mut().unwrap(), &traj).unwrap();
+                    traj_file.as_mut().unwrap().write(b"\n").unwrap();
+                }
+
                 self.set_params(&init_params);
                 return HMCStepResult::RejectedEarly;
             }
@@ -372,15 +388,11 @@ pub trait Branch {
                 warn!("U turn in HMC trajectory at step {}", _step);
                 u_turned = true;
             }
-
-            if write_trace {
-                trace.add(self.params().param_vec());
-            }
         }
 
-        if write_trace {
-            to_writer(trace_file.as_mut().unwrap(), &trace).unwrap();
-            trace_file.as_mut().unwrap().write(b"\n").unwrap();
+        if mcmc_cfg.trajectories {
+            to_writer(traj_file.as_mut().unwrap(), &traj).unwrap();
+            traj_file.as_mut().unwrap().write(b"\n").unwrap();
         }
 
         debug!("final gradients");
@@ -444,4 +456,23 @@ pub enum HMCStepResult {
     RejectedEarly,
     Rejected,
     Accepted,
+}
+
+// TODO: this should be used within BranchCfg,
+// for now I just need this for convenient output
+#[derive(Clone, Serialize)]
+pub struct BranchMeta {
+    pub(crate) num_params: usize,
+    pub(crate) num_markers: usize,
+    pub(crate) layer_widths: Vec<usize>,
+}
+
+impl BranchMeta {
+    pub fn from_cfg(cfg: &BranchCfg) -> Self {
+        Self {
+            num_params: cfg.num_params,
+            num_markers: cfg.num_markers,
+            layer_widths: cfg.layer_widths.clone(),
+        }
+    }
 }

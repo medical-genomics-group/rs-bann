@@ -1,3 +1,5 @@
+use std::path::{Path, PathBuf};
+
 /// Parameters for MCMC sampling.
 pub struct MCMCCfg {
     pub hmc_step_size_factor: f64,
@@ -5,8 +7,29 @@ pub struct MCMCCfg {
     pub hmc_integration_length: usize,
     pub hmc_step_size_mode: StepSizeMode,
     pub chain_length: usize,
-    pub trace_file: Option<String>,
-    pub micro_trace_file: Option<String>,
+    pub outpath: String,
+    pub trace: bool,
+    pub trajectories: bool,
+}
+
+impl MCMCCfg {
+    pub fn create_out(&self) {
+        if !Path::new(&self.outpath).exists() {
+            std::fs::create_dir_all(&self.outpath).expect("Could not create output directory!");
+        }
+    }
+
+    pub fn meta_path(&self) -> PathBuf {
+        Path::new(&self.outpath).join("meta")
+    }
+
+    pub fn trace_path(&self) -> PathBuf {
+        Path::new(&self.outpath).join("trace")
+    }
+
+    pub fn trajectories_path(&self) -> PathBuf {
+        Path::new(&self.outpath).join("traj")
+    }
 }
 
 pub enum StepSizeMode {

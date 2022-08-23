@@ -89,6 +89,10 @@ pub(crate) struct BaseModelArgs {
     /// training stats report interval
     pub report_interval: usize,
 
+    /// Output path
+    #[clap(short, long)]
+    pub outpath: String,
+
     /// enable random step sizes
     #[clap(short, long)]
     pub random_step_sizes: bool,
@@ -111,16 +115,13 @@ pub(crate) struct BaseModelArgs {
     #[clap(short, long)]
     pub standardize: bool,
 
-    /// Path to trace file.
-    /// Trace output will only be generated if this path is specified.
-    #[clap(short, long)]
-    pub trace_file_path: Option<String>,
+    /// Output trace
+    #[clap(long)]
+    pub trace: bool,
 
-    /// Path to micro trace file.
-    /// Complete HMC trajectories (all states visited during a single update) will be saved here.
-    /// Micro trace output will only be generated if this path is specified.
-    #[clap(short, long)]
-    pub micro_trace_file_path: Option<String>,
+    /// Output hmc trajectories
+    #[clap(long)]
+    pub trajectories: bool,
 }
 
 /// A small bayesian neural network implementation.
@@ -154,6 +155,10 @@ pub(crate) struct StdNormalModelArgs {
     /// training stats report interval
     pub report_interval: usize,
 
+    /// Output path
+    #[clap(short, long)]
+    pub outpath: String,
+
     /// enable random step sizes
     #[clap(short, long)]
     pub random_step_sizes: bool,
@@ -176,16 +181,13 @@ pub(crate) struct StdNormalModelArgs {
     #[clap(short, long)]
     pub standardize: bool,
 
-    /// Path to trace file.
-    /// Trace output will only be generated if this path is specified.
-    #[clap(short, long)]
-    pub trace_file_path: Option<String>,
+    /// Output trace
+    #[clap(long)]
+    pub trace: bool,
 
-    /// Path to micro trace file.
-    /// Complete HMC trajectories (all states visited during a single update) will be saved here.
-    /// Micro trace output will only be generated if this path is specified.
-    #[clap(short, long)]
-    pub micro_trace_file_path: Option<String>,
+    /// Output hmc trajectories
+    #[clap(long)]
+    pub trajectories: bool,
 }
 
 /// A small bayesian neural network implementation based on ArrayFire.

@@ -1,14 +1,14 @@
 use serde::Serialize;
 
 #[derive(Clone, Serialize)]
-pub(crate) struct MicroTrace {
+pub(crate) struct Trajectory {
     // flattened param vecs over time
     params: Vec<Vec<f64>>,
 }
 
-impl MicroTrace {
+impl Trajectory {
     pub fn new() -> Self {
-        MicroTrace { params: Vec::new() }
+        Self { params: Vec::new() }
     }
 
     pub fn add(&mut self, a: Vec<f64>) {

@@ -212,9 +212,13 @@ fn base_model(args: BaseModelArgs) {
         hmc_integration_length: args.integration_length,
         hmc_step_size_mode: step_size_mode,
         chain_length: args.chain_length,
-        trace_file: args.trace_file_path,
-        micro_trace_file: args.micro_trace_file_path,
+        outpath: args.outpath,
+        trace: args.trace,
+        trajectories: args.trajectories,
     };
+
+    mcmc_cfg.create_out();
+    net.write_meta(&mcmc_cfg);
 
     let report_cfg = ReportCfg::new(args.report_interval, Some(&test_data));
 
@@ -267,9 +271,12 @@ fn std_normal_model(args: StdNormalModelArgs) {
         hmc_integration_length: args.integration_length,
         hmc_step_size_mode: step_size_mode,
         chain_length: args.chain_length,
-        trace_file: args.trace_file_path,
-        micro_trace_file: args.micro_trace_file_path,
+        outpath: args.outpath,
+        trace: args.trace,
+        trajectories: args.trajectories,
     };
+    mcmc_cfg.create_out();
+    net.write_meta(&mcmc_cfg);
 
     let report_cfg = ReportCfg::new(args.report_interval, Some(&test_data));
 

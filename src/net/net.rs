@@ -1,5 +1,5 @@
 use super::{
-    branch::branch::{Branch, BranchCfg, HMCStepResult},
+    branch::branch::{Branch, BranchCfg, BranchMeta, HMCStepResult},
     data::Data,
     gibbs_steps::{multi_param_precision_posterior, single_param_precision_posterior},
     mcmc_cfg::MCMCCfg,
@@ -75,6 +75,12 @@ impl<B: Branch> Net<B> {
         self.branch_cfgs[branch_ix].num_params
     }
 
+    // TODO: do not assume that all branches are the same!
+    pub fn write_meta(&self, mcmc_cfg: &MCMCCfg) {
+        let mut w = BufWriter::new(File::create(mcmc_cfg.meta_path()).unwrap());
+        to_writer(w, &BranchMeta::from_cfg(&self.branch_cfgs[0]));
+    }
+
     // X has to be column major!
     // TODO: X will likely have to be in compressed format on host memory, so Ill have to unpack
     // it before loading it into device memory
@@ -85,11 +91,9 @@ impl<B: Branch> Net<B> {
         verbose: bool,
         report_cfg: Option<ReportCfg>,
     ) {
-        let mut write_trace = false;
         let mut trace_file = None;
-        if let Some(s) = &mcmc_cfg.trace_file {
-            trace_file = Some(BufWriter::new(File::create(s).unwrap()));
-            write_trace = true;
+        if mcmc_cfg.trace {
+            trace_file = Some(BufWriter::new(File::create(mcmc_cfg.trace_path()).unwrap()));
         }
 
         let mut rng = thread_rng();
@@ -113,7 +117,7 @@ impl<B: Branch> Net<B> {
             report_interval = report_cfg.as_ref().unwrap().interval;
         }
 
-        if write_trace {
+        if mcmc_cfg.trace {
             to_writer(trace_file.as_mut().unwrap(), &self.branch_cfgs).unwrap();
             trace_file.as_mut().unwrap().write(b"\n").unwrap();
         }
@@ -173,7 +177,7 @@ impl<B: Branch> Net<B> {
                 );
             }
 
-            if write_trace {
+            if mcmc_cfg.trace {
                 to_writer(trace_file.as_mut().unwrap(), &self.branch_cfgs).unwrap();
                 trace_file.as_mut().unwrap().write(b"\n").unwrap();
             }
