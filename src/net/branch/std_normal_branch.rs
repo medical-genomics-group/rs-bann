@@ -76,7 +76,15 @@ impl Branch for StdNormalBranch {
         self.num_params
     }
 
-    fn layer_widths(&self, index: usize) -> usize {
+    fn num_markers(&self) -> usize {
+        self.num_markers
+    }
+
+    fn layer_widths(&self) -> &Vec<usize> {
+        &self.layer_widths
+    }
+
+    fn layer_width(&self, index: usize) -> usize {
         self.layer_widths[index]
     }
 

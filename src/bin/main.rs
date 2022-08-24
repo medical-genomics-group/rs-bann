@@ -215,6 +215,7 @@ fn base_model(args: BaseModelArgs) {
         outpath: args.outpath,
         trace: args.trace,
         trajectories: args.trajectories,
+        seld: args.seld,
     };
 
     mcmc_cfg.create_out();
@@ -274,6 +275,7 @@ fn std_normal_model(args: StdNormalModelArgs) {
         outpath: args.outpath,
         trace: args.trace,
         trajectories: args.trajectories,
+        seld: args.seld,
     };
     mcmc_cfg.create_out();
     net.write_meta(&mcmc_cfg);

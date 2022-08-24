@@ -51,7 +51,7 @@ impl fmt::Debug for BranchParams {
 
 impl BranchParams {
     pub fn from_param_vec(
-        param_vec: &Vec<f64>,
+        param_vec: &[f64],
         layer_widths: &Vec<usize>,
         num_markers: usize,
     ) -> Self {
@@ -77,6 +77,33 @@ impl BranchParams {
             read_ix += num_biases;
         }
         Self { weights, biases }
+    }
+
+    pub fn load_param_vec(
+        &mut self,
+        param_vec: &[f64],
+        layer_widths: &Vec<usize>,
+        num_markers: usize,
+    ) {
+        let mut prev_width = num_markers;
+        let mut read_ix: usize = 0;
+        for (lix, width) in layer_widths.iter().enumerate() {
+            let num_weights = prev_width * width;
+            self.weights[lix] = Array::new(
+                &param_vec[read_ix..read_ix + num_weights],
+                dim4!(prev_width as u64, *width as u64, 1, 1),
+            );
+            prev_width = *width;
+            read_ix += num_weights;
+        }
+        for (lix, width) in layer_widths[..layer_widths.len() - 1].iter().enumerate() {
+            let num_biases = width;
+            self.biases[lix] = Array::new(
+                &param_vec[read_ix..read_ix + num_biases],
+                dim4!(1, *width as u64, 1, 1),
+            );
+            read_ix += num_biases;
+        }
     }
 
     pub fn param_vec(&self) -> Vec<f64> {
@@ -123,6 +150,8 @@ impl BranchParams {
     pub fn biases(&self, index: usize) -> &Array<f64> {
         &self.biases[index]
     }
+
+    pub fn assign(&mut self, pix: usize, val: f64) {}
 }
 
 #[cfg(test)]

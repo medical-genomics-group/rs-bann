@@ -11,7 +11,7 @@ pub(crate) fn sum_of_squares(arr: &Array<f64>) -> f64 {
         MatProp::NONE,
     )
     .host(&mut sum_of_squares);
-    return sum_of_squares[0];
+    sum_of_squares[0]
 }
 
 pub(crate) fn single_param_precision_posterior(

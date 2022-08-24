@@ -49,6 +49,14 @@ impl Branch for BaseBranch {
         }
     }
 
+    fn num_markers(&self) -> usize {
+        self.num_markers
+    }
+
+    fn layer_widths(&self) -> &Vec<usize> {
+        &self.layer_widths
+    }
+
     fn hyperparams(&self) -> &BranchHyperparams {
         &self.hyperparams
     }
@@ -77,7 +85,7 @@ impl Branch for BaseBranch {
         self.num_params
     }
 
-    fn layer_widths(&self, index: usize) -> usize {
+    fn layer_width(&self, index: usize) -> usize {
         self.layer_widths[index]
     }
 
@@ -92,7 +100,7 @@ impl Branch for BaseBranch {
         for index in 0..self.num_layers() {
             wrt_weights.push(Array::new(
                 &vec![
-                    const_factor * (1. / scalar_to_host(&self.weight_precisions(index))).sqrt();
+                    const_factor * (1. / scalar_to_host(self.weight_precisions(index))).sqrt();
                     self.weights(index).elements()
                 ],
                 self.weights(index).dims(),

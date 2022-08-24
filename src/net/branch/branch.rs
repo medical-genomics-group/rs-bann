@@ -37,13 +37,17 @@ pub trait Branch {
 
     fn num_layers(&self) -> usize;
 
-    fn layer_widths(&self, index: usize) -> usize;
+    fn layer_width(&self, index: usize) -> usize;
 
     fn set_error_precision(&mut self, val: f64);
 
     fn rng(&mut self) -> &mut ThreadRng;
 
     fn sample_precisions(&mut self, prior_shape: f64, prior_scale: f64);
+
+    fn num_markers(&self) -> usize;
+
+    fn layer_widths(&self) -> &Vec<usize>;
 
     fn log_density_gradient(
         &self,
@@ -52,6 +56,34 @@ pub trait Branch {
     ) -> BranchLogDensityGradient;
 
     fn log_density(&self, params: &BranchParams, hyperparams: &BranchHyperparams, rss: f64) -> f64;
+
+    // The difference in log density when all but one variable are changed
+    // i.e. a partial update is done.
+    // DO NOT run this in production code, this will be extremely slow.
+    fn step_effects_on_ld(
+        &mut self,
+        prev_params: &BranchParams,
+        x: &Array<f64>,
+        y: &Array<f64>,
+    ) -> Vec<f64> {
+        let mut res = Vec::new();
+        let prev_pv = prev_params.param_vec();
+        let curr_pv = self.params().param_vec();
+        let mut pv = curr_pv.clone();
+        let lw = self.layer_widths().clone();
+        let nm = self.num_markers();
+        for pix in 0..self.num_params() {
+            // exchange value
+            pv[pix] = prev_pv[pix];
+            // compute rss, ld
+            self.params_mut().load_param_vec(&pv, &lw, nm);
+            let rss = self.rss(x, y);
+            res.push(self.log_density(self.params(), self.hyperparams(), rss));
+            // put param back
+            pv[pix] = curr_pv[pix];
+        }
+        res
+    }
 
     fn weights(&self, index: usize) -> &Array<f64> {
         &self.params().weights[index]
@@ -108,7 +140,7 @@ pub trait Branch {
         for ix in 0..(self.num_layers() - 1) {
             dot_p += matmul(
                 &(self.biases(ix) - init_params.biases(ix)),
-                &momenta.wrt_biases(ix),
+                momenta.wrt_biases(ix),
                 MatProp::NONE,
                 MatProp::TRANS,
             );
@@ -327,6 +359,9 @@ pub trait Branch {
         y_train: &Array<f64>,
         mcmc_cfg: &MCMCCfg,
     ) -> HMCStepResult {
+        let mut seld_file = None;
+        let mut seld = Trajectory::new();
+        let mut prev_params = None;
         let mut traj_file = None;
         let mut traj = Trajectory::new();
         if mcmc_cfg.trajectories {
@@ -338,6 +373,16 @@ pub trait Branch {
                     .unwrap(),
             ));
         }
+        if mcmc_cfg.seld {
+            seld_file = Some(BufWriter::new(
+                File::options()
+                    .append(true)
+                    .create(true)
+                    .open(mcmc_cfg.seld_path())
+                    .unwrap(),
+            ));
+            prev_params = Some(self.params().clone());
+        }
 
         let mut u_turned = false;
         let init_params = self.params().clone();
@@ -347,12 +392,10 @@ pub trait Branch {
             StepSizeMode::Uniform => self.uniform_step_sizes(mcmc_cfg.hmc_step_size_factor),
             StepSizeMode::Izmailov => self.izmailov_step_sizes(mcmc_cfg.hmc_integration_length),
         };
-
-        let init_momenta = self.sample_momenta();
-        let init_neg_hamiltonian = self.neg_hamiltonian(&init_momenta, x_train, y_train);
+        let mut momenta = self.sample_momenta();
+        let init_neg_hamiltonian = self.neg_hamiltonian(&momenta, x_train, y_train);
         debug!("Starting hmc step");
         debug!("initial hamiltonian: {:?}", init_neg_hamiltonian);
-        let mut momenta = init_momenta.clone();
         let mut ldg = self.log_density_gradient(x_train, y_train);
 
         // leapfrog
@@ -370,6 +413,10 @@ pub trait Branch {
                 traj.add(self.params().param_vec());
             }
 
+            if mcmc_cfg.seld {
+                seld.add(self.step_effects_on_ld(prev_params.as_ref().unwrap(), x_train, y_train));
+            }
+
             if (self.neg_hamiltonian(&momenta, x_train, y_train) - init_neg_hamiltonian).abs()
                 > mcmc_cfg.hmc_max_hamiltonian_error
             {
@@ -378,6 +425,11 @@ pub trait Branch {
                 if mcmc_cfg.trajectories {
                     to_writer(traj_file.as_mut().unwrap(), &traj).unwrap();
                     traj_file.as_mut().unwrap().write_all(b"\n").unwrap();
+                }
+
+                if mcmc_cfg.seld {
+                    to_writer(seld_file.as_mut().unwrap(), &seld).unwrap();
+                    seld_file.as_mut().unwrap().write_all(b"\n").unwrap();
                 }
 
                 self.set_params(&init_params);
@@ -393,6 +445,11 @@ pub trait Branch {
         if mcmc_cfg.trajectories {
             to_writer(traj_file.as_mut().unwrap(), &traj).unwrap();
             traj_file.as_mut().unwrap().write_all(b"\n").unwrap();
+        }
+
+        if mcmc_cfg.seld {
+            to_writer(seld_file.as_mut().unwrap(), &seld).unwrap();
+            seld_file.as_mut().unwrap().write_all(b"\n").unwrap();
         }
 
         debug!("final gradients");
@@ -435,6 +492,36 @@ pub trait Branch {
 pub struct BranchLogDensityGradient {
     pub wrt_weights: Vec<Array<f64>>,
     pub wrt_biases: Vec<Array<f64>>,
+}
+
+impl BranchLogDensityGradient {
+    fn num_params(&self) -> usize {
+        let mut res: usize = 0;
+        for i in 0..self.wrt_weights.len() {
+            res += self.wrt_weights[i].elements();
+        }
+        for i in 0..self.wrt_biases.len() {
+            res += self.wrt_biases[i].elements();
+        }
+        res
+    }
+
+    pub(crate) fn param_vec(&self) -> Vec<f64> {
+        let mut host_vec = Vec::new();
+        host_vec.resize(self.num_params(), 0.);
+        let mut insert_ix: usize = 0;
+        for i in 0..self.wrt_weights.len() {
+            let len = self.wrt_weights[i].elements();
+            self.wrt_weights[i].host(&mut host_vec[insert_ix..insert_ix + len]);
+            insert_ix += len;
+        }
+        for i in 0..self.wrt_biases.len() {
+            let len = self.wrt_biases[i].elements();
+            self.wrt_biases[i].host(&mut host_vec[insert_ix..insert_ix + len]);
+            insert_ix += len;
+        }
+        host_vec
+    }
 }
 
 #[derive(Clone, Serialize)]

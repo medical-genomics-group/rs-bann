@@ -80,7 +80,15 @@ impl Branch for ArdBranch {
         self.num_params
     }
 
-    fn layer_widths(&self, index: usize) -> usize {
+    fn num_markers(&self) -> usize {
+        self.num_markers
+    }
+
+    fn layer_widths(&self) -> &Vec<usize> {
+        &self.layer_widths
+    }
+
+    fn layer_width(&self, index: usize) -> usize {
         self.layer_widths[index]
     }
 
@@ -160,7 +168,7 @@ impl Branch for ArdBranch {
     /// Samples precision values from their posterior distribution in a Gibbs step.
     fn sample_precisions(&mut self, prior_shape: f64, prior_scale: f64) {
         for i in 0..self.params.weights.len() {
-            let posterior_shape = self.layer_widths(i) as f64 / 2. + prior_shape;
+            let posterior_shape = self.layer_width(i) as f64 / 2. + prior_shape;
             // compute sums of squares of all rows
             self.hyperparams.weight_precisions[i] = Array::new(
                 &to_host(&sum(

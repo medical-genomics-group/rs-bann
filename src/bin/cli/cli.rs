@@ -122,6 +122,11 @@ pub(crate) struct BaseModelArgs {
     /// Output hmc trajectories
     #[clap(long)]
     pub trajectories: bool,
+
+    /// Output step effects on log density.
+    /// CAUTION: this is extremely expensive, do not run this in production.
+    #[clap(long)]
+    pub seld: bool,
 }
 
 /// A small bayesian neural network implementation.
@@ -188,6 +193,11 @@ pub(crate) struct StdNormalModelArgs {
     /// Output hmc trajectories
     #[clap(long)]
     pub trajectories: bool,
+
+    /// Output step effects on log density.
+    /// CAUTION: this is extremely expensive, do not run this in production.
+    #[clap(long)]
+    pub seld: bool,
 }
 
 /// A small bayesian neural network implementation based on ArrayFire.

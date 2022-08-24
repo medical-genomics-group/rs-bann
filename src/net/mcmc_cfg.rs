@@ -10,6 +10,8 @@ pub struct MCMCCfg {
     pub outpath: String,
     pub trace: bool,
     pub trajectories: bool,
+    // compute and report step effects on log density
+    pub seld: bool,
 }
 
 impl MCMCCfg {
@@ -29,6 +31,10 @@ impl MCMCCfg {
 
     pub fn trajectories_path(&self) -> PathBuf {
         Path::new(&self.outpath).join("traj")
+    }
+
+    pub fn seld_path(&self) -> PathBuf {
+        Path::new(&self.outpath).join("seld")
     }
 }
 

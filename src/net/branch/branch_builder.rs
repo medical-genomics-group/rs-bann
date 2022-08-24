@@ -420,7 +420,7 @@ mod tests {
         assert_eq!(branch.num_markers, 3);
         for i in 0..branch.num_layers() {
             println!("{:?}", i);
-            assert_eq!(branch.layer_widths(i), exp_layer_widths[i]);
+            assert_eq!(branch.layer_width(i), exp_layer_widths[i]);
             assert_eq!(branch.weights(i).dims(), exp_weight_dims[i]);
             if i < branch.num_layers() - 1 {
                 assert_eq!(branch.biases(i).dims(), exp_bias_dims[i]);
