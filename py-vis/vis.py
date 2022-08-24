@@ -2,7 +2,6 @@ import numpy as np
 from matplotlib import pyplot as plt
 from dataclasses import dataclass
 import json
-import pandas as pd
 
 SMALL_SIZE = 10
 MEDIUM_SIZE = 12
