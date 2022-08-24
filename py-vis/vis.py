@@ -66,7 +66,7 @@ class Trajectory:
         return self.traj[:, pix:pix+self.layer_width(lix)]
     
     def plot(self):
-        fig, axes = plt.subplots(2, self.depth(), sharex=True, figsize=(15, 10))
+        fig, axes = plt.subplots(2, self.depth(), sharex=True, figsize=(10, 6))
                 
         # weights
         for lix in range(self.depth()):
