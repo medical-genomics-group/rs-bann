@@ -157,6 +157,14 @@ def load_json_traj(wdir: str):
             res.append(Trajectory(np.asarray(l["params"]), mcfg))
     return res
             
+def load_json_seld(wdir: str):
+    res = []
+    mcfg = ModelCfg(wdir + '/meta')
+    with open(wdir + '/seld', 'r') as fin:
+        for line in fin:
+            l = json.loads(line)
+            res.append(Trajectory(np.asarray(l["params"]), mcfg))
+    return res
 
 def plot_single_arm_trace(file: str):
     trace = load_json_trace(file)

@@ -82,6 +82,7 @@ pub trait Branch {
             // put param back
             pv[pix] = curr_pv[pix];
         }
+        self.params_mut().load_param_vec(&curr_pv, &lw, nm);
         res
     }
 
@@ -400,7 +401,6 @@ pub trait Branch {
 
         // leapfrog
         for _step in 0..(mcmc_cfg.hmc_integration_length) {
-            debug!("step: {}", _step);
             momenta.half_step(&step_sizes, &ldg);
             self.params_mut().full_step(&step_sizes, &momenta);
             ldg = self.log_density_gradient(x_train, y_train);
@@ -417,10 +417,14 @@ pub trait Branch {
                 seld.add(self.step_effects_on_ld(prev_params.as_ref().unwrap(), x_train, y_train));
             }
 
-            if (self.neg_hamiltonian(&momenta, x_train, y_train) - init_neg_hamiltonian).abs()
+            let curr_neg_hamiltonian = self.neg_hamiltonian(&momenta, x_train, y_train);
+            if (curr_neg_hamiltonian - init_neg_hamiltonian).abs()
                 > mcmc_cfg.hmc_max_hamiltonian_error
             {
-                debug!("hamiltonian error threshold crossed: terminating");
+                debug!(
+                    "step: {}; hamiltonian error threshold crossed: terminating",
+                    _step
+                );
 
                 if mcmc_cfg.trajectories {
                     to_writer(traj_file.as_mut().unwrap(), &traj).unwrap();
