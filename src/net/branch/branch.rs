@@ -377,7 +377,7 @@ pub trait Branch {
 
                 if mcmc_cfg.trajectories {
                     to_writer(traj_file.as_mut().unwrap(), &traj).unwrap();
-                    traj_file.as_mut().unwrap().write(b"\n").unwrap();
+                    traj_file.as_mut().unwrap().write_all(b"\n").unwrap();
                 }
 
                 self.set_params(&init_params);
@@ -392,7 +392,7 @@ pub trait Branch {
 
         if mcmc_cfg.trajectories {
             to_writer(traj_file.as_mut().unwrap(), &traj).unwrap();
-            traj_file.as_mut().unwrap().write(b"\n").unwrap();
+            traj_file.as_mut().unwrap().write_all(b"\n").unwrap();
         }
 
         debug!("final gradients");

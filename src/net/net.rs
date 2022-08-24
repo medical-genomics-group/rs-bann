@@ -119,7 +119,7 @@ impl<B: Branch> Net<B> {
 
         if mcmc_cfg.trace {
             to_writer(trace_file.as_mut().unwrap(), &self.branch_cfgs).unwrap();
-            trace_file.as_mut().unwrap().write(b"\n").unwrap();
+            trace_file.as_mut().unwrap().write_all(b"\n").unwrap();
         }
 
         for chain_ix in 1..=mcmc_cfg.chain_length {
@@ -179,7 +179,7 @@ impl<B: Branch> Net<B> {
 
             if mcmc_cfg.trace {
                 to_writer(trace_file.as_mut().unwrap(), &self.branch_cfgs).unwrap();
-                trace_file.as_mut().unwrap().write(b"\n").unwrap();
+                trace_file.as_mut().unwrap().write_all(b"\n").unwrap();
             }
         }
     }
