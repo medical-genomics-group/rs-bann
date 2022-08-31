@@ -27,6 +27,7 @@ class ModelCfg:
 @dataclass
 class Trajectory:
     traj: np.array
+    hamiltonian: np.array
     model_cfg: ModelCfg
     
     def num_markers(self):
@@ -78,6 +79,9 @@ class Trajectory:
         for lix in range(self.depth() - 1):
             axes[1, lix].plot(self.layer_biases(lix))
         axes[1, 0].set_ylabel(r"$b$")
+
+        axes[1, self.depth() - 1].plot(self.hamiltonian)
+        axes[1, self.depth() - 1].set_title(r"$-H$")
                 
         plt.tight_layout()
         
@@ -151,19 +155,31 @@ def load_json_trace(wdir: str):
 def load_json_traj(wdir: str):
     res = []
     mcfg = ModelCfg(wdir + '/meta')
+    hams = []
+    with open(wdir + '/hamiltonian', 'r') as fin:
+        for line in fin:
+            hams.append(eval(line))
     with open(wdir + '/traj', 'r') as fin:
+        ix = 0
         for line in fin:
             l = json.loads(line)
-            res.append(Trajectory(np.asarray(l["params"]), mcfg))
+            res.append(Trajectory(np.asarray(l["params"]), hams[ix], mcfg))
+            ix += 1
     return res
             
 def load_json_seld(wdir: str):
     res = []
     mcfg = ModelCfg(wdir + '/meta')
+    hams = []
+    with open(wdir + '/hamiltonian', 'r') as fin:
+        for line in fin:
+            hams.append(eval(line))
     with open(wdir + '/seld', 'r') as fin:
+        ix = 0
         for line in fin:
             l = json.loads(line)
-            res.append(Trajectory(np.asarray(l["params"]), mcfg))
+            res.append(Trajectory(np.asarray(l["params"]), hams[ix], mcfg))
+            ix += 1
     return res
 
 def plot_single_arm_trace(file: str):

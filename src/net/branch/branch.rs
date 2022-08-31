@@ -360,6 +360,8 @@ pub trait Branch {
         y_train: &Array<f64>,
         mcmc_cfg: &MCMCCfg,
     ) -> HMCStepResult {
+        let mut ham = Vec::new();
+        let mut ham_file = None;
         let mut seld_file = None;
         let mut seld = Trajectory::new();
         let mut prev_params = None;
@@ -371,6 +373,13 @@ pub trait Branch {
                     .append(true)
                     .create(true)
                     .open(mcmc_cfg.trajectories_path())
+                    .unwrap(),
+            ));
+            ham_file = Some(BufWriter::new(
+                File::options()
+                    .append(true)
+                    .create(true)
+                    .open(mcmc_cfg.hamiltonian_path())
                     .unwrap(),
             ));
         }
@@ -395,6 +404,7 @@ pub trait Branch {
         };
         let mut momenta = self.sample_momenta();
         let init_neg_hamiltonian = self.neg_hamiltonian(&momenta, x_train, y_train);
+        ham.push(init_neg_hamiltonian);
         debug!("Starting hmc step");
         debug!("initial hamiltonian: {:?}", init_neg_hamiltonian);
         let mut ldg = self.log_density_gradient(x_train, y_train);
@@ -409,15 +419,17 @@ pub trait Branch {
 
             // diagnostics and logging
 
+            let curr_neg_hamiltonian = self.neg_hamiltonian(&momenta, x_train, y_train);
+
             if mcmc_cfg.trajectories {
                 traj.add(self.params().param_vec());
+                ham.push(curr_neg_hamiltonian);
             }
 
             if mcmc_cfg.seld {
                 seld.add(self.step_effects_on_ld(prev_params.as_ref().unwrap(), x_train, y_train));
             }
 
-            let curr_neg_hamiltonian = self.neg_hamiltonian(&momenta, x_train, y_train);
             if (curr_neg_hamiltonian - init_neg_hamiltonian).abs()
                 > mcmc_cfg.hmc_max_hamiltonian_error
             {
@@ -429,6 +441,11 @@ pub trait Branch {
                 if mcmc_cfg.trajectories {
                     to_writer(traj_file.as_mut().unwrap(), &traj).unwrap();
                     traj_file.as_mut().unwrap().write_all(b"\n").unwrap();
+                    ham_file
+                        .as_mut()
+                        .unwrap()
+                        .write_all(&format!("{:?}\n", ham).into_bytes())
+                        .unwrap();
                 }
 
                 if mcmc_cfg.seld {
@@ -449,6 +466,11 @@ pub trait Branch {
         if mcmc_cfg.trajectories {
             to_writer(traj_file.as_mut().unwrap(), &traj).unwrap();
             traj_file.as_mut().unwrap().write_all(b"\n").unwrap();
+            ham_file
+                .as_mut()
+                .unwrap()
+                .write_all(&format!("{:?}\n", ham).into_bytes())
+                .unwrap();
         }
 
         if mcmc_cfg.seld {
