@@ -7,50 +7,52 @@ SMALL_SIZE = 10
 MEDIUM_SIZE = 12
 BIGGER_SIZE = 14
 
-plt.rc('font', size=MEDIUM_SIZE)          # controls default text sizes
-plt.rc('axes', titlesize=BIGGER_SIZE)     # fontsize of the axes title
-plt.rc('axes', labelsize=MEDIUM_SIZE)    # fontsize of the x and y labels
-plt.rc('xtick', labelsize=MEDIUM_SIZE)    # fontsize of the tick labels
-plt.rc('ytick', labelsize=MEDIUM_SIZE)    # fontsize of the tick labels
-plt.rc('legend', fontsize=SMALL_SIZE)    # legend fontsize
-plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
+plt.rc("font", size=MEDIUM_SIZE)  # controls default text sizes
+plt.rc("axes", titlesize=BIGGER_SIZE)  # fontsize of the axes title
+plt.rc("axes", labelsize=MEDIUM_SIZE)  # fontsize of the x and y labels
+plt.rc("xtick", labelsize=MEDIUM_SIZE)  # fontsize of the tick labels
+plt.rc("ytick", labelsize=MEDIUM_SIZE)  # fontsize of the tick labels
+plt.rc("legend", fontsize=SMALL_SIZE)  # legend fontsize
+plt.rc("figure", titlesize=BIGGER_SIZE)  # fontsize of the figure title
+
 
 class ModelCfg:
     def __init__(self, file):
-        with open(file, 'r') as fin:
+        with open(file, "r") as fin:
             d = json.load(fin)
             self.num_params = d["num_params"]
             self.num_markers = d["num_markers"]
-            self.layer_widths = d["layer_widths"] 
+            self.layer_widths = d["layer_widths"]
 
 
 @dataclass
 class Trajectory:
-    traj: np.array
+    params: np.array
+    grad: np.array
+    num_grad: np.array
     hamiltonian: np.array
     model_cfg: ModelCfg
-    
+
     def num_markers(self):
         return self.model_cfg.num_markers
 
     def num_params(self):
         return self.model_cfg.num_params
-        
+
     def layer_width(self, ix):
         return self.model_cfg.layer_widths[ix]
-    
+
     def depth(self):
         return len(self.model_cfg.layer_widths)
-    
-    def layer_weights(self, lix: int):
+
+    def layer_weight_ixs(self, lix: int):
         pix = 0
         prev_width = self.num_markers()
         for i in range(lix):
             pix += prev_width * self.layer_width(i)
             prev_width = self.layer_width(i)
-        
-        return self.traj[:, pix:pix + prev_width * self.layer_width(lix)]
-    
+        return pix, pix + prev_width * self.layer_width(lix)
+
     def bias_start_pix(self):
         pix = 0
         prev_width = self.num_markers()
@@ -58,17 +60,40 @@ class Trajectory:
             pix += prev_width * width
             prev_width = width
         return pix
-    
-    def layer_biases(self, lix:  int):
+
+    def layer_bias_ixs(self, lix: int):
         pix = self.bias_start_pix()
         for i in range(lix):
             pix += self.layer_width(i)
-        
-        return self.traj[:, pix:pix+self.layer_width(lix)]
-    
-    def plot(self):
+        return pix, pix + self.layer_width(lix)
+
+    def layer_weights(self, lix: int):
+        start, stop = self.layer_weight_ixs(lix)
+        return self.params[:, start:stop]
+
+    def layer_biases(self, lix: int):
+        start, stop = self.layer_bias_ixs(lix)
+        return self.params[:, start:stop]
+
+    def layer_weight_grad(self, lix: int):
+        start, stop = self.layer_weight_ixs(lix)
+        return self.grad[:, start:stop]
+
+    def layer_bias_grad(self, lix: int):
+        start, stop = self.layer_bias_ixs(lix)
+        return self.grad[:, start:stop]
+
+    def layer_weight_grad_num(self, lix: int):
+        start, stop = self.layer_weight_ixs(lix)
+        return self.num_grad[:, start:stop]
+
+    def layer_bias_grad_num(self, lix: int):
+        start, stop = self.layer_bias_ixs(lix)
+        return self.num_grad[:, start:stop]
+
+    def plot_params(self):
         fig, axes = plt.subplots(2, self.depth(), sharex=True, figsize=(10, 6))
-                
+
         # weights
         for lix in range(self.depth()):
             axes[0, lix].set_title(f"LAYER {lix + 1}")
@@ -82,10 +107,52 @@ class Trajectory:
 
         axes[1, self.depth() - 1].plot(self.hamiltonian)
         axes[1, self.depth() - 1].set_title(r"$-H$")
-                
+
         plt.tight_layout()
-        
-    
+
+    def plot_grad_diff(self):
+        fig, axes = plt.subplots(2, self.depth(), sharex=True, figsize=(10, 6))
+
+        # weights
+        for lix in range(self.depth()):
+            axes[0, lix].set_title(f"LAYER {lix + 1}")
+            axes[0, lix].plot(
+                self.layer_weight_grad(lix) - self.layer_weight_grad_num(lix)
+            )
+        axes[0, 0].set_ylabel(r"$\Delta \partial P \partial W$")
+
+        # biases
+        for lix in range(self.depth() - 1):
+            axes[1, lix].plot(self.layer_bias_grad(lix) - self.layer_bias_grad_num(lix))
+        axes[1, 0].set_ylabel(r"$\Delta \partial P \partial b$")
+
+        axes[1, self.depth() - 1].plot(self.hamiltonian)
+        axes[1, self.depth() - 1].set_title(r"$-H$")
+
+        plt.tight_layout()
+
+    def plot_grads(self):
+        fig, axes = plt.subplots(2, self.depth(), sharex=True, figsize=(10, 6))
+
+        # weights
+        for lix in range(self.depth()):
+            axes[0, lix].set_title(f"LAYER {lix + 1}")
+            axes[0, lix].plot(self.layer_weight_grad(lix), label="analytic")
+            axes[0, lix].plot(self.layer_weight_grad_num(lix), ":", label="numerical")
+        axes[0, 0].set_ylabel(r"$\partial P \partial W$")
+
+        # biases
+        for lix in range(self.depth() - 1):
+            axes[1, lix].plot(self.layer_bias_grad(lix), label="analytic")
+            axes[1, lix].plot(self.layer_bias_grad_num(lix), ":", label="numerical")
+        axes[1, 0].set_ylabel(r"$\partial P \partial b$")
+
+        axes[1, self.depth() - 1].plot(self.hamiltonian)
+        axes[1, self.depth() - 1].set_title(r"$-H$")
+
+        plt.tight_layout()
+
+
 @dataclass
 class Trace:
     model_cfg: ModelCfg
@@ -93,28 +160,28 @@ class Trace:
     weight_precisions: np.array
     bias_precisions: np.array
     error_precision: np.array
-    
+
     def num_markers(self):
         return self.model_cfg.num_markers
 
     def num_params(self):
         return self.model_cfg.num_params
-        
+
     def layer_width(self, ix):
         return self.model_cfg.layer_widths[ix]
-    
+
     def depth(self):
         return len(self.model_cfg.layer_widths)
-    
+
     def layer_weights(self, lix: int):
         pix = 0
         prev_width = self.num_markers()
         for i in range(lix):
             pix += prev_width * self.layer_width(i)
             prev_width = self.layer_width(i)
-        
-        return self.params[:, pix:pix + prev_width * self.layer_width(lix)]
-    
+
+        return self.params[:, pix : pix + prev_width * self.layer_width(lix)]
+
     def bias_start_pix(self):
         pix = 0
         prev_width = self.num_markers()
@@ -122,13 +189,13 @@ class Trace:
             pix += prev_width * width
             prev_width = width
         return pix
-    
-    def layer_biases(self, lix:  int):
+
+    def layer_biases(self, lix: int):
         pix = self.bias_start_pix()
         for i in range(lix):
             pix += self.layer_width(i)
-        
-        return self.params[:, pix:pix+self.layer_width(lix)]
+
+        return self.params[:, pix : pix + self.layer_width(lix)]
 
 
 def load_json_trace(wdir: str):
@@ -136,8 +203,8 @@ def load_json_trace(wdir: str):
     wp = []
     bp = []
     ep = []
-    mcfg = ModelCfg(wdir + '/meta')
-    with open(wdir + '/trace', "r") as fin:
+    mcfg = ModelCfg(wdir + "/meta")
+    with open(wdir + "/trace", "r") as fin:
         for line in fin:
             l = json.loads(line)[0]
             params.append(l["params"])
@@ -145,49 +212,36 @@ def load_json_trace(wdir: str):
             bp.append(l["hyperparams"]["bias_precisions"])
             ep.append(l["hyperparams"]["error_precision"])
     return Trace(
-        mcfg,
-        np.asarray(params),
-        np.asarray(wp),
-        np.asarray(bp),
-        np.asarray(ep))
+        mcfg, np.asarray(params), np.asarray(wp), np.asarray(bp), np.asarray(ep)
+    )
 
 
 def load_json_traj(wdir: str):
     res = []
-    mcfg = ModelCfg(wdir + '/meta')
-    hams = []
-    with open(wdir + '/hamiltonian', 'r') as fin:
-        for line in fin:
-            hams.append(eval(line))
-    with open(wdir + '/traj', 'r') as fin:
+    mcfg = ModelCfg(wdir + "/meta")
+    with open(wdir + "/traj", "r") as fin:
         ix = 0
         for line in fin:
             l = json.loads(line)
-            res.append(Trajectory(np.asarray(l["params"]), hams[ix], mcfg))
+            res.append(
+                Trajectory(
+                    np.asarray(l["params"]),
+                    np.asarray(l["ldg"]),
+                    np.asarray(l["num_ldg"]),
+                    np.asarray(l["hamiltonian"]),
+                    mcfg,
+                )
+            )
             ix += 1
     return res
-            
-def load_json_seld(wdir: str):
-    res = []
-    mcfg = ModelCfg(wdir + '/meta')
-    hams = []
-    with open(wdir + '/hamiltonian', 'r') as fin:
-        for line in fin:
-            hams.append(eval(line))
-    with open(wdir + '/seld', 'r') as fin:
-        ix = 0
-        for line in fin:
-            l = json.loads(line)
-            res.append(Trajectory(np.asarray(l["params"]), hams[ix], mcfg))
-            ix += 1
-    return res
+
 
 def plot_single_arm_trace(file: str):
     trace = load_json_trace(file)
     fig, axes = plt.subplots(4, trace.depth(), sharex=True, figsize=(15, 10))
-    
+
     fig.suptitle(file)
-    
+
     # weights
     for lix in range(trace.depth()):
         axes[0, lix].set_title(f"LAYER {lix + 1}")
@@ -198,7 +252,7 @@ def plot_single_arm_trace(file: str):
     for lix in range(trace.depth() - 1):
         axes[1, lix].plot(trace.layer_biases(lix))
     axes[1, 0].set_ylabel(r"$b$")
-    
+
     # precisions
     for lix in range(trace.depth()):
         axes[2, lix].plot(trace.weight_precisions[:, lix], label="w")
@@ -206,8 +260,8 @@ def plot_single_arm_trace(file: str):
             axes[2, lix].plot(trace.bias_precisions[:, lix], label="b")
     axes[2, 0].set_ylabel(r"$\sigma^{-2}$")
     axes[2, 0].legend()
-    
+
     axes[3, trace.depth() - 1].set_title("ERROR PRECISION")
     axes[3, trace.depth() - 1].plot(trace.error_precision)
-    
+
     plt.tight_layout()
