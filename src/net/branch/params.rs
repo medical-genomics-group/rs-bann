@@ -150,8 +150,6 @@ impl BranchParams {
     pub fn biases(&self, index: usize) -> &Array<f64> {
         &self.biases[index]
     }
-
-    pub fn assign(&mut self, pix: usize, val: f64) {}
 }
 
 #[cfg(test)]

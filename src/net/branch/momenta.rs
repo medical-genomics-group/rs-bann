@@ -27,6 +27,7 @@ impl BranchMomenta {
         }
     }
 
+    // TODO: why is there no -0.5 factor in here?
     pub fn log_density(&self) -> f64 {
         let mut log_density: f64 = 0.;
         for i in 0..self.wrt_weights.len() {

@@ -99,7 +99,7 @@ impl Branch for StdNormalBranch {
         for index in 0..self.num_layers() {
             wrt_weights.push(Array::new(
                 &vec![
-                    const_factor * (1. / scalar_to_host(&self.weight_precisions(index))).sqrt();
+                    const_factor * (1. / scalar_to_host(self.weight_precisions(index))).sqrt();
                     self.weights(index).elements()
                 ],
                 self.weights(index).dims(),
@@ -124,7 +124,7 @@ impl Branch for StdNormalBranch {
     fn log_density(&self, params: &BranchParams, hyperparams: &BranchHyperparams, rss: f64) -> f64 {
         let mut log_density: f64 = -0.5 * hyperparams.error_precision * rss;
         for i in 0..self.num_layers() {
-            log_density -= 0.5 * arrayfire::sum_all(&(&(params.weights(i) * params.weights(i)))).0;
+            log_density -= 0.5 * arrayfire::sum_all(&(params.weights(i) * params.weights(i))).0;
         }
         for i in 0..self.num_layers() - 1 {
             log_density -= 0.5 * arrayfire::sum_all(&(params.biases(i) * params.biases(i))).0;
