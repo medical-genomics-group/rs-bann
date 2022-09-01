@@ -92,35 +92,6 @@ pub trait Branch {
         res
     }
 
-    // The difference in log density when all but one variable are changed
-    // i.e. a partial update is done.
-    // DO NOT run this in production code, this is very slow.
-    fn step_effects_on_ld(
-        &mut self,
-        prev_params: &BranchParams,
-        x: &Array<f64>,
-        y: &Array<f64>,
-    ) -> Vec<f64> {
-        let mut res = Vec::new();
-        let prev_pv = prev_params.param_vec();
-        let curr_pv = self.params().param_vec();
-        let mut pv = curr_pv.clone();
-        let lw = self.layer_widths().clone();
-        let nm = self.num_markers();
-        for pix in 0..self.num_params() {
-            // exchange value
-            pv[pix] = prev_pv[pix];
-            // compute rss, ld
-            self.params_mut().load_param_vec(&pv, &lw, nm);
-            let rss = self.rss(x, y);
-            res.push(self.log_density(self.params(), self.hyperparams(), rss));
-            // put param back
-            pv[pix] = curr_pv[pix];
-        }
-        self.params_mut().load_param_vec(&curr_pv, &lw, nm);
-        res
-    }
-
     fn weights(&self, index: usize) -> &Array<f64> {
         &self.params().weights[index]
     }
@@ -379,7 +350,7 @@ pub trait Branch {
     }
 
     fn rss(&self, x: &Array<f64>, y: &Array<f64>) -> f64 {
-        let r = self.forward_feed(&x).last().unwrap() - y;
+        let r = self.forward_feed(x).last().unwrap() - y;
         arrayfire::sum_all(&(&r * &r)).0
     }
 
@@ -397,9 +368,8 @@ pub trait Branch {
     ) -> HMCStepResult {
         let mut ham = Vec::new();
         let mut ham_file = None;
-        let mut seld_file = None;
-        let mut seld = Trajectory::new();
-        let mut prev_params = None;
+        let mut num_grad_file = None;
+        let mut num_grad = Trajectory::new();
         let mut traj_file = None;
         let mut traj = Trajectory::new();
         if mcmc_cfg.trajectories {
@@ -418,15 +388,14 @@ pub trait Branch {
                     .unwrap(),
             ));
         }
-        if mcmc_cfg.seld {
-            seld_file = Some(BufWriter::new(
+        if mcmc_cfg.num_grad_traj {
+            num_grad_file = Some(BufWriter::new(
                 File::options()
                     .append(true)
                     .create(true)
-                    .open(mcmc_cfg.seld_path())
+                    .open(mcmc_cfg.num_grad_path())
                     .unwrap(),
             ));
-            prev_params = Some(self.params().clone());
         }
 
         let mut u_turned = false;
@@ -461,8 +430,8 @@ pub trait Branch {
                 ham.push(curr_neg_hamiltonian);
             }
 
-            if mcmc_cfg.seld {
-                seld.add(self.step_effects_on_ld(prev_params.as_ref().unwrap(), x_train, y_train));
+            if mcmc_cfg.num_grad_traj {
+                num_grad.add(self.numerical_ldg(x_train, y_train));
             }
 
             if (curr_neg_hamiltonian - init_neg_hamiltonian).abs()
@@ -483,9 +452,9 @@ pub trait Branch {
                         .unwrap();
                 }
 
-                if mcmc_cfg.seld {
-                    to_writer(seld_file.as_mut().unwrap(), &seld).unwrap();
-                    seld_file.as_mut().unwrap().write_all(b"\n").unwrap();
+                if mcmc_cfg.num_grad_traj {
+                    to_writer(num_grad_file.as_mut().unwrap(), &num_grad).unwrap();
+                    num_grad_file.as_mut().unwrap().write_all(b"\n").unwrap();
                 }
 
                 self.set_params(&init_params);
@@ -508,9 +477,9 @@ pub trait Branch {
                 .unwrap();
         }
 
-        if mcmc_cfg.seld {
-            to_writer(seld_file.as_mut().unwrap(), &seld).unwrap();
-            seld_file.as_mut().unwrap().write_all(b"\n").unwrap();
+        if mcmc_cfg.num_grad_traj {
+            to_writer(num_grad_file.as_mut().unwrap(), &num_grad).unwrap();
+            num_grad_file.as_mut().unwrap().write_all(b"\n").unwrap();
         }
 
         debug!("final gradients");
@@ -555,35 +524,35 @@ pub struct BranchLogDensityGradient {
     pub wrt_biases: Vec<Array<f64>>,
 }
 
-impl BranchLogDensityGradient {
-    fn num_params(&self) -> usize {
-        let mut res: usize = 0;
-        for i in 0..self.wrt_weights.len() {
-            res += self.wrt_weights[i].elements();
-        }
-        for i in 0..self.wrt_biases.len() {
-            res += self.wrt_biases[i].elements();
-        }
-        res
-    }
+// impl BranchLogDensityGradient {
+//     fn num_params(&self) -> usize {
+//         let mut res: usize = 0;
+//         for i in 0..self.wrt_weights.len() {
+//             res += self.wrt_weights[i].elements();
+//         }
+//         for i in 0..self.wrt_biases.len() {
+//             res += self.wrt_biases[i].elements();
+//         }
+//         res
+//     }
 
-    pub(crate) fn param_vec(&self) -> Vec<f64> {
-        let mut host_vec = Vec::new();
-        host_vec.resize(self.num_params(), 0.);
-        let mut insert_ix: usize = 0;
-        for i in 0..self.wrt_weights.len() {
-            let len = self.wrt_weights[i].elements();
-            self.wrt_weights[i].host(&mut host_vec[insert_ix..insert_ix + len]);
-            insert_ix += len;
-        }
-        for i in 0..self.wrt_biases.len() {
-            let len = self.wrt_biases[i].elements();
-            self.wrt_biases[i].host(&mut host_vec[insert_ix..insert_ix + len]);
-            insert_ix += len;
-        }
-        host_vec
-    }
-}
+//     pub(crate) fn param_vec(&self) -> Vec<f64> {
+//         let mut host_vec = Vec::new();
+//         host_vec.resize(self.num_params(), 0.);
+//         let mut insert_ix: usize = 0;
+//         for i in 0..self.wrt_weights.len() {
+//             let len = self.wrt_weights[i].elements();
+//             self.wrt_weights[i].host(&mut host_vec[insert_ix..insert_ix + len]);
+//             insert_ix += len;
+//         }
+//         for i in 0..self.wrt_biases.len() {
+//             let len = self.wrt_biases[i].elements();
+//             self.wrt_biases[i].host(&mut host_vec[insert_ix..insert_ix + len]);
+//             insert_ix += len;
+//         }
+//         host_vec
+//     }
+// }
 
 #[derive(Clone, Serialize)]
 pub struct BranchCfg {

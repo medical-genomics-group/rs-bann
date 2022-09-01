@@ -123,10 +123,10 @@ pub(crate) struct BaseModelArgs {
     #[clap(long)]
     pub trajectories: bool,
 
-    /// Output step effects on log density.
+    /// Output numerical gradients
     /// CAUTION: this is extremely expensive, do not run this in production.
     #[clap(long)]
-    pub seld: bool,
+    pub num_grad_traj: bool,
 }
 
 /// A small bayesian neural network implementation.
@@ -194,10 +194,10 @@ pub(crate) struct StdNormalModelArgs {
     #[clap(long)]
     pub trajectories: bool,
 
-    /// Output step effects on log density.
+    /// Output numerical gradients
     /// CAUTION: this is extremely expensive, do not run this in production.
     #[clap(long)]
-    pub seld: bool,
+    pub num_grad_traj: bool,
 }
 
 /// A small bayesian neural network implementation based on ArrayFire.

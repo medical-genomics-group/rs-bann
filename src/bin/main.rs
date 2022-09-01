@@ -32,22 +32,22 @@ fn main() {
 // and col major bedvecs.
 // the preprocessing routine only has to split the large .bed into groups
 // following some annotation input.
-fn preprocess() {
-    unimplemented!();
-}
+// fn preprocess() {
+//     unimplemented!();
+// }
 
-// The following lower bounds for memory consumption are expected,
-// if only a subset of all samples is loaded at a time
-// n    pg  mem[mb]
-// 10k  1k  10**4 * 1x10**3 * 0.25 = 10**7 * 0.75 b =  7.5 Mb
-// I need fast random reading of this data.
-fn train() {
-    unimplemented!();
-}
+// // The following lower bounds for memory consumption are expected,
+// // if only a subset of all samples is loaded at a time
+// // n    pg  mem[mb]
+// // 10k  1k  10**4 * 1x10**3 * 0.25 = 10**7 * 0.75 b =  7.5 Mb
+// // I need fast random reading of this data.
+// fn train() {
+//     unimplemented!();
+// }
 
-fn predict() {
-    unimplemented!();
-}
+// fn predict() {
+//     unimplemented!();
+// }
 
 fn simulate(args: SimulateArgs) {
     simple_logger::init_with_level(log::Level::Info).unwrap();
@@ -215,7 +215,7 @@ fn base_model(args: BaseModelArgs) {
         outpath: args.outpath,
         trace: args.trace,
         trajectories: args.trajectories,
-        seld: args.seld,
+        num_grad_traj: args.num_grad_traj,
     };
 
     mcmc_cfg.create_out();
@@ -275,7 +275,7 @@ fn std_normal_model(args: StdNormalModelArgs) {
         outpath: args.outpath,
         trace: args.trace,
         trajectories: args.trajectories,
-        seld: args.seld,
+        num_grad_traj: args.num_grad_traj,
     };
     mcmc_cfg.create_out();
     net.write_meta(&mcmc_cfg);
