@@ -366,10 +366,6 @@ pub trait Branch {
         y_train: &Array<f64>,
         mcmc_cfg: &MCMCCfg,
     ) -> HMCStepResult {
-        let mut ham = Vec::new();
-        let mut ham_file = None;
-        let mut num_grad_file = None;
-        let mut num_grad = Trajectory::new();
         let mut traj_file = None;
         let mut traj = Trajectory::new();
         if mcmc_cfg.trajectories {
@@ -378,22 +374,6 @@ pub trait Branch {
                     .append(true)
                     .create(true)
                     .open(mcmc_cfg.trajectories_path())
-                    .unwrap(),
-            ));
-            ham_file = Some(BufWriter::new(
-                File::options()
-                    .append(true)
-                    .create(true)
-                    .open(mcmc_cfg.hamiltonian_path())
-                    .unwrap(),
-            ));
-        }
-        if mcmc_cfg.num_grad_traj {
-            num_grad_file = Some(BufWriter::new(
-                File::options()
-                    .append(true)
-                    .create(true)
-                    .open(mcmc_cfg.num_grad_path())
                     .unwrap(),
             ));
         }
@@ -408,7 +388,11 @@ pub trait Branch {
         };
         let mut momenta = self.sample_momenta();
         let init_neg_hamiltonian = self.neg_hamiltonian(&momenta, x_train, y_train);
-        ham.push(init_neg_hamiltonian);
+
+        if mcmc_cfg.trajectories {
+            traj.add_hamiltonian(init_neg_hamiltonian);
+        }
+
         debug!("Starting hmc step");
         debug!("initial hamiltonian: {:?}", init_neg_hamiltonian);
         let mut ldg = self.log_density_gradient(x_train, y_train);
@@ -426,12 +410,12 @@ pub trait Branch {
             let curr_neg_hamiltonian = self.neg_hamiltonian(&momenta, x_train, y_train);
 
             if mcmc_cfg.trajectories {
-                traj.add(self.params().param_vec());
-                ham.push(curr_neg_hamiltonian);
-            }
-
-            if mcmc_cfg.num_grad_traj {
-                num_grad.add(self.numerical_ldg(x_train, y_train));
+                traj.add_params(self.params().param_vec());
+                traj.add_ldg(ldg.param_vec());
+                traj.add_hamiltonian(curr_neg_hamiltonian);
+                if mcmc_cfg.num_grad_traj {
+                    traj.add_num_ldg(self.numerical_ldg(x_train, y_train));
+                }
             }
 
             if (curr_neg_hamiltonian - init_neg_hamiltonian).abs()
@@ -445,16 +429,6 @@ pub trait Branch {
                 if mcmc_cfg.trajectories {
                     to_writer(traj_file.as_mut().unwrap(), &traj).unwrap();
                     traj_file.as_mut().unwrap().write_all(b"\n").unwrap();
-                    ham_file
-                        .as_mut()
-                        .unwrap()
-                        .write_all(&format!("{:?}\n", ham).into_bytes())
-                        .unwrap();
-                }
-
-                if mcmc_cfg.num_grad_traj {
-                    to_writer(num_grad_file.as_mut().unwrap(), &num_grad).unwrap();
-                    num_grad_file.as_mut().unwrap().write_all(b"\n").unwrap();
                 }
 
                 self.set_params(&init_params);
@@ -470,16 +444,6 @@ pub trait Branch {
         if mcmc_cfg.trajectories {
             to_writer(traj_file.as_mut().unwrap(), &traj).unwrap();
             traj_file.as_mut().unwrap().write_all(b"\n").unwrap();
-            ham_file
-                .as_mut()
-                .unwrap()
-                .write_all(&format!("{:?}\n", ham).into_bytes())
-                .unwrap();
-        }
-
-        if mcmc_cfg.num_grad_traj {
-            to_writer(num_grad_file.as_mut().unwrap(), &num_grad).unwrap();
-            num_grad_file.as_mut().unwrap().write_all(b"\n").unwrap();
         }
 
         debug!("final gradients");
@@ -524,35 +488,35 @@ pub struct BranchLogDensityGradient {
     pub wrt_biases: Vec<Array<f64>>,
 }
 
-// impl BranchLogDensityGradient {
-//     fn num_params(&self) -> usize {
-//         let mut res: usize = 0;
-//         for i in 0..self.wrt_weights.len() {
-//             res += self.wrt_weights[i].elements();
-//         }
-//         for i in 0..self.wrt_biases.len() {
-//             res += self.wrt_biases[i].elements();
-//         }
-//         res
-//     }
+impl BranchLogDensityGradient {
+    fn num_params(&self) -> usize {
+        let mut res: usize = 0;
+        for i in 0..self.wrt_weights.len() {
+            res += self.wrt_weights[i].elements();
+        }
+        for i in 0..self.wrt_biases.len() {
+            res += self.wrt_biases[i].elements();
+        }
+        res
+    }
 
-//     pub(crate) fn param_vec(&self) -> Vec<f64> {
-//         let mut host_vec = Vec::new();
-//         host_vec.resize(self.num_params(), 0.);
-//         let mut insert_ix: usize = 0;
-//         for i in 0..self.wrt_weights.len() {
-//             let len = self.wrt_weights[i].elements();
-//             self.wrt_weights[i].host(&mut host_vec[insert_ix..insert_ix + len]);
-//             insert_ix += len;
-//         }
-//         for i in 0..self.wrt_biases.len() {
-//             let len = self.wrt_biases[i].elements();
-//             self.wrt_biases[i].host(&mut host_vec[insert_ix..insert_ix + len]);
-//             insert_ix += len;
-//         }
-//         host_vec
-//     }
-// }
+    pub(crate) fn param_vec(&self) -> Vec<f64> {
+        let mut host_vec = Vec::new();
+        host_vec.resize(self.num_params(), 0.);
+        let mut insert_ix: usize = 0;
+        for i in 0..self.wrt_weights.len() {
+            let len = self.wrt_weights[i].elements();
+            self.wrt_weights[i].host(&mut host_vec[insert_ix..insert_ix + len]);
+            insert_ix += len;
+        }
+        for i in 0..self.wrt_biases.len() {
+            let len = self.wrt_biases[i].elements();
+            self.wrt_biases[i].host(&mut host_vec[insert_ix..insert_ix + len]);
+            insert_ix += len;
+        }
+        host_vec
+    }
+}
 
 #[derive(Clone, Serialize)]
 pub struct BranchCfg {

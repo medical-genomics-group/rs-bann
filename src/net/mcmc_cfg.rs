@@ -31,14 +31,6 @@ impl MCMCCfg {
     pub fn trajectories_path(&self) -> PathBuf {
         Path::new(&self.outpath).join("traj")
     }
-
-    pub fn num_grad_path(&self) -> PathBuf {
-        Path::new(&self.outpath).join("seld")
-    }
-
-    pub fn hamiltonian_path(&self) -> PathBuf {
-        Path::new(&self.outpath).join("hamiltonian")
-    }
 }
 
 pub enum StepSizeMode {
