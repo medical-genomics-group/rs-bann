@@ -18,6 +18,8 @@ use std::{
     io::{BufWriter, Write},
 };
 
+const NUMERICAL_DELTA: f64 = 0.0001;
+
 pub trait Branch {
     fn build_cfg(cfg_bld: BranchCfgBuilder) -> BranchCfg;
 
@@ -57,9 +59,42 @@ pub trait Branch {
 
     fn log_density(&self, params: &BranchParams, hyperparams: &BranchHyperparams, rss: f64) -> f64;
 
+    // DO NOT run this in production code, this is very slow.
+    fn numerical_ldg(&mut self, x_train: &Array<f64>, y_train: &Array<f64>) -> Vec<f64> {
+        let mut res = Vec::new();
+        let mut next_pv = self.params().param_vec();
+        let curr_pv = self.params().param_vec();
+        let curr_ld = self.log_density(
+            self.params(),
+            self.hyperparams(),
+            self.rss(x_train, y_train),
+        );
+        let lw = self.layer_widths().clone();
+        let nm = self.num_markers();
+
+        for pix in 0..self.num_params() {
+            // incr param
+            next_pv[pix] += NUMERICAL_DELTA;
+            // compute rss, ld
+            self.params_mut().load_param_vec(&next_pv, &lw, nm);
+            res.push(
+                (self.log_density(
+                    self.params(),
+                    self.hyperparams(),
+                    self.rss(x_train, y_train),
+                ) - curr_ld)
+                    / NUMERICAL_DELTA,
+            );
+            // decr param
+            next_pv[pix] -= NUMERICAL_DELTA;
+        }
+        self.params_mut().load_param_vec(&curr_pv, &lw, nm);
+        res
+    }
+
     // The difference in log density when all but one variable are changed
     // i.e. a partial update is done.
-    // DO NOT run this in production code, this will be extremely slow.
+    // DO NOT run this in production code, this is very slow.
     fn step_effects_on_ld(
         &mut self,
         prev_params: &BranchParams,
