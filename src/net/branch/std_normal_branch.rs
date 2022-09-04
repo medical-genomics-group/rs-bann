@@ -147,7 +147,10 @@ impl Branch for StdNormalBranch {
             );
         }
         for layer_index in 0..self.num_layers() - 1 {
-            ldg_wrt_biases.push(-1. * self.biases(layer_index) - &d_rss_wrt_biases[layer_index]);
+            ldg_wrt_biases.push(
+                -1. * self.biases(layer_index)
+                    - self.error_precision() * &d_rss_wrt_biases[layer_index],
+            );
         }
 
         BranchLogDensityGradient {
