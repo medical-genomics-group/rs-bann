@@ -2,7 +2,7 @@ use arrayfire::Array;
 use std::fmt;
 
 #[derive(Clone)]
-pub(crate) struct StepSizes {
+pub struct StepSizes {
     pub wrt_weights: Vec<Array<f64>>,
     pub wrt_biases: Vec<Array<f64>>,
 }

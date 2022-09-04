@@ -1,5 +1,6 @@
 use super::branch::BranchCfg;
 use super::params::BranchHyperparams;
+use arrayfire::{constant, dim4, Array};
 use rand::distributions::{Distribution, Uniform};
 use rand::thread_rng;
 
@@ -52,7 +53,7 @@ impl BranchCfgBuilder {
         self
     }
 
-    pub fn build(mut self) -> BranchCfg {
+    pub fn build_base(mut self) -> BranchCfg {
         let mut widths: Vec<usize> = vec![self.num_markers];
         // summary and output node
         self.layer_widths.push(1);
@@ -96,7 +97,58 @@ impl BranchCfgBuilder {
             params,
             // TODO: impl build method for setting precisions
             hyperparams: BranchHyperparams {
-                weight_precisions: vec![1.0; self.num_layers],
+                weight_precisions: vec![Array::new(&[1.0], dim4!(1, 1, 1, 1)); self.num_layers],
+                bias_precisions: vec![1.0; self.num_layers - 1],
+                error_precision: 1.0,
+            },
+        }
+    }
+
+    pub fn build_ard(mut self) -> BranchCfg {
+        let mut widths: Vec<usize> = vec![self.num_markers];
+        // summary and output node
+        self.layer_widths.push(1);
+        self.layer_widths.push(1);
+        widths.append(&mut self.layer_widths.clone());
+        let mut num_weights = 0;
+        let mut rng = thread_rng();
+
+        // get total number of params in network
+        for i in 1..=self.num_layers {
+            self.num_params += widths[i - 1] * widths[i] + widths[i];
+            num_weights += widths[i - 1] * widths[i];
+        }
+        // remove count for output bias
+        self.num_params -= 1;
+
+        let mut params: Vec<f64> = vec![0.0; self.num_params];
+
+        if let Some(v) = self.initial_weight_value {
+            params[0..num_weights].iter_mut().for_each(|x| *x = v);
+        } else {
+            let d = Uniform::from(-self.initial_random_range..self.initial_random_range);
+            params[0..num_weights]
+                .iter_mut()
+                .for_each(|x| *x = d.sample(&mut rng));
+        }
+
+        if let Some(v) = self.initial_bias_value {
+            params[num_weights..].iter_mut().for_each(|x| *x = v);
+        } else {
+            let d = Uniform::from(-self.initial_random_range..self.initial_random_range);
+            params[num_weights..]
+                .iter_mut()
+                .for_each(|x| *x = d.sample(&mut rng));
+        }
+
+        BranchCfg {
+            num_params: self.num_params,
+            num_markers: self.num_markers,
+            layer_widths: self.layer_widths.clone(),
+            params,
+            // TODO: impl build method for setting precisions
+            hyperparams: BranchHyperparams {
+                weight_precisions: widths.iter().map(|w| constant!(1.0; *w as u64)).collect(),
                 bias_precisions: vec![1.0; self.num_layers - 1],
                 error_precision: 1.0,
             },
@@ -112,7 +164,7 @@ mod tests {
     fn test_build_branch_cfg() {
         let mut bld = BranchCfgBuilder::new().with_num_markers(3);
         bld.add_hidden_layer(3);
-        let cfg = bld.build();
+        let cfg = bld.build_base();
         assert_eq!(cfg.num_markers, 3);
         assert_eq!(cfg.num_params, 17);
     }

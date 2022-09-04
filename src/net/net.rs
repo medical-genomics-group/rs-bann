@@ -1,70 +1,21 @@
 use super::{
-    branch::branch::{Branch, BranchCfg, HMCStepResult},
+    branch::branch::{Branch, BranchCfg, BranchMeta, HMCStepResult},
     data::Data,
     gibbs_steps::{multi_param_precision_posterior, single_param_precision_posterior},
     mcmc_cfg::MCMCCfg,
+    train_stats::{ReportCfg, TrainingStats},
 };
 use crate::to_host;
 use arrayfire::{dim4, sum_all, Array};
 use log::{debug, info};
 use rand::{prelude::SliceRandom, rngs::ThreadRng, thread_rng};
 use rand_distr::{Distribution, Normal};
+use serde_json::to_writer;
 use std::{
     fs::File,
     io::{BufWriter, Write},
+    marker::PhantomData,
 };
-
-pub struct ReportCfg<'data> {
-    interval: usize,
-    test_data: Option<&'data Data>,
-}
-
-impl<'data> ReportCfg<'data> {
-    pub fn new(interval: usize, test_data: Option<&'data Data>) -> Self {
-        Self {
-            interval,
-            test_data,
-        }
-    }
-}
-
-pub(crate) struct TrainingStats {
-    num_samples: usize,
-    num_accepted: usize,
-    num_early_rejected: usize,
-}
-
-impl TrainingStats {
-    pub(crate) fn new() -> Self {
-        Self {
-            num_samples: 0,
-            num_accepted: 0,
-            num_early_rejected: 0,
-        }
-    }
-
-    fn add_hmc_step_result(&mut self, res: HMCStepResult) {
-        self.num_samples += 1;
-        match res {
-            HMCStepResult::Accepted => self.num_accepted += 1,
-            HMCStepResult::RejectedEarly => self.num_early_rejected += 1,
-            HMCStepResult::Rejected => {}
-        }
-    }
-
-    fn acceptance_rate(&self) -> f64 {
-        self.num_accepted as f64 / self.num_samples as f64
-    }
-
-    fn early_rejection_rate(&self) -> f64 {
-        self.num_early_rejected as f64 / self.num_samples as f64
-    }
-
-    fn end_rejection_rate(&self) -> f64 {
-        (self.num_samples - self.num_early_rejected - self.num_accepted) as f64
-            / self.num_samples as f64
-    }
-}
 
 pub struct OutputBias {
     pub(crate) precision: f64,
@@ -96,7 +47,7 @@ impl OutputBias {
 }
 
 /// The full network model
-pub struct Net {
+pub struct Net<B: Branch> {
     pub(crate) precision_prior_shape: f64,
     pub(crate) precision_prior_scale: f64,
     pub(crate) num_branches: usize,
@@ -104,9 +55,10 @@ pub struct Net {
     pub(crate) output_bias: OutputBias,
     pub(crate) error_precision: f64,
     pub(crate) training_stats: TrainingStats,
+    pub(crate) branch_type: PhantomData<B>,
 }
 
-impl Net {
+impl<B: Branch> Net<B> {
     pub fn branch_cfg(&self, branch_ix: usize) -> &BranchCfg {
         &self.branch_cfgs[branch_ix]
     }
@@ -123,6 +75,12 @@ impl Net {
         self.branch_cfgs[branch_ix].num_params
     }
 
+    // TODO: do not assume that all branches are the same!
+    pub fn write_meta(&self, mcmc_cfg: &MCMCCfg) {
+        let mut w = BufWriter::new(File::create(mcmc_cfg.meta_path()).unwrap());
+        to_writer(w, &BranchMeta::from_cfg(&self.branch_cfgs[0]));
+    }
+
     // X has to be column major!
     // TODO: X will likely have to be in compressed format on host memory, so Ill have to unpack
     // it before loading it into device memory
@@ -133,11 +91,9 @@ impl Net {
         verbose: bool,
         report_cfg: Option<ReportCfg>,
     ) {
-        let mut write_trace = false;
         let mut trace_file = None;
-        if let Some(s) = &mcmc_cfg.trace_file {
-            trace_file = Some(BufWriter::new(File::create(s).unwrap()));
-            write_trace = true;
+        if mcmc_cfg.trace {
+            trace_file = Some(BufWriter::new(File::create(mcmc_cfg.trace_path()).unwrap()));
         }
 
         let mut rng = thread_rng();
@@ -161,32 +117,26 @@ impl Net {
             report_interval = report_cfg.as_ref().unwrap().interval;
         }
 
-        if write_trace {
-            for &branch_ix in &branch_ixs {
-                writeln!(
-                    trace_file.as_mut().unwrap(),
-                    "{:?}",
-                    self.branch_cfgs[branch_ix].params
-                )
-                .expect("Failed to write trace.");
-            }
+        if mcmc_cfg.trace {
+            to_writer(trace_file.as_mut().unwrap(), &self.branch_cfgs).unwrap();
+            trace_file.as_mut().unwrap().write_all(b"\n").unwrap();
         }
 
         for chain_ix in 1..=mcmc_cfg.chain_length {
             // sample ouput bias term
-            residual += self.output_bias.af_bias();
-            self.output_bias.sample_bias(
-                self.error_precision,
-                &residual,
-                num_individuals,
-                &mut rng,
-            );
-            self.output_bias.sample_precision(
-                self.precision_prior_shape,
-                self.precision_prior_scale,
-                &mut rng,
-            );
-            residual -= self.output_bias.af_bias();
+            // residual += self.output_bias.af_bias();
+            // self.output_bias.sample_bias(
+            //     self.error_precision,
+            //     &residual,
+            //     num_individuals,
+            //     &mut rng,
+            // );
+            // self.output_bias.sample_precision(
+            //     self.precision_prior_shape,
+            //     self.precision_prior_scale,
+            //     &mut rng,
+            // );
+            // residual -= self.output_bias.af_bias();
             // shuffle order in which branches are trained
             branch_ixs.shuffle(&mut rng);
             for &branch_ix in &branch_ixs {
@@ -198,7 +148,7 @@ impl Net {
                     dim4!(num_individuals as u64, cfg.num_markers as u64),
                 );
                 // load branch cfg
-                let mut branch = Branch::from_cfg(&cfg);
+                let mut branch = B::from_cfg(&cfg);
                 // tell branch about global error precision
                 branch.set_error_precision(self.error_precision);
                 // TODO: save last prediction contribution for each branch to reduce compute
@@ -227,15 +177,9 @@ impl Net {
                 );
             }
 
-            if write_trace {
-                for &branch_ix in &branch_ixs {
-                    writeln!(
-                        trace_file.as_mut().unwrap(),
-                        "{:?}",
-                        self.branch_cfgs[branch_ix].params
-                    )
-                    .expect("Failed to write trace.");
-                }
+            if mcmc_cfg.trace {
+                to_writer(trace_file.as_mut().unwrap(), &self.branch_cfgs).unwrap();
+                trace_file.as_mut().unwrap().write_all(b"\n").unwrap();
             }
         }
     }
@@ -256,7 +200,7 @@ impl Net {
                 &x_test[branch_ix],
                 dim4!(num_individuals as u64, cfg.num_markers as u64),
             );
-            y_hat += Branch::from_cfg(&cfg).predict(&x);
+            y_hat += B::from_cfg(&cfg).predict(&x);
         }
         to_host(&y_hat)
     }
@@ -281,7 +225,7 @@ impl Net {
                 &x_test[branch_ix],
                 dim4!(num_individuals as u64, cfg.num_markers as u64),
             );
-            y_hat += Branch::from_cfg(&cfg).predict(&x);
+            y_hat += B::from_cfg(&cfg).predict(&x);
         }
         y_hat
     }

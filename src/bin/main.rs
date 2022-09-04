@@ -1,15 +1,16 @@
 mod cli;
 
 use clap::Parser;
-use cli::cli::{BaseModelArgs, Cli, SimulateArgs, SubCmd};
+use cli::cli::{BaseModelArgs, Cli, SimulateArgs, StdNormalModelArgs, SubCmd};
 use log::info;
 use rand::thread_rng;
 use rand_distr::{Binomial, Distribution, Normal, Uniform};
 use rs_bann::net::{
     architectures::BlockNetCfg,
+    branch::{base_branch::BaseBranch, std_normal_branch::StdNormalBranch},
     data::Data,
     mcmc_cfg::{MCMCCfg, StepSizeMode},
-    net::ReportCfg,
+    train_stats::ReportCfg,
 };
 use statrs::statistics::Statistics;
 use std::{
@@ -22,6 +23,7 @@ fn main() {
     match Cli::parse().cmd {
         SubCmd::Simulate(args) => simulate(args),
         SubCmd::BaseModel(args) => base_model(args),
+        SubCmd::StdNormalModel(args) => std_normal_model(args),
     }
 }
 
@@ -30,22 +32,22 @@ fn main() {
 // and col major bedvecs.
 // the preprocessing routine only has to split the large .bed into groups
 // following some annotation input.
-fn preprocess() {
-    unimplemented!();
-}
+// fn preprocess() {
+//     unimplemented!();
+// }
 
-// The following lower bounds for memory consumption are expected,
-// if only a subset of all samples is loaded at a time
-// n    pg  mem[mb]
-// 10k  1k  10**4 * 1x10**3 * 0.25 = 10**7 * 0.75 b =  7.5 Mb
-// I need fast random reading of this data.
-fn train() {
-    unimplemented!();
-}
+// // The following lower bounds for memory consumption are expected,
+// // if only a subset of all samples is loaded at a time
+// // n    pg  mem[mb]
+// // 10k  1k  10**4 * 1x10**3 * 0.25 = 10**7 * 0.75 b =  7.5 Mb
+// // I need fast random reading of this data.
+// fn train() {
+//     unimplemented!();
+// }
 
-fn predict() {
-    unimplemented!();
-}
+// fn predict() {
+//     unimplemented!();
+// }
 
 fn simulate(args: SimulateArgs) {
     simple_logger::init_with_level(log::Level::Info).unwrap();
@@ -65,7 +67,7 @@ fn simulate(args: SimulateArgs) {
     let params_path = path.join("model.params");
 
     info!("Building model");
-    let mut net_cfg = BlockNetCfg::new()
+    let mut net_cfg = BlockNetCfg::<BaseBranch>::new()
         .with_depth(args.branch_depth)
         .with_initial_random_range(2.0);
     for _ in 0..args.num_branches {
@@ -180,7 +182,7 @@ fn base_model(args: BaseModelArgs) {
     }
 
     info!("Building net");
-    let mut net_cfg = BlockNetCfg::new()
+    let mut net_cfg = BlockNetCfg::<BaseBranch>::new()
         .with_depth(args.branch_depth)
         .with_precision_prior(args.prior_shape, args.prior_scale);
     for _ in 0..train_data.num_branches() {
@@ -188,7 +190,9 @@ fn base_model(args: BaseModelArgs) {
     }
     let mut net = net_cfg.build_net();
 
-    let step_size_mode = if args.precision_scaled_step_sizes {
+    let step_size_mode = if args.izmailov_step_sizes {
+        StepSizeMode::Izmailov
+    } else if args.precision_scaled_step_sizes {
         StepSizeMode::StdScaled
     } else if args.random_step_sizes {
         StepSizeMode::Random
@@ -208,8 +212,73 @@ fn base_model(args: BaseModelArgs) {
         hmc_integration_length: args.integration_length,
         hmc_step_size_mode: step_size_mode,
         chain_length: args.chain_length,
-        trace_file: args.trace_file_path,
+        outpath: args.outpath,
+        trace: args.trace,
+        trajectories: args.trajectories,
+        num_grad_traj: args.num_grad_traj,
     };
+
+    mcmc_cfg.create_out();
+    net.write_meta(&mcmc_cfg);
+
+    let report_cfg = ReportCfg::new(args.report_interval, Some(&test_data));
+
+    net.train(&train_data, &mcmc_cfg, true, Some(report_cfg));
+}
+
+fn std_normal_model(args: StdNormalModelArgs) {
+    if args.debug_prints {
+        simple_logger::init_with_level(log::Level::Debug).unwrap();
+    } else {
+        simple_logger::init_with_level(log::Level::Info).unwrap();
+    }
+
+    info!("Loading data");
+    let mut train_data = Data::from_file(&Path::new(&args.indir).join("train.bin"));
+    let mut test_data = Data::from_file(&Path::new(&args.indir).join("test.bin"));
+
+    if args.standardize {
+        info!("Standardizing data");
+        train_data.standardize();
+        test_data.standardize();
+    }
+
+    info!("Building net");
+    let mut net_cfg = BlockNetCfg::<StdNormalBranch>::new().with_depth(args.branch_depth);
+    for _ in 0..train_data.num_branches() {
+        net_cfg.add_branch(train_data.num_markers_per_branch(), args.hidden_layer_width);
+    }
+    let mut net = net_cfg.build_net();
+
+    let step_size_mode = if args.izmailov_step_sizes {
+        StepSizeMode::Izmailov
+    } else if args.precision_scaled_step_sizes {
+        StepSizeMode::StdScaled
+    } else if args.random_step_sizes {
+        StepSizeMode::Random
+    } else {
+        StepSizeMode::Uniform
+    };
+
+    info!(
+        "Built net with {:} params per branch.",
+        net.num_branch_params(0)
+    );
+
+    info!("Training net");
+    let mcmc_cfg = MCMCCfg {
+        hmc_step_size_factor: args.step_size,
+        hmc_max_hamiltonian_error: args.max_hamiltonian_error,
+        hmc_integration_length: args.integration_length,
+        hmc_step_size_mode: step_size_mode,
+        chain_length: args.chain_length,
+        outpath: args.outpath,
+        trace: args.trace,
+        trajectories: args.trajectories,
+        num_grad_traj: args.num_grad_traj,
+    };
+    mcmc_cfg.create_out();
+    net.write_meta(&mcmc_cfg);
 
     let report_cfg = ReportCfg::new(args.report_interval, Some(&test_data));
 

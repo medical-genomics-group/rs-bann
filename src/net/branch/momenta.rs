@@ -3,7 +3,7 @@ use super::step_sizes::StepSizes;
 use arrayfire::Array;
 
 #[derive(Clone)]
-pub(crate) struct BranchMomenta {
+pub struct BranchMomenta {
     pub wrt_weights: Vec<Array<f64>>,
     pub wrt_biases: Vec<Array<f64>>,
 }
@@ -27,6 +27,7 @@ impl BranchMomenta {
         }
     }
 
+    // This is K(p) = p^T p / 2
     pub fn log_density(&self) -> f64 {
         let mut log_density: f64 = 0.;
         for i in 0..self.wrt_weights.len() {
@@ -35,7 +36,7 @@ impl BranchMomenta {
         for i in 0..self.wrt_biases.len() {
             log_density += arrayfire::sum_all(&(&self.wrt_biases[i] * &self.wrt_biases[i])).0;
         }
-        log_density
+        0.5 * log_density
     }
 
     pub fn wrt_weights(&self, index: usize) -> &Array<f64> {

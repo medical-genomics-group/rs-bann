@@ -16,5 +16,5 @@ pub(crate) fn to_host(a: &Array<f64>) -> Vec<f64> {
 pub(crate) fn scalar_to_host(a: &Array<f64>) -> f64 {
     let mut host_data = vec![0.0];
     a.host(&mut host_data);
-    return host_data[0];
+    host_data[0]
 }
