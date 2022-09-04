@@ -25,7 +25,7 @@ pub(crate) enum SubCmd {
     /// Simulate marker and phenotype data
     Simulate(SimulateArgs),
     /// Train Model
-    TrainModel(TrainModelArgs),
+    Train(TrainArgs),
 }
 
 #[derive(Args, Debug, Serialize, Deserialize)]
@@ -60,7 +60,7 @@ impl SimulateArgs {
 }
 
 #[derive(Args, Debug)]
-pub(crate) struct TrainModelArgs {
+pub(crate) struct TrainArgs {
     /// Prior structure of model.
     #[clap(value_enum)]
     pub model_type: ModelType,

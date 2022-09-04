@@ -1,7 +1,7 @@
 mod cli;
 
 use clap::Parser;
-use cli::cli::{Cli, ModelType, SimulateArgs, SubCmd, TrainModelArgs};
+use cli::cli::{Cli, ModelType, SimulateArgs, SubCmd, TrainArgs};
 use log::info;
 use rand::thread_rng;
 use rand_distr::{Binomial, Distribution, Normal, Uniform};
@@ -9,7 +9,7 @@ use rs_bann::net::{
     architectures::BlockNetCfg,
     branch::{ard_branch::ArdBranch, base_branch::BaseBranch, std_normal_branch::StdNormalBranch},
     data::Data,
-    mcmc_cfg::{MCMCCfg, StepSizeMode},
+    mcmc_cfg::MCMCCfg,
     train_stats::ReportCfg,
 };
 use statrs::statistics::Statistics;
@@ -22,7 +22,7 @@ use std::{
 fn main() {
     match Cli::parse().cmd {
         SubCmd::Simulate(args) => simulate(args),
-        SubCmd::TrainModel(args) => train(args),
+        SubCmd::Train(args) => train(args),
     }
 }
 
@@ -162,7 +162,7 @@ fn simulate(args: SimulateArgs) {
     args.to_file(&args_path);
 }
 
-fn train(args: TrainModelArgs) {
+fn train(args: TrainArgs) {
     if args.debug_prints {
         simple_logger::init_with_level(log::Level::Debug).unwrap();
     } else {
