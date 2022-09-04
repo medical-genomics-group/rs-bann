@@ -152,7 +152,6 @@ impl Branch for ArdBranch {
         }
 
         for layer_index in 0..self.num_layers - 1 {
-            println!("layer {} (biases)", layer_index);
             ldg_wrt_biases.push(
                 -self.bias_precision(layer_index) * self.biases(layer_index)
                     - self.error_precision() * &d_rss_wrt_biases[layer_index],
@@ -289,7 +288,6 @@ mod tests {
 
         // correct dimensions of activations
         for i in 0..(branch.num_layers) {
-            println!("{:?}", i);
             assert_eq!(
                 activations[i].dims(),
                 dim4![num_individuals, branch.layer_widths[i] as u64, 1, 1]
