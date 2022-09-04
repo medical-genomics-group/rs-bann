@@ -57,6 +57,7 @@ pub trait Branch {
         y_train: &Array<f64>,
     ) -> BranchLogDensityGradient;
 
+    // This should be -U(q), e.g. log P(D | Theta)P(Theta)
     fn log_density(&self, params: &BranchParams, hyperparams: &BranchHyperparams, rss: f64) -> f64;
 
     // DO NOT run this in production code, this is very slow.
@@ -344,9 +345,9 @@ pub trait Branch {
         (weights_gradient, bias_gradient)
     }
 
-    // this is -H = (-U) + (-K)
+    // this is -H = (-U(q)) + (-K(p))
     fn neg_hamiltonian(&self, momenta: &BranchMomenta, x: &Array<f64>, y: &Array<f64>) -> f64 {
-        self.log_density(self.params(), self.hyperparams(), self.rss(x, y)) + momenta.log_density()
+        self.log_density(self.params(), self.hyperparams(), self.rss(x, y)) - momenta.log_density()
     }
 
     fn rss(&self, x: &Array<f64>, y: &Array<f64>) -> f64 {
