@@ -103,7 +103,7 @@ pub(crate) struct TrainArgs {
     pub outpath: String,
 
     ///  Step size mode
-    #[clap(default_value_t = StepSizeMode::Uniform)]
+    #[clap(value_enum, default_value_t = StepSizeMode::Uniform)]
     pub step_size_mode: StepSizeMode,
 
     /// enable debug prints
