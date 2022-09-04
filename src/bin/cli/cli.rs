@@ -86,15 +86,15 @@ pub(crate) struct TrainArgs {
     /// hmc step size, acts as a modifying factor on random step sizes if enabled
     pub step_size: f64,
 
-    #[clap(default_value_t = 1)]
+    #[clap(default_value_t = 1, long)]
     /// training stats report interval
     pub report_interval: usize,
 
-    #[clap(default_value_t = 1.)]
+    #[clap(default_value_t = 1., long)]
     /// prior shape
     pub prior_shape: f64,
 
-    #[clap(default_value_t = 1.)]
+    #[clap(default_value_t = 1., long)]
     /// prior scale
     pub prior_scale: f64,
 
@@ -103,7 +103,7 @@ pub(crate) struct TrainArgs {
     pub outpath: String,
 
     ///  Step size mode
-    #[clap(value_enum, default_value_t = StepSizeMode::Uniform)]
+    #[clap(value_enum, default_value_t = StepSizeMode::Uniform, long)]
     pub step_size_mode: StepSizeMode,
 
     /// enable debug prints
