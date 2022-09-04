@@ -18,7 +18,7 @@ use std::{
     io::{BufWriter, Write},
 };
 
-const NUMERICAL_DELTA: f64 = 0.0001;
+const NUMERICAL_DELTA: f64 = 0.0000001;
 
 pub trait Branch {
     fn build_cfg(cfg_bld: BranchCfgBuilder) -> BranchCfg;
