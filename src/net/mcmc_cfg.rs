@@ -1,4 +1,8 @@
-use std::path::{Path, PathBuf};
+use std::{
+    fmt,
+    path::{Path, PathBuf},
+    str::FromStr,
+};
 
 /// Parameters for MCMC sampling.
 pub struct MCMCCfg {
@@ -33,9 +37,47 @@ impl MCMCCfg {
     }
 }
 
+#[derive(clap::ValueEnum, Clone, Debug)]
 pub enum StepSizeMode {
     Uniform,
     Random,
     StdScaled,
     Izmailov,
 }
+
+impl fmt::Display for StepSizeMode {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let s = match self {
+            StepSizeMode::Uniform => "StepSizeMode::Uniform",
+            StepSizeMode::Random => "StepSizeMode::Random",
+            StepSizeMode::StdScaled => "StepSizeMode::StdScaled",
+            StepSizeMode::Izmailov => "StepSizeMode::Izmailov",
+        };
+        write!(f, "{}", s)
+    }
+}
+
+impl FromStr for StepSizeMode {
+    type Err = StepSizeModeFromStrError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "StepSizeMode::Uniform" => Ok(StepSizeMode::Uniform),
+            "StepSizeMode::Random" => Ok(StepSizeMode::Random),
+            "StepSizeMode::StdScaled" => Ok(StepSizeMode::StdScaled),
+            "StepSizeMode::Izmailov" => Ok(StepSizeMode::Izmailov),
+            _ => Err(StepSizeModeFromStrError),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct StepSizeModeFromStrError;
+
+impl fmt::Display for StepSizeModeFromStrError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "failed to construct StepSizeMode from string.")
+    }
+}
+
+impl std::error::Error for StepSizeModeFromStrError {}
