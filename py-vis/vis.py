@@ -131,20 +131,24 @@ class Trajectory:
 
         plt.tight_layout()
 
-    def plot_grads(self):
+    def plot_grads(self, num_grads=False):
         fig, axes = plt.subplots(2, self.depth(), sharex=True, figsize=(10, 6))
 
         # weights
         for lix in range(self.depth()):
             axes[0, lix].set_title(f"LAYER {lix + 1}")
             axes[0, lix].plot(self.layer_weight_grad(lix), label="analytic")
-            axes[0, lix].plot(self.layer_weight_grad_num(lix), ":", label="numerical")
+            if num_grads:
+                axes[0, lix].plot(
+                    self.layer_weight_grad_num(lix), ":", label="numerical"
+                )
         axes[0, 0].set_ylabel(r"$\partial P \partial W$")
 
         # biases
         for lix in range(self.depth() - 1):
             axes[1, lix].plot(self.layer_bias_grad(lix), label="analytic")
-            axes[1, lix].plot(self.layer_bias_grad_num(lix), ":", label="numerical")
+            if num_grads:
+                axes[1, lix].plot(self.layer_bias_grad_num(lix), ":", label="numerical")
         axes[1, 0].set_ylabel(r"$\partial P \partial b$")
 
         axes[1, self.depth() - 1].plot(self.hamiltonian)
