@@ -198,11 +198,20 @@ impl Branch for ArdBranch {
         }
     }
 
-    // TODO: this is definitely not correct for ARD. Fix.
+    // TODO: this is most likely not correct for ARD. Fix.
+    // To Fix:
+    // - posterior shape
+    // To Check:
+    // - is the array broadcasted correctly? Cause
+    //   weight_prec.dims() is not equal to the number of items in the iterator
+    //
     /// Samples precision values from their posterior distribution in a Gibbs step.
     fn sample_precisions(&mut self, prior_shape: f64, prior_scale: f64) {
         // this iterates over layers
         for i in 0..self.params.weights.len() {
+            // probably not the actual problem, but this should be the layer width of
+            // the previous layer, not the current, because that is what defines the number of groups
+            // here.
             let posterior_shape = self.layer_width(i) as f64 / 2. + prior_shape;
             // compute sums of squares of all rows
             self.hyperparams.weight_precisions[i] = Array::new(
