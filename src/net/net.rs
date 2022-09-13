@@ -148,12 +148,12 @@ impl<B: Branch> Net<B> {
                     dim4!(num_individuals as u64, cfg.num_markers as u64),
                 );
                 // load branch cfg
-                let mut branch = B::from_cfg(&cfg);
+                let mut branch = B::from_cfg(cfg);
                 // tell branch about global error precision
                 branch.set_error_precision(self.error_precision);
                 // TODO: save last prediction contribution for each branch to reduce compute
                 residual += branch.predict(&x);
-                self.note_hmc_step_result(branch.hmc_step(&x, &residual, &mcmc_cfg));
+                self.note_hmc_step_result(branch.hmc_step(&x, &residual, mcmc_cfg));
                 branch.sample_precisions(self.precision_prior_shape, self.precision_prior_scale);
                 // update residual
                 residual -= branch.predict(&x);

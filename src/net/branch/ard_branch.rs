@@ -198,8 +198,10 @@ impl Branch for ArdBranch {
         }
     }
 
+    // TODO: this is definitely not correct for ARD. Fix.
     /// Samples precision values from their posterior distribution in a Gibbs step.
     fn sample_precisions(&mut self, prior_shape: f64, prior_scale: f64) {
+        // this iterates over layers
         for i in 0..self.params.weights.len() {
             let posterior_shape = self.layer_width(i) as f64 / 2. + prior_shape;
             // compute sums of squares of all rows
