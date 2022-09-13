@@ -222,37 +222,7 @@ pub trait Branch {
     /// Sets step sizes proportional to the prior standard deviation of each parameter.
     fn std_scaled_step_sizes(&self, const_factor: f64) -> StepSizes;
 
-    fn izmailov_step_sizes(&mut self, integration_length: usize) -> StepSizes {
-        let mut wrt_weights = Vec::with_capacity(self.num_layers());
-        let mut wrt_biases = Vec::with_capacity(self.num_layers() - 1);
-
-        for index in 0..self.num_layers() {
-            wrt_weights.push(
-                std::f64::consts::PI
-                    / (2.
-                        * sqrt(&self.hyperparams().weight_precisions[index])
-                        * integration_length as f64),
-            );
-        }
-
-        for index in 0..self.num_layers() - 1 {
-            wrt_biases.push(Array::new(
-                &vec![
-                    std::f64::consts::PI
-                        / (2.
-                            * &self.hyperparams().bias_precisions[index].sqrt()
-                            * integration_length as f64);
-                    self.biases(index).elements()
-                ],
-                self.biases(index).dims(),
-            ));
-        }
-
-        StepSizes {
-            wrt_weights,
-            wrt_biases,
-        }
-    }
+    fn izmailov_step_sizes(&mut self, integration_length: usize) -> StepSizes;
 
     fn forward_feed(&self, x_train: &Array<f64>) -> Vec<Array<f64>> {
         let mut activations: Vec<Array<f64>> = Vec::with_capacity(self.num_layers() - 1);
@@ -271,6 +241,7 @@ pub trait Branch {
             MatProp::NONE,
             MatProp::NONE,
         );
+        // TODO: tiling here everytime seems a bit inefficient, might be better to just store tiled versions of the biases?
         let bias_m = &arrayfire::tile(
             self.biases(layer_index),
             dim4!(input.dims().get()[0], 1, 1, 1),
@@ -387,6 +358,7 @@ pub trait Branch {
             StepSizeMode::Uniform => self.uniform_step_sizes(mcmc_cfg.hmc_step_size_factor),
             StepSizeMode::Izmailov => self.izmailov_step_sizes(mcmc_cfg.hmc_integration_length),
         };
+        debug!("Using step sizes: {:?}", step_sizes);
         let mut momenta = self.sample_momenta();
         let init_neg_hamiltonian = self.neg_hamiltonian(&momenta, x_train, y_train);
 
@@ -447,21 +419,21 @@ pub trait Branch {
             traj_file.as_mut().unwrap().write_all(b"\n").unwrap();
         }
 
-        debug!("final gradients");
-        for lix in 0..ldg.wrt_weights.len() {
-            debug!(
-                "layer: {:}; weight grad: {:?}",
-                lix,
-                to_host(&ldg.wrt_weights[lix])
-            );
-        }
-        for lix in 0..ldg.wrt_biases.len() {
-            debug!(
-                "layer: {:}; bias grad: {:?}",
-                lix,
-                to_host(&ldg.wrt_biases[lix])
-            );
-        }
+        // debug!("final gradients");
+        // for lix in 0..ldg.wrt_weights.len() {
+        //     debug!(
+        //         "layer: {:}; weight grad: {:?}",
+        //         lix,
+        //         to_host(&ldg.wrt_weights[lix])
+        //     );
+        // }
+        // for lix in 0..ldg.wrt_biases.len() {
+        //     debug!(
+        //         "layer: {:}; bias grad: {:?}",
+        //         lix,
+        //         to_host(&ldg.wrt_biases[lix])
+        //     );
+        // }
 
         // accept or reject
         let final_neg_hamiltonian = self.neg_hamiltonian(&momenta, x_train, y_train);

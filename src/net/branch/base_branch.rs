@@ -6,7 +6,7 @@ use super::{
     step_sizes::StepSizes,
 };
 use crate::scalar_to_host;
-use arrayfire::{dim4, Array};
+use arrayfire::{dim4, sqrt, Array};
 use rand::prelude::ThreadRng;
 use rand::thread_rng;
 
@@ -110,6 +110,38 @@ impl Branch for BaseBranch {
             wrt_biases.push(Array::new(
                 &vec![
                     const_factor * (1. / self.bias_precision(index)).sqrt();
+                    self.biases(index).elements()
+                ],
+                self.biases(index).dims(),
+            ));
+        }
+
+        StepSizes {
+            wrt_weights,
+            wrt_biases,
+        }
+    }
+
+    fn izmailov_step_sizes(&mut self, integration_length: usize) -> StepSizes {
+        let mut wrt_weights: Vec<Array<f64>> = Vec::with_capacity(self.num_layers());
+        let mut wrt_biases = Vec::with_capacity(self.num_layers() - 1);
+
+        for index in 0..self.num_layers() {
+            wrt_weights.push(
+                std::f64::consts::PI
+                    / (2.
+                        * sqrt(&self.hyperparams().weight_precisions[index])
+                        * integration_length as f64),
+            );
+        }
+
+        for index in 0..self.num_layers() - 1 {
+            wrt_biases.push(Array::new(
+                &vec![
+                    std::f64::consts::PI
+                        / (2.
+                            * &self.hyperparams().bias_precisions[index].sqrt()
+                            * integration_length as f64);
                     self.biases(index).elements()
                 ],
                 self.biases(index).dims(),

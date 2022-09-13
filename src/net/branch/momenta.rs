@@ -11,7 +11,7 @@ pub struct BranchMomenta {
 impl BranchMomenta {
     pub fn half_step(&mut self, step_sizes: &StepSizes, grad: &BranchLogDensityGradient) {
         for i in 0..self.wrt_weights.len() {
-            self.wrt_weights[i] += &step_sizes.wrt_weights[i] * 0.5 * &grad.wrt_weights[i];
+            self.wrt_weights[i] += 0.5 * &step_sizes.wrt_weights[i] * &grad.wrt_weights[i];
         }
         for i in 0..self.wrt_biases.len() {
             self.wrt_biases[i] += &step_sizes.wrt_biases[i] * 0.5 * &grad.wrt_biases[i];

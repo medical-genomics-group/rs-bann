@@ -6,7 +6,7 @@ use super::{
     step_sizes::StepSizes,
 };
 use crate::to_host;
-use arrayfire::{dim4, matmul, sum, sum_all, Array, MatProp};
+use arrayfire::{dim4, matmul, sqrt, sum, sum_all, tile, Array, MatProp};
 use rand::prelude::ThreadRng;
 use rand::thread_rng;
 use rand_distr::{Distribution, Gamma};
@@ -100,6 +100,40 @@ impl Branch for ArdBranch {
     fn std_scaled_step_sizes(&self, const_factor: f64) -> StepSizes {
         let mut wrt_weights = Vec::with_capacity(self.num_layers());
         let mut wrt_biases = Vec::with_capacity(self.num_layers() - 1);
+
+        StepSizes {
+            wrt_weights,
+            wrt_biases,
+        }
+    }
+
+    // TODO: this makes massive step sizes sometimes.
+    fn izmailov_step_sizes(&mut self, integration_length: usize) -> StepSizes {
+        let mut wrt_weights: Vec<Array<f64>> = Vec::with_capacity(self.num_layers());
+        let mut wrt_biases = Vec::with_capacity(self.num_layers() - 1);
+
+        for index in 0..self.num_layers() {
+            wrt_weights.push(tile(
+                &(std::f64::consts::PI
+                    / (2.
+                        * sqrt(&self.hyperparams().weight_precisions[index])
+                        * integration_length as f64)),
+                dim4!(1, self.layer_widths[index] as u64, 1, 1),
+            ));
+        }
+
+        for index in 0..self.num_layers() - 1 {
+            wrt_biases.push(Array::new(
+                &vec![
+                    std::f64::consts::PI
+                        / (2.
+                            * &self.hyperparams().bias_precisions[index].sqrt()
+                            * integration_length as f64);
+                    self.biases(index).elements()
+                ],
+                self.biases(index).dims(),
+            ));
+        }
 
         StepSizes {
             wrt_weights,
