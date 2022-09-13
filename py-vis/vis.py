@@ -240,11 +240,11 @@ def load_json_traj(wdir: str):
     return res
 
 
-def plot_single_arm_trace(file: str):
-    trace = load_json_trace(file)
+def plot_single_arm_trace(wdir: str):
+    trace = load_json_trace(wdir)
     fig, axes = plt.subplots(4, trace.depth(), sharex=True, figsize=(15, 10))
 
-    fig.suptitle(file)
+    fig.suptitle(wdir)
 
     # weights
     for lix in range(trace.depth()):
