@@ -212,12 +212,15 @@ def load_json_trace(wdir: str):
         for line in fin:
             l = json.loads(line)[0]
             params.append(l["params"])
-            wp.append(np.asarray(l["hyperparams"]["weight_precisions"]).flatten())
+            for lix, p in enumerate(l["hyperparams"]["weight_precisions"]):
+                if len(wp) <= lix:
+                    wp.append([])
+                wp[lix].append(p)
             bp.append(l["hyperparams"]["bias_precisions"])
             ep.append(l["hyperparams"]["error_precision"])
-    return Trace(
-        mcfg, np.asarray(params), np.asarray(wp), np.asarray(bp), np.asarray(ep)
-    )
+    for lix in range(len(wp)):
+        wp[lix] = np.asarray(wp[lix])
+    return Trace(mcfg, np.asarray(params), wp, np.asarray(bp), np.asarray(ep))
 
 
 def load_json_traj(wdir: str):
@@ -257,13 +260,17 @@ def plot_single_arm_trace(wdir: str):
         axes[1, lix].plot(trace.layer_biases(lix))
     axes[1, 0].set_ylabel(r"$b$")
 
-    # precisions
+    # weight precisions
     for lix in range(trace.depth()):
-        axes[2, lix].plot(trace.weight_precisions[:, lix], label="w")
+        axes[2, lix].plot(trace.weight_precisions[lix], label="w")
         if lix != (trace.depth() - 1):
             axes[2, lix].plot(trace.bias_precisions[:, lix], label="b")
-    axes[2, 0].set_ylabel(r"$\sigma^{-2}$")
-    axes[2, 0].legend()
+    axes[2, 0].set_ylabel(r"$\sigma^{-2}_{w}$")
+
+    # bias precisions
+    for lix in range(trace.depth() - 1):
+        axes[3, lix].plot(trace.bias_precisions[:, lix], label="b")
+    axes[3, 0].set_ylabel(r"$\sigma^{-2}_{b}$")
 
     axes[3, trace.depth() - 1].set_title("ERROR PRECISION")
     axes[3, trace.depth() - 1].plot(trace.error_precision)
