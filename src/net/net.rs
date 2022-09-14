@@ -77,8 +77,8 @@ impl<B: Branch> Net<B> {
 
     // TODO: do not assume that all branches are the same!
     pub fn write_meta(&self, mcmc_cfg: &MCMCCfg) {
-        let mut w = BufWriter::new(File::create(mcmc_cfg.meta_path()).unwrap());
-        to_writer(w, &BranchMeta::from_cfg(&self.branch_cfgs[0]));
+        let w = BufWriter::new(File::create(mcmc_cfg.meta_path()).unwrap());
+        to_writer(w, &BranchMeta::from_cfg(&self.branch_cfgs[0])).unwrap();
     }
 
     // X has to be column major!
@@ -111,9 +111,12 @@ impl<B: Branch> Net<B> {
             self.num_params()
         );
 
+        // initial loss
+        self.record_rss(train_data, report_cfg.as_ref().unwrap().test_data);
+
         // report
         if verbose {
-            self.report_training_state(0, train_data, report_cfg.as_ref().unwrap().test_data);
+            self.report_training_state(0);
             report_interval = report_cfg.as_ref().unwrap().interval;
         }
 
@@ -124,19 +127,19 @@ impl<B: Branch> Net<B> {
 
         for chain_ix in 1..=mcmc_cfg.chain_length {
             // sample ouput bias term
-            // residual += self.output_bias.af_bias();
-            // self.output_bias.sample_bias(
-            //     self.error_precision,
-            //     &residual,
-            //     num_individuals,
-            //     &mut rng,
-            // );
-            // self.output_bias.sample_precision(
-            //     self.precision_prior_shape,
-            //     self.precision_prior_scale,
-            //     &mut rng,
-            // );
-            // residual -= self.output_bias.af_bias();
+            residual += self.output_bias.af_bias();
+            self.output_bias.sample_bias(
+                self.error_precision,
+                &residual,
+                num_individuals,
+                &mut rng,
+            );
+            self.output_bias.sample_precision(
+                self.precision_prior_shape,
+                self.precision_prior_scale,
+                &mut rng,
+            );
+            residual -= self.output_bias.af_bias();
             // shuffle order in which branches are trained
             branch_ixs.shuffle(&mut rng);
             for &branch_ix in &branch_ixs {
@@ -160,6 +163,9 @@ impl<B: Branch> Net<B> {
                 // dump branch cfg
                 self.branch_cfgs[branch_ix] = branch.to_cfg();
             }
+
+            self.record_rss(train_data, report_cfg.as_ref().unwrap().test_data);
+
             // update error precision
             self.error_precision = multi_param_precision_posterior(
                 self.precision_prior_shape,
@@ -170,11 +176,7 @@ impl<B: Branch> Net<B> {
 
             // report
             if verbose && chain_ix % report_interval == 0 {
-                self.report_training_state(
-                    chain_ix,
-                    train_data,
-                    report_cfg.as_ref().unwrap().test_data,
-                );
+                self.report_training_state(chain_ix);
             }
 
             if mcmc_cfg.trace {
@@ -182,6 +184,10 @@ impl<B: Branch> Net<B> {
                 trace_file.as_mut().unwrap().write_all(b"\n").unwrap();
             }
         }
+
+        info!("Completed training");
+        // save training stats
+        self.training_stats.to_file(&mcmc_cfg.outpath);
     }
 
     // TODO: predict using posterior predictive distribution instead of point estimate
@@ -203,6 +209,13 @@ impl<B: Branch> Net<B> {
             y_hat += B::from_cfg(&cfg).predict(&x);
         }
         to_host(&y_hat)
+    }
+
+    fn record_rss(&mut self, train_data: &Data, test_data: Option<&Data>) {
+        self.training_stats.add_rss_train(self.rss(train_data));
+        if let Some(tst) = test_data {
+            self.training_stats.add_rss_test(self.rss(tst));
+        }
     }
 
     fn residual(&self, x: &Vec<Vec<f64>>, y: &Array<f64>) -> Array<f64> {
@@ -237,16 +250,16 @@ impl<B: Branch> Net<B> {
         super::gibbs_steps::sum_of_squares(&residual)
     }
 
-    fn report_training_state(&self, iteration: usize, train_data: &Data, test_data: Option<&Data>) {
-        if let Some(tst) = test_data {
+    fn report_training_state(&self, iteration: usize) {
+        if let Some(tst_rss) = &self.training_stats.rss_test {
             info!(
                 "iteration: {:} \t | acc: {:.2} \t | early_rej: {:.2} \t | end_rej: {:.2} \t | loss(trn): {:.4} \t | loss(tst): {:.4}",
                 iteration,
                 self.training_stats.acceptance_rate(),
                 self.training_stats.early_rejection_rate(),
                 self.training_stats.end_rejection_rate(),
-                self.rss(train_data),
-                self.rss(tst));
+                self.training_stats.rss_train.last().unwrap(),
+                tst_rss.last().unwrap());
         } else {
             info!(
                 "iteration: {:} \t | acc: {:.2} \t | early_rej: {:.2} \t | end_rej: {:.2} \t | loss(trn): {:.4}",
@@ -254,7 +267,7 @@ impl<B: Branch> Net<B> {
                 self.training_stats.acceptance_rate(),
                 self.training_stats.early_rejection_rate(),
                 self.training_stats.end_rejection_rate(),
-                self.rss(train_data));
+                self.training_stats.rss_train.last().unwrap());
         }
     }
 
