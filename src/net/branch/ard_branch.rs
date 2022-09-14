@@ -122,6 +122,7 @@ impl Branch for ArdBranch {
             ));
         }
 
+        // there is only one bias precision per layer here
         for index in 0..self.num_layers() - 1 {
             wrt_biases.push(Array::new(
                 &vec![
@@ -198,21 +199,12 @@ impl Branch for ArdBranch {
         }
     }
 
-    // TODO: this is most likely not correct for ARD. Fix.
-    // To Fix:
-    // - posterior shape
-    // To Check:
-    // - is the array broadcasted correctly? Cause
-    //   weight_prec.dims() is not equal to the number of items in the iterator
-    //
     /// Samples precision values from their posterior distribution in a Gibbs step.
     fn sample_precisions(&mut self, prior_shape: f64, prior_scale: f64) {
         // this iterates over layers
+        let mut num_incoming_signals: f64 = self.num_markers as f64;
         for i in 0..self.params.weights.len() {
-            // probably not the actual problem, but this should be the layer width of
-            // the previous layer, not the current, because that is what defines the number of groups
-            // here.
-            let posterior_shape = self.layer_width(i) as f64 / 2. + prior_shape;
+            let posterior_shape = num_incoming_signals / 2. + prior_shape;
             // compute sums of squares of all rows
             self.hyperparams.weight_precisions[i] = Array::new(
                 &to_host(&sum(
@@ -226,10 +218,17 @@ impl Branch for ArdBranch {
                         .unwrap()
                         .sample(self.rng())
                 })
+                .collect::<Vec<f64>>()
+                .into_iter()
+                .cycle()
+                .take(self.hyperparams.weight_precisions[i].elements())
                 .collect::<Vec<f64>>(),
                 self.hyperparams.weight_precisions[i].dims(),
             );
+            num_incoming_signals = self.layer_width(i) as f64;
         }
+        // TODO: do I want those per node or per layer?
+        // At the moment this is per layer
         for i in 0..self.params.biases.len() {
             self.hyperparams.bias_precisions[i] = multi_param_precision_posterior(
                 prior_shape,
@@ -261,6 +260,13 @@ mod tests {
     //     let a = randu::<f64>(dims);
     //     af_print!("Create a 5-by-3 matrix of random floats on the GPU", a);
     // }
+
+    // this actually causes undefined behaviour.
+    #[test]
+    fn test_af_array_creation_broadcast() {
+        let a = Array::new(&[0., 1., 3.], dim4![3, 2, 1, 1]);
+        assert!(to_host(&a) != vec![0., 1., 3., 0., 1., 3.]);
+    }
 
     fn make_test_branch() -> ArdBranch {
         let exp_weights = [
