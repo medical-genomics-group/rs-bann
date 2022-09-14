@@ -123,7 +123,8 @@ class Trajectory:
 
         # biases
         for lix in range(self.depth() - 1):
-            axes[1, lix].plot(self.layer_bias_grad(lix) - self.layer_bias_grad_num(lix))
+            axes[1, lix].plot(self.layer_bias_grad(
+                lix) - self.layer_bias_grad_num(lix))
         axes[1, 0].set_ylabel(r"$\Delta \partial P \partial b$")
 
         axes[1, self.depth() - 1].plot(self.hamiltonian)
@@ -148,7 +149,8 @@ class Trajectory:
         for lix in range(self.depth() - 1):
             axes[1, lix].plot(self.layer_bias_grad(lix), label="analytic")
             if num_grads:
-                axes[1, lix].plot(self.layer_bias_grad_num(lix), ":", label="numerical")
+                axes[1, lix].plot(self.layer_bias_grad_num(
+                    lix), ":", label="numerical")
         axes[1, 0].set_ylabel(r"$\partial P \partial b$")
 
         axes[1, self.depth() - 1].plot(self.hamiltonian)
@@ -184,7 +186,7 @@ class Trace:
             pix += prev_width * self.layer_width(i)
             prev_width = self.layer_width(i)
 
-        return self.params[:, pix : pix + prev_width * self.layer_width(lix)]
+        return self.params[:, pix: pix + prev_width * self.layer_width(lix)]
 
     def bias_start_pix(self):
         pix = 0
@@ -199,10 +201,10 @@ class Trace:
         for i in range(lix):
             pix += self.layer_width(i)
 
-        return self.params[:, pix : pix + self.layer_width(lix)]
+        return self.params[:, pix: pix + self.layer_width(lix)]
 
 
-def load_json_trace(wdir: str):
+def load_json_trace(wdir: str, branch_ix=0):
     params = []
     wp = []
     bp = []
@@ -210,7 +212,7 @@ def load_json_trace(wdir: str):
     mcfg = ModelCfg(wdir + "/meta")
     with open(wdir + "/trace", "r") as fin:
         for line in fin:
-            l = json.loads(line)[0]
+            l = json.loads(line)[branch_ix]
             params.append(l["params"])
             for lix, p in enumerate(l["hyperparams"]["weight_precisions"]):
                 if len(wp) <= lix:
@@ -243,36 +245,51 @@ def load_json_traj(wdir: str):
     return res
 
 
-def plot_single_arm_trace(wdir: str):
-    trace = load_json_trace(wdir)
-    fig, axes = plt.subplots(4, trace.depth(), sharex=True, figsize=(15, 10))
+def load_json_training_stats(wdir: str):
+    with open(wdir + "/training_stats", "r") as fin:
+        return json.load(fin)
+
+
+def plot_single_branch_trace(wdir: str, branch_ix=0):
+    training_stats = load_json_training_stats(wdir)
+    trace = load_json_trace(wdir, branch_ix)
+    fig, axes = plt.subplots(5, trace.depth(), sharex=True, figsize=(15, 10))
 
     fig.suptitle(wdir)
 
-    # weights
-    for lix in range(trace.depth()):
-        axes[0, lix].set_title(f"LAYER {lix + 1}")
-        axes[0, lix].plot(trace.layer_weights(lix))
-    axes[0, 0].set_ylabel(r"$W$")
+    axes[0, 0].set_title("ERROR PRECISION")
+    axes[0, 0].plot(trace.error_precision)
+
+    axes[0, 1].set_title("LOSS")
+    axes[0, 1].plot(training_stats["rss_train"], label="train")
+    axes[0, 1].plot(training_stats["rss_test"], label="test")
+    axes[0, 1].legend()
+
+    axes[0, trace.depth() - 1].set_axis_off()
 
     # biases
     for lix in range(trace.depth() - 1):
+        axes[1, lix].set_title(f"LAYER {lix + 1}")
         axes[1, lix].plot(trace.layer_biases(lix))
     axes[1, 0].set_ylabel(r"$b$")
-
-    # weight precisions
-    for lix in range(trace.depth()):
-        axes[2, lix].plot(trace.weight_precisions[lix], label="w")
-        if lix != (trace.depth() - 1):
-            axes[2, lix].plot(trace.bias_precisions[:, lix], label="b")
-    axes[2, 0].set_ylabel(r"$\sigma^{-2}_{w}$")
+    axes[1, trace.depth() - 1].set_axis_off()
 
     # bias precisions
     for lix in range(trace.depth() - 1):
-        axes[3, lix].plot(trace.bias_precisions[:, lix], label="b")
-    axes[3, 0].set_ylabel(r"$\sigma^{-2}_{b}$")
+        axes[2, lix].plot(trace.bias_precisions[:, lix], label="b")
+    axes[2, 0].set_ylabel(r"$\sigma^{-2}_{b}$")
+    axes[2, trace.depth() - 1].set_axis_off()
 
-    axes[3, trace.depth() - 1].set_title("ERROR PRECISION")
-    axes[3, trace.depth() - 1].plot(trace.error_precision)
+    # weights
+    for lix in range(trace.depth()):
+        axes[3, lix].plot(trace.layer_weights(lix))
+    axes[3, 0].set_ylabel(r"$W$")
+
+    # weight precisions
+    for lix in range(trace.depth()):
+        axes[4, lix].plot(trace.weight_precisions[lix], label="w")
+        if lix != (trace.depth() - 1):
+            axes[4, lix].plot(trace.bias_precisions[:, lix], label="b")
+    axes[4, 0].set_ylabel(r"$\sigma^{-2}_{w}$")
 
     plt.tight_layout()
