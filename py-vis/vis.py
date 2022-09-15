@@ -260,9 +260,9 @@ def plot_single_branch_trace(wdir: str, branch_ix=0):
     axes[0, 0].set_title("ERROR PRECISION")
     axes[0, 0].plot(trace.error_precision)
 
-    axes[0, 1].set_title("LOSS")
-    axes[0, 1].plot(training_stats["rss_train"], label="train")
-    axes[0, 1].plot(training_stats["rss_test"], label="test")
+    axes[0, 1].set_title("MSE")
+    axes[0, 1].plot(training_stats["mse_train"], label="train")
+    axes[0, 1].plot(training_stats["mse_test"], label="test")
     axes[0, 1].legend()
 
     axes[0, trace.depth() - 1].set_axis_off()
