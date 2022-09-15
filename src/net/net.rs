@@ -112,7 +112,7 @@ impl<B: Branch> Net<B> {
         );
 
         // initial loss
-        self.record_rss(train_data, report_cfg.as_ref().unwrap().test_data);
+        self.record_mse(train_data, report_cfg.as_ref().unwrap().test_data);
 
         // report
         if verbose {
@@ -164,7 +164,7 @@ impl<B: Branch> Net<B> {
                 self.branch_cfgs[branch_ix] = branch.to_cfg();
             }
 
-            self.record_rss(train_data, report_cfg.as_ref().unwrap().test_data);
+            self.record_mse(train_data, report_cfg.as_ref().unwrap().test_data);
 
             // update error precision
             self.error_precision = multi_param_precision_posterior(
@@ -211,10 +211,10 @@ impl<B: Branch> Net<B> {
         to_host(&y_hat)
     }
 
-    fn record_rss(&mut self, train_data: &Data, test_data: Option<&Data>) {
-        self.training_stats.add_rss_train(self.rss(train_data));
+    fn record_mse(&mut self, train_data: &Data, test_data: Option<&Data>) {
+        self.training_stats.add_mse_train(self.mse(train_data));
         if let Some(tst) = test_data {
-            self.training_stats.add_rss_test(self.rss(tst));
+            self.training_stats.add_mse_test(self.mse(tst));
         }
     }
 
@@ -250,24 +250,28 @@ impl<B: Branch> Net<B> {
         super::gibbs_steps::sum_of_squares(&residual)
     }
 
+    pub fn mse(&self, data: &Data) -> f64 {
+        self.rss(data) / data.num_individuals() as f64
+    }
+
     fn report_training_state(&self, iteration: usize) {
-        if let Some(tst_rss) = &self.training_stats.rss_test {
+        if let Some(tst_mse) = &self.training_stats.mse_test {
             info!(
-                "iteration: {:} \t | acc: {:.2} \t | early_rej: {:.2} \t | end_rej: {:.2} \t | loss(trn): {:.4} \t | loss(tst): {:.4}",
+                "iteration: {:} \t | acc: {:.2} \t | early_rej: {:.2} \t | end_rej: {:.2} \t | mse(trn): {:.4} \t | mse(tst): {:.4}",
                 iteration,
                 self.training_stats.acceptance_rate(),
                 self.training_stats.early_rejection_rate(),
                 self.training_stats.end_rejection_rate(),
-                self.training_stats.rss_train.last().unwrap(),
-                tst_rss.last().unwrap());
+                self.training_stats.mse_train.last().unwrap(),
+                tst_mse.last().unwrap());
         } else {
             info!(
-                "iteration: {:} \t | acc: {:.2} \t | early_rej: {:.2} \t | end_rej: {:.2} \t | loss(trn): {:.4}",
+                "iteration: {:} \t | acc: {:.2} \t | early_rej: {:.2} \t | end_rej: {:.2} \t | mse(trn): {:.4}",
                 iteration,
                 self.training_stats.acceptance_rate(),
                 self.training_stats.early_rejection_rate(),
                 self.training_stats.end_rejection_rate(),
-                self.training_stats.rss_train.last().unwrap());
+                self.training_stats.mse_train.last().unwrap());
         }
     }
 

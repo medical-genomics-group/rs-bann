@@ -25,8 +25,8 @@ pub(crate) struct TrainingStats {
     pub(crate) num_samples: usize,
     pub(crate) num_accepted: usize,
     pub(crate) num_early_rejected: usize,
-    pub(crate) rss_train: Vec<f64>,
-    pub(crate) rss_test: Option<Vec<f64>>,
+    pub(crate) mse_train: Vec<f64>,
+    pub(crate) mse_test: Option<Vec<f64>>,
 }
 
 impl TrainingStats {
@@ -35,8 +35,8 @@ impl TrainingStats {
             num_samples: 0,
             num_accepted: 0,
             num_early_rejected: 0,
-            rss_train: Vec::new(),
-            rss_test: None,
+            mse_train: Vec::new(),
+            mse_test: None,
         }
     }
 
@@ -49,15 +49,15 @@ impl TrainingStats {
         }
     }
 
-    pub(crate) fn add_rss_test(&mut self, rss: f64) {
-        if self.rss_test.is_none() {
-            self.rss_test = Some(Vec::new());
+    pub(crate) fn add_mse_test(&mut self, mse: f64) {
+        if self.mse_test.is_none() {
+            self.mse_test = Some(Vec::new());
         }
-        self.rss_test.as_mut().unwrap().push(rss);
+        self.mse_test.as_mut().unwrap().push(mse);
     }
 
-    pub(crate) fn add_rss_train(&mut self, rss: f64) {
-        self.rss_train.push(rss);
+    pub(crate) fn add_mse_train(&mut self, mse: f64) {
+        self.mse_train.push(mse);
     }
 
     pub(crate) fn acceptance_rate(&self) -> f64 {
