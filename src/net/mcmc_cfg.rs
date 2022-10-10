@@ -1,10 +1,6 @@
 use serde::Serialize;
 
-use std::{
-    fmt,
-    path::{Path, PathBuf},
-    str::FromStr,
-};
+use std::path::{Path, PathBuf};
 
 /// Parameters for MCMC sampling.
 pub struct MCMCCfg {
@@ -36,6 +32,10 @@ impl MCMCCfg {
 
     pub fn trajectories_path(&self) -> PathBuf {
         Path::new(&self.outpath).join("traj")
+    }
+
+    pub fn args_path(&self) -> PathBuf {
+        Path::new(&self.outpath).join("args.json")
     }
 }
 

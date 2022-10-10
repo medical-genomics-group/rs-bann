@@ -178,9 +178,6 @@ fn train(args: TrainArgs) {
         simple_logger::init_with_level(log::Level::Info).unwrap();
     }
 
-    let args_path = Path::new(&args.outpath).join("args.json");
-    args.to_file(&args_path);
-
     info!("Loading data");
     let mut train_data = Data::from_file(&Path::new(&args.indir).join("train.bin"));
     let mut test_data = Data::from_file(&Path::new(&args.indir).join("test.bin"));
@@ -192,17 +189,19 @@ fn train(args: TrainArgs) {
     }
 
     let mcmc_cfg = MCMCCfg {
-        hmc_step_size_factor: args.step_size,
-        hmc_max_hamiltonian_error: args.max_hamiltonian_error,
-        hmc_integration_length: args.integration_length,
-        hmc_step_size_mode: args.step_size_mode,
-        chain_length: args.chain_length,
-        outpath: args.outpath,
-        trace: args.trace,
-        trajectories: args.trajectories,
-        num_grad_traj: args.num_grad_traj,
+        hmc_step_size_factor: args.step_size.clone(),
+        hmc_max_hamiltonian_error: args.max_hamiltonian_error.clone(),
+        hmc_integration_length: args.integration_length.clone(),
+        hmc_step_size_mode: args.step_size_mode.clone(),
+        chain_length: args.chain_length.clone(),
+        outpath: args.outpath.clone(),
+        trace: args.trace.clone(),
+        trajectories: args.trajectories.clone(),
+        num_grad_traj: args.num_grad_traj.clone(),
     };
     mcmc_cfg.create_out();
+
+    args.to_file(&mcmc_cfg.args_path());
 
     let report_cfg = ReportCfg::new(args.report_interval, Some(&test_data));
 
