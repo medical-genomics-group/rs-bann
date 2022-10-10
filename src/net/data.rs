@@ -7,6 +7,24 @@ use std::{
     path::Path,
 };
 
+#[derive(Serialize, Deserialize)]
+pub struct PhenStats {
+    mean: f32,
+    variance: f32,
+}
+
+impl PhenStats {
+    pub fn new(mean: f32, variance: f32) -> Self {
+        Self { mean, variance }
+    }
+
+    pub fn to_file(&self, path: &Path) {
+        info!("Creating: {:?}", path);
+        let mut f = BufWriter::new(File::create(path).unwrap());
+        serialize_into(&mut f, self).unwrap();
+    }
+}
+
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub struct Data {
     pub x: Vec<Vec<f32>>,

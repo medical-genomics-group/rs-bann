@@ -8,7 +8,7 @@ use rand_distr::{Binomial, Distribution, Normal, Uniform};
 use rs_bann::net::{
     architectures::BlockNetCfg,
     branch::{ard_branch::ArdBranch, base_branch::BaseBranch, std_normal_branch::StdNormalBranch},
-    data::Data,
+    data::{Data, PhenStats},
     mcmc_cfg::MCMCCfg,
     train_stats::ReportCfg,
 };
@@ -134,6 +134,18 @@ fn simulate(args: SimulateArgs) {
             .iter_mut()
             .for_each(|e| *e += rv_test_dist.sample(&mut rng) as f32);
     }
+
+    PhenStats::new(
+        (&y_test.iter().map(|e| *e as f64).collect::<Vec<f64>>()).mean() as f32,
+        (&y_test.iter().map(|e| *e as f64).collect::<Vec<f64>>()).variance() as f32,
+    )
+    .to_file(&path.join("test_phen_stats.json"));
+
+    PhenStats::new(
+        (&y_train.iter().map(|e| *e as f64).collect::<Vec<f64>>()).mean() as f32,
+        (&y_train.iter().map(|e| *e as f64).collect::<Vec<f64>>()).variance() as f32,
+    )
+    .to_file(&path.join("train_phen_stats.json"));
 
     Data::new(
         x_train,
