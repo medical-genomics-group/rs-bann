@@ -169,6 +169,9 @@ fn train(args: TrainArgs) {
         simple_logger::init_with_level(log::Level::Info).unwrap();
     }
 
+    let args_path = Path::new(&args.outpath).join("args.json");
+    args.to_file(&args_path);
+
     info!("Loading data");
     let mut train_data = Data::from_file(&Path::new(&args.indir).join("train.bin"));
     let mut test_data = Data::from_file(&Path::new(&args.indir).join("test.bin"));

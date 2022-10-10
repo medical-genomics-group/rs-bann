@@ -13,7 +13,7 @@ pub(crate) struct Cli {
     pub(crate) cmd: SubCmd,
 }
 
-#[derive(clap::ValueEnum, Clone, Debug)]
+#[derive(clap::ValueEnum, Clone, Debug, Serialize)]
 pub(crate) enum ModelType {
     ARD,
     Base,
@@ -59,7 +59,7 @@ impl SimulateArgs {
     }
 }
 
-#[derive(Args, Debug)]
+#[derive(Args, Debug, Serialize)]
 pub(crate) struct TrainArgs {
     /// Prior structure of model.
     #[clap(value_enum)]
@@ -126,6 +126,13 @@ pub(crate) struct TrainArgs {
     /// CAUTION: this is extremely expensive, do not run this in production.
     #[clap(long)]
     pub num_grad_traj: bool,
+}
+
+impl TrainArgs {
+    pub fn to_file(&self, path: &Path) {
+        info!("Creating: {:?}", path);
+        to_writer_pretty(File::create(path).unwrap(), self).unwrap();
+    }
 }
 
 /// A small bayesian neural network implementation based on ArrayFire.

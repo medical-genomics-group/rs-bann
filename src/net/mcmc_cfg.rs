@@ -1,3 +1,5 @@
+use serde::Serialize;
+
 use std::{
     fmt,
     path::{Path, PathBuf},
@@ -37,7 +39,7 @@ impl MCMCCfg {
     }
 }
 
-#[derive(clap::ValueEnum, Clone, Debug)]
+#[derive(clap::ValueEnum, Clone, Debug, Serialize)]
 pub enum StepSizeMode {
     Uniform,
     Random,
