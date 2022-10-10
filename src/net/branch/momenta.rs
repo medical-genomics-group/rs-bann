@@ -4,8 +4,8 @@ use arrayfire::Array;
 
 #[derive(Clone)]
 pub struct BranchMomenta {
-    pub wrt_weights: Vec<Array<f64>>,
-    pub wrt_biases: Vec<Array<f64>>,
+    pub wrt_weights: Vec<Array<f32>>,
+    pub wrt_biases: Vec<Array<f32>>,
 }
 
 impl BranchMomenta {
@@ -28,8 +28,8 @@ impl BranchMomenta {
     }
 
     // This is K(p) = p^T p / 2
-    pub fn log_density(&self) -> f64 {
-        let mut log_density: f64 = 0.;
+    pub fn log_density(&self) -> f32 {
+        let mut log_density: f32 = 0.;
         for i in 0..self.wrt_weights.len() {
             log_density += arrayfire::sum_all(&(&self.wrt_weights[i] * &self.wrt_weights[i])).0;
         }
@@ -39,11 +39,11 @@ impl BranchMomenta {
         0.5 * log_density
     }
 
-    pub fn wrt_weights(&self, index: usize) -> &Array<f64> {
+    pub fn wrt_weights(&self, index: usize) -> &Array<f32> {
         &self.wrt_weights[index]
     }
 
-    pub fn wrt_biases(&self, index: usize) -> &Array<f64> {
+    pub fn wrt_biases(&self, index: usize) -> &Array<f32> {
         &self.wrt_biases[index]
     }
 }

@@ -3,10 +3,10 @@ use serde::Serialize;
 #[derive(Clone, Serialize)]
 pub(crate) struct Trajectory {
     // flattened param vecs over time
-    params: Vec<Vec<f64>>,
-    ldg: Vec<Vec<f64>>,
-    num_ldg: Vec<Vec<f64>>,
-    hamiltonian: Vec<f64>,
+    params: Vec<Vec<f32>>,
+    ldg: Vec<Vec<f32>>,
+    num_ldg: Vec<Vec<f32>>,
+    hamiltonian: Vec<f32>,
 }
 
 impl Trajectory {
@@ -19,19 +19,19 @@ impl Trajectory {
         }
     }
 
-    pub fn add_params(&mut self, a: Vec<f64>) {
+    pub fn add_params(&mut self, a: Vec<f32>) {
         self.params.push(a);
     }
 
-    pub fn add_ldg(&mut self, a: Vec<f64>) {
+    pub fn add_ldg(&mut self, a: Vec<f32>) {
         self.ldg.push(a);
     }
 
-    pub fn add_num_ldg(&mut self, a: Vec<f64>) {
+    pub fn add_num_ldg(&mut self, a: Vec<f32>) {
         self.num_ldg.push(a);
     }
 
-    pub fn add_hamiltonian(&mut self, v: f64) {
+    pub fn add_hamiltonian(&mut self, v: f32) {
         self.hamiltonian.push(v);
     }
 }

@@ -9,11 +9,11 @@ pub struct BranchBuilder {
     num_markers: usize,
     layer_widths: Vec<usize>,
     num_layers: usize,
-    initial_weight_value: Option<f64>,
-    initial_bias_value: Option<f64>,
-    initial_random_range: f64,
-    biases: Vec<Option<Array<f64>>>,
-    weights: Vec<Option<Array<f64>>>,
+    initial_weight_value: Option<f32>,
+    initial_bias_value: Option<f32>,
+    initial_random_range: f32,
+    biases: Vec<Option<Array<f32>>>,
+    weights: Vec<Option<Array<f32>>>,
 }
 
 impl BranchBuilder {
@@ -45,7 +45,7 @@ impl BranchBuilder {
         self
     }
 
-    pub fn add_layer_biases(&mut self, biases: &Array<f64>) -> &mut Self {
+    pub fn add_layer_biases(&mut self, biases: &Array<f32>) -> &mut Self {
         assert!(
             biases.dims().get()[0] as usize == 1,
             "bias vector dim 0 != 1, expected row vector"
@@ -58,7 +58,7 @@ impl BranchBuilder {
         self
     }
 
-    pub fn add_layer_weights(&mut self, weights: &Array<f64>) -> &mut Self {
+    pub fn add_layer_weights(&mut self, weights: &Array<f32>) -> &mut Self {
         let wdims = *weights.dims().get();
         let expected_ncols = if self.num_layers > 3 {
             self.layer_widths[self.num_layers - 4]
@@ -77,7 +77,7 @@ impl BranchBuilder {
         self
     }
 
-    pub fn add_summary_bias(&mut self, bias: &Array<f64>) -> &mut Self {
+    pub fn add_summary_bias(&mut self, bias: &Array<f32>) -> &mut Self {
         let wdims = *bias.dims().get();
         assert!(
             wdims[0] as usize == 1,
@@ -91,7 +91,7 @@ impl BranchBuilder {
         self
     }
 
-    pub fn add_summary_weights(&mut self, weights: &Array<f64>) -> &mut Self {
+    pub fn add_summary_weights(&mut self, weights: &Array<f32>) -> &mut Self {
         let wdims = *weights.dims().get();
         assert!(
             wdims[0] as usize == self.layer_widths[self.num_layers - 3],
@@ -105,7 +105,7 @@ impl BranchBuilder {
         self
     }
 
-    pub fn add_output_weight(&mut self, weights: &Array<f64>) -> &mut Self {
+    pub fn add_output_weight(&mut self, weights: &Array<f32>) -> &mut Self {
         let wdims = *weights.dims().get();
         assert!(
             wdims[0] as usize == 1,
@@ -119,17 +119,17 @@ impl BranchBuilder {
         self
     }
 
-    pub fn with_initial_random_range(&mut self, range: f64) -> &mut Self {
+    pub fn with_initial_random_range(&mut self, range: f32) -> &mut Self {
         self.initial_random_range = range;
         self
     }
 
-    pub fn with_initial_weights_value(&mut self, value: f64) -> &mut Self {
+    pub fn with_initial_weights_value(&mut self, value: f32) -> &mut Self {
         self.initial_weight_value = Some(value);
         self
     }
 
-    pub fn with_initial_bias_value(&mut self, value: f64) -> &mut Self {
+    pub fn with_initial_bias_value(&mut self, value: f32) -> &mut Self {
         self.initial_bias_value = Some(value);
         self
     }
@@ -157,8 +157,8 @@ impl BranchBuilder {
             self.biases.push(None);
         }
 
-        let mut weights: Vec<Array<f64>> = vec![];
-        let mut biases: Vec<Array<f64>> = vec![];
+        let mut weights: Vec<Array<f32>> = vec![];
+        let mut biases: Vec<Array<f32>> = vec![];
 
         for index in 0..self.num_layers {
             if let Some(w) = &self.weights[index] {
@@ -173,8 +173,8 @@ impl BranchBuilder {
                 let dims = dim4![widths[index] as u64, widths[index + 1] as u64, 1, 1];
                 weights.push(
                     // this does not includes the bias term.
-                    self.initial_random_range * arrayfire::randu::<f64>(dims)
-                        - self.initial_random_range / 2f64,
+                    self.initial_random_range * arrayfire::randu::<f32>(dims)
+                        - self.initial_random_range / 2f32,
                 );
             }
 
@@ -189,8 +189,8 @@ impl BranchBuilder {
             } else {
                 biases.push(
                     self.initial_random_range
-                        * arrayfire::randu::<f64>(dim4![1, widths[index + 1] as u64, 1, 1])
-                        - self.initial_random_range / 2f64,
+                        * arrayfire::randu::<f32>(dim4![1, widths[index + 1] as u64, 1, 1])
+                        - self.initial_random_range / 2f32,
                 );
             }
         }
@@ -234,8 +234,8 @@ impl BranchBuilder {
             self.biases.push(None);
         }
 
-        let mut weights: Vec<Array<f64>> = vec![];
-        let mut biases: Vec<Array<f64>> = vec![];
+        let mut weights: Vec<Array<f32>> = vec![];
+        let mut biases: Vec<Array<f32>> = vec![];
 
         for index in 0..self.num_layers {
             if let Some(w) = &self.weights[index] {
@@ -250,8 +250,8 @@ impl BranchBuilder {
                 let dims = dim4![widths[index] as u64, widths[index + 1] as u64, 1, 1];
                 weights.push(
                     // this does not includes the bias term.
-                    self.initial_random_range * arrayfire::randu::<f64>(dims)
-                        - self.initial_random_range / 2f64,
+                    self.initial_random_range * arrayfire::randu::<f32>(dims)
+                        - self.initial_random_range / 2f32,
                 );
             }
 
@@ -266,8 +266,8 @@ impl BranchBuilder {
             } else {
                 biases.push(
                     self.initial_random_range
-                        * arrayfire::randu::<f64>(dim4![1, widths[index + 1] as u64, 1, 1])
-                        - self.initial_random_range / 2f64,
+                        * arrayfire::randu::<f32>(dim4![1, widths[index + 1] as u64, 1, 1])
+                        - self.initial_random_range / 2f32,
                 );
             }
         }

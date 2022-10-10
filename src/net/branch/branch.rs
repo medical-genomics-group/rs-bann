@@ -18,7 +18,7 @@ use std::{
     io::{BufWriter, Write},
 };
 
-const NUMERICAL_DELTA: f64 = 0.0000001;
+const NUMERICAL_DELTA: f32 = 0.0000001;
 
 pub trait Branch {
     fn build_cfg(cfg_bld: BranchCfgBuilder) -> BranchCfg;
@@ -41,11 +41,11 @@ pub trait Branch {
 
     fn layer_width(&self, index: usize) -> usize;
 
-    fn set_error_precision(&mut self, val: f64);
+    fn set_error_precision(&mut self, val: f32);
 
     fn rng(&mut self) -> &mut ThreadRng;
 
-    fn sample_precisions(&mut self, prior_shape: f64, prior_scale: f64);
+    fn sample_precisions(&mut self, prior_shape: f32, prior_scale: f32);
 
     fn num_markers(&self) -> usize;
 
@@ -53,15 +53,15 @@ pub trait Branch {
 
     fn log_density_gradient(
         &self,
-        x_train: &Array<f64>,
-        y_train: &Array<f64>,
+        x_train: &Array<f32>,
+        y_train: &Array<f32>,
     ) -> BranchLogDensityGradient;
 
     // This should be -U(q), e.g. log P(D | Theta)P(Theta)
-    fn log_density(&self, params: &BranchParams, hyperparams: &BranchHyperparams, rss: f64) -> f64;
+    fn log_density(&self, params: &BranchParams, hyperparams: &BranchHyperparams, rss: f32) -> f32;
 
     // DO NOT run this in production code, this is very slow.
-    fn numerical_ldg(&mut self, x_train: &Array<f64>, y_train: &Array<f64>) -> Vec<f64> {
+    fn numerical_ldg(&mut self, x_train: &Array<f32>, y_train: &Array<f32>) -> Vec<f32> {
         let mut res = Vec::new();
         let mut next_pv = self.params().param_vec();
         let curr_pv = self.params().param_vec();
@@ -93,32 +93,32 @@ pub trait Branch {
         res
     }
 
-    fn weights(&self, index: usize) -> &Array<f64> {
+    fn weights(&self, index: usize) -> &Array<f32> {
         &self.params().weights[index]
     }
 
-    fn biases(&self, index: usize) -> &Array<f64> {
+    fn biases(&self, index: usize) -> &Array<f32> {
         &self.params().biases[index]
     }
 
-    fn weight_precisions(&self, index: usize) -> &Array<f64> {
+    fn weight_precisions(&self, index: usize) -> &Array<f32> {
         &self.hyperparams().weight_precisions[index]
     }
 
-    fn bias_precision(&self, index: usize) -> f64 {
+    fn bias_precision(&self, index: usize) -> f32 {
         self.hyperparams().bias_precisions[index]
     }
 
-    fn error_precision(&self) -> f64 {
+    fn error_precision(&self) -> f32 {
         self.hyperparams().error_precision
     }
 
-    fn is_accepted(&mut self, acceptance_probability: f64) -> bool {
+    fn is_accepted(&mut self, acceptance_probability: f32) -> bool {
         self.rng().gen_range(0.0..1.0) < acceptance_probability
     }
 
     /// Quantify change of distance from starting point
-    fn net_movement(&self, init_params: &BranchParams, momenta: &BranchMomenta) -> f64 {
+    fn net_movement(&self, init_params: &BranchParams, momenta: &BranchMomenta) -> f32 {
         let mut dot_p = Array::new(&[0.0], dim4!(1, 1, 1, 1));
         for ix in 0..self.num_layers() {
             if self.weights(ix).is_vector() {
@@ -164,11 +164,11 @@ pub trait Branch {
         let mut wrt_weights = Vec::with_capacity(self.num_layers());
         let mut wrt_biases = Vec::with_capacity(self.num_layers() - 1);
         for index in 0..self.num_layers() - 1 {
-            wrt_weights.push(arrayfire::randn::<f64>(self.weights(index).dims()));
-            wrt_biases.push(arrayfire::randn::<f64>(self.biases(index).dims()));
+            wrt_weights.push(arrayfire::randn::<f32>(self.weights(index).dims()));
+            wrt_biases.push(arrayfire::randn::<f32>(self.biases(index).dims()));
         }
         // output layer weight momentum
-        wrt_weights.push(arrayfire::randn::<f64>(
+        wrt_weights.push(arrayfire::randn::<f32>(
             self.weights(self.num_layers() - 1).dims(),
         ));
         BranchMomenta {
@@ -177,17 +177,17 @@ pub trait Branch {
         }
     }
 
-    fn random_step_sizes(&mut self, const_factor: f64) -> StepSizes {
+    fn random_step_sizes(&mut self, const_factor: f32) -> StepSizes {
         let mut wrt_weights = Vec::with_capacity(self.num_layers());
         let mut wrt_biases = Vec::with_capacity(self.num_layers() - 1);
-        let prop_factor = (self.num_params() as f64).powf(-0.25) * const_factor;
+        let prop_factor = (self.num_params() as f32).powf(-0.25) * const_factor;
 
         for index in 0..self.num_layers() {
-            wrt_weights.push(randu::<f64>(self.weights(index).dims()) * prop_factor);
+            wrt_weights.push(randu::<f32>(self.weights(index).dims()) * prop_factor);
         }
 
         for index in 0..(self.num_layers() - 1) {
-            wrt_biases.push(randu::<f64>(self.biases(index).dims()) * prop_factor);
+            wrt_biases.push(randu::<f32>(self.biases(index).dims()) * prop_factor);
         }
         StepSizes {
             wrt_weights,
@@ -195,7 +195,7 @@ pub trait Branch {
         }
     }
 
-    fn uniform_step_sizes(&self, val: f64) -> StepSizes {
+    fn uniform_step_sizes(&self, val: f32) -> StepSizes {
         let mut wrt_weights = Vec::with_capacity(self.num_layers());
         let mut wrt_biases = Vec::with_capacity(self.num_layers() - 1);
         for index in 0..self.num_layers() - 1 {
@@ -220,12 +220,12 @@ pub trait Branch {
     }
 
     /// Sets step sizes proportional to the prior standard deviation of each parameter.
-    fn std_scaled_step_sizes(&self, const_factor: f64) -> StepSizes;
+    fn std_scaled_step_sizes(&self, const_factor: f32) -> StepSizes;
 
     fn izmailov_step_sizes(&mut self, integration_length: usize) -> StepSizes;
 
-    fn forward_feed(&self, x_train: &Array<f64>) -> Vec<Array<f64>> {
-        let mut activations: Vec<Array<f64>> = Vec::with_capacity(self.num_layers() - 1);
+    fn forward_feed(&self, x_train: &Array<f32>) -> Vec<Array<f32>> {
+        let mut activations: Vec<Array<f32>> = Vec::with_capacity(self.num_layers() - 1);
         activations.push(self.mid_layer_activation(0, x_train));
         for layer_index in 1..self.num_layers() - 1 {
             activations.push(self.mid_layer_activation(layer_index, activations.last().unwrap()));
@@ -234,7 +234,7 @@ pub trait Branch {
         activations
     }
 
-    fn mid_layer_activation(&self, layer_index: usize, input: &Array<f64>) -> Array<f64> {
+    fn mid_layer_activation(&self, layer_index: usize, input: &Array<f32>) -> Array<f32> {
         let xw = matmul(
             input,
             self.weights(layer_index),
@@ -249,7 +249,7 @@ pub trait Branch {
         tanh(&(xw + bias_m))
     }
 
-    fn output_neuron_activation(&self, input: &Array<f64>) -> Array<f64> {
+    fn output_neuron_activation(&self, input: &Array<f32>) -> Array<f32> {
         matmul(
             input,
             self.weights(self.num_layers() - 1),
@@ -260,14 +260,14 @@ pub trait Branch {
 
     fn backpropagate(
         &self,
-        x_train: &Array<f64>,
-        y_train: &Array<f64>,
-    ) -> (Vec<Array<f64>>, Vec<Array<f64>>) {
+        x_train: &Array<f32>,
+        y_train: &Array<f32>,
+    ) -> (Vec<Array<f32>>, Vec<Array<f32>>) {
         // forward propagate to get signals
         let activations = self.forward_feed(x_train);
 
-        let mut bias_gradient: Vec<Array<f64>> = Vec::with_capacity(self.num_layers() - 1);
-        let mut weights_gradient: Vec<Array<f64>> = Vec::with_capacity(self.num_layers());
+        let mut bias_gradient: Vec<Array<f32>> = Vec::with_capacity(self.num_layers() - 1);
+        let mut weights_gradient: Vec<Array<f32>> = Vec::with_capacity(self.num_layers());
         // back propagate
         let mut activation = activations.last().unwrap();
 
@@ -289,7 +289,7 @@ pub trait Branch {
         for layer_index in (1..self.num_layers() - 1).rev() {
             let input = &activations[layer_index - 1];
             activation = &activations[layer_index];
-            let delta: Array<f64> = (1 - arrayfire::pow(activation, &2, false)) * error;
+            let delta: Array<f32> = (1 - arrayfire::pow(activation, &2, false)) * error;
             bias_gradient.push(arrayfire::sum(&delta, 0));
             weights_gradient.push(arrayfire::transpose(
                 &matmul(&delta, input, MatProp::TRANS, MatProp::NONE),
@@ -303,7 +303,7 @@ pub trait Branch {
             );
         }
 
-        let delta: Array<f64> = (1 - arrayfire::pow(&activations[0], &2, false)) * error;
+        let delta: Array<f32> = (1 - arrayfire::pow(&activations[0], &2, false)) * error;
         bias_gradient.push(arrayfire::sum(&delta, 0));
         weights_gradient.push(arrayfire::transpose(
             &matmul(&delta, x_train, MatProp::TRANS, MatProp::NONE),
@@ -317,16 +317,16 @@ pub trait Branch {
     }
 
     // this is -H = (-U(q)) + (-K(p))
-    fn neg_hamiltonian(&self, momenta: &BranchMomenta, x: &Array<f64>, y: &Array<f64>) -> f64 {
+    fn neg_hamiltonian(&self, momenta: &BranchMomenta, x: &Array<f32>, y: &Array<f32>) -> f32 {
         self.log_density(self.params(), self.hyperparams(), self.rss(x, y)) - momenta.log_density()
     }
 
-    fn rss(&self, x: &Array<f64>, y: &Array<f64>) -> f64 {
+    fn rss(&self, x: &Array<f32>, y: &Array<f32>) -> f32 {
         let r = self.forward_feed(x).last().unwrap() - y;
         arrayfire::sum_all(&(&r * &r)).0
     }
 
-    fn predict(&self, x: &Array<f64>) -> Array<f64> {
+    fn predict(&self, x: &Array<f32>) -> Array<f32> {
         self.forward_feed(x).last().unwrap().copy()
     }
 
@@ -334,8 +334,8 @@ pub trait Branch {
     /// Returns `false` if final state is rejected, `true` if accepted.
     fn hmc_step(
         &mut self,
-        x_train: &Array<f64>,
-        y_train: &Array<f64>,
+        x_train: &Array<f32>,
+        y_train: &Array<f32>,
         mcmc_cfg: &MCMCCfg,
     ) -> HMCStepResult {
         let mut traj_file = None;
@@ -457,8 +457,8 @@ pub trait Branch {
 /// Gradients of the log density w.r.t. the network parameters.
 #[derive(Clone)]
 pub struct BranchLogDensityGradient {
-    pub wrt_weights: Vec<Array<f64>>,
-    pub wrt_biases: Vec<Array<f64>>,
+    pub wrt_weights: Vec<Array<f32>>,
+    pub wrt_biases: Vec<Array<f32>>,
 }
 
 impl BranchLogDensityGradient {
@@ -473,7 +473,7 @@ impl BranchLogDensityGradient {
         res
     }
 
-    pub(crate) fn param_vec(&self) -> Vec<f64> {
+    pub(crate) fn param_vec(&self) -> Vec<f32> {
         let mut host_vec = Vec::new();
         host_vec.resize(self.num_params(), 0.);
         let mut insert_ix: usize = 0;
@@ -496,12 +496,12 @@ pub struct BranchCfg {
     pub(crate) num_params: usize,
     pub(crate) num_markers: usize,
     pub(crate) layer_widths: Vec<usize>,
-    pub(crate) params: Vec<f64>,
+    pub(crate) params: Vec<f32>,
     pub(crate) hyperparams: BranchHyperparams,
 }
 
 impl BranchCfg {
-    pub fn params(&self) -> &Vec<f64> {
+    pub fn params(&self) -> &Vec<f32> {
         &self.params
     }
 }
@@ -519,14 +519,18 @@ pub struct BranchMeta {
     pub(crate) num_params: usize,
     pub(crate) num_markers: usize,
     pub(crate) layer_widths: Vec<usize>,
+    pub(crate) prior_shape: f32,
+    pub(crate) prior_scale: f32,
 }
 
 impl BranchMeta {
-    pub fn from_cfg(cfg: &BranchCfg) -> Self {
+    pub fn from_cfg(cfg: &BranchCfg, prior_shape: f32, prior_scale: f32) -> Self {
         Self {
             num_params: cfg.num_params,
             num_markers: cfg.num_markers,
             layer_widths: cfg.layer_widths.clone(),
+            prior_shape,
+            prior_scale,
         }
     }
 }

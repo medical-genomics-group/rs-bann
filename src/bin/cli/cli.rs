@@ -49,7 +49,7 @@ pub(crate) struct SimulateArgs {
     pub branch_depth: usize,
 
     /// heritability (determines amount of Gaussian noise added), must be in [0, 1]
-    pub heritability: Option<f64>,
+    pub heritability: Option<f32>,
 }
 
 impl SimulateArgs {
@@ -78,13 +78,13 @@ pub(crate) struct TrainArgs {
     pub chain_length: usize,
 
     /// hmc max hamiltonian error
-    pub max_hamiltonian_error: f64,
+    pub max_hamiltonian_error: f32,
 
     /// hmc integration length
     pub integration_length: usize,
 
     /// hmc step size, acts as a modifying factor on random step sizes if enabled
-    pub step_size: f64,
+    pub step_size: f32,
 
     #[clap(default_value_t = 1, long)]
     /// training stats report interval
@@ -92,11 +92,11 @@ pub(crate) struct TrainArgs {
 
     #[clap(default_value_t = 1., long)]
     /// prior shape
-    pub prior_shape: f64,
+    pub prior_shape: f32,
 
     #[clap(default_value_t = 1., long)]
     /// prior scale
-    pub prior_scale: f64,
+    pub prior_scale: f32,
 
     /// Output path
     #[clap(short, long)]
@@ -154,10 +154,10 @@ pub(crate) struct AFArgs {
     pub chain_length: usize,
 
     /// max hamiltonian error
-    pub max_hamiltonian_error: f64,
+    pub max_hamiltonian_error: f32,
 
     /// hmc step size, acts as a modifying factor on random or scaled step size if enables
-    pub step_size: f64,
+    pub step_size: f32,
 
     /// enable random step sizes
     #[clap(short, long)]

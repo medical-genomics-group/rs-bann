@@ -6,14 +6,14 @@ pub mod network;
 
 use arrayfire::Array;
 
-pub(crate) fn to_host(a: &Array<f64>) -> Vec<f64> {
-    let mut buffer = Vec::<f64>::new();
+pub(crate) fn to_host(a: &Array<f32>) -> Vec<f32> {
+    let mut buffer = Vec::<f32>::new();
     buffer.resize(a.elements(), 0.);
     a.host(&mut buffer);
     buffer
 }
 
-pub(crate) fn scalar_to_host(a: &Array<f64>) -> f64 {
+pub(crate) fn scalar_to_host(a: &Array<f32>) -> f32 {
     let mut host_data = vec![0.0];
     a.host(&mut host_data);
     host_data[0]

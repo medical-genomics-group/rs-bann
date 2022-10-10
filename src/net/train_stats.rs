@@ -25,8 +25,8 @@ pub(crate) struct TrainingStats {
     pub(crate) num_samples: usize,
     pub(crate) num_accepted: usize,
     pub(crate) num_early_rejected: usize,
-    pub(crate) mse_train: Vec<f64>,
-    pub(crate) mse_test: Option<Vec<f64>>,
+    pub(crate) mse_train: Vec<f32>,
+    pub(crate) mse_test: Option<Vec<f32>>,
 }
 
 impl TrainingStats {
@@ -49,28 +49,28 @@ impl TrainingStats {
         }
     }
 
-    pub(crate) fn add_mse_test(&mut self, mse: f64) {
+    pub(crate) fn add_mse_test(&mut self, mse: f32) {
         if self.mse_test.is_none() {
             self.mse_test = Some(Vec::new());
         }
         self.mse_test.as_mut().unwrap().push(mse);
     }
 
-    pub(crate) fn add_mse_train(&mut self, mse: f64) {
+    pub(crate) fn add_mse_train(&mut self, mse: f32) {
         self.mse_train.push(mse);
     }
 
-    pub(crate) fn acceptance_rate(&self) -> f64 {
-        self.num_accepted as f64 / self.num_samples as f64
+    pub(crate) fn acceptance_rate(&self) -> f32 {
+        self.num_accepted as f32 / self.num_samples as f32
     }
 
-    pub(crate) fn early_rejection_rate(&self) -> f64 {
-        self.num_early_rejected as f64 / self.num_samples as f64
+    pub(crate) fn early_rejection_rate(&self) -> f32 {
+        self.num_early_rejected as f32 / self.num_samples as f32
     }
 
-    pub(crate) fn end_rejection_rate(&self) -> f64 {
-        (self.num_samples - self.num_early_rejected - self.num_accepted) as f64
-            / self.num_samples as f64
+    pub(crate) fn end_rejection_rate(&self) -> f32 {
+        (self.num_samples - self.num_early_rejected - self.num_accepted) as f32
+            / self.num_samples as f32
     }
 
     pub(crate) fn to_file(&self, outdir: &String) {

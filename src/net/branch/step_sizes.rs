@@ -3,8 +3,8 @@ use std::fmt;
 
 #[derive(Clone)]
 pub struct StepSizes {
-    pub wrt_weights: Vec<Array<f64>>,
-    pub wrt_biases: Vec<Array<f64>>,
+    pub wrt_weights: Vec<Array<f32>>,
+    pub wrt_biases: Vec<Array<f32>>,
 }
 
 impl fmt::Debug for StepSizes {
@@ -14,7 +14,7 @@ impl fmt::Debug for StepSizes {
 }
 
 impl StepSizes {
-    fn param_vec(&self) -> Vec<f64> {
+    fn param_vec(&self) -> Vec<f32> {
         let mut host_vec = Vec::new();
         host_vec.resize(self.num_params(), 0.);
         let mut insert_ix: usize = 0;
