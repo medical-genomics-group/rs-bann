@@ -90,11 +90,11 @@ fn simulate(args: SimulateArgs) {
 
     info!("Generating random marker data");
     let gt_per_branch = args.num_markers_per_branch * args.num_individuals;
-    let mut x_train: Vec<Vec<f64>> = vec![vec![0.0; gt_per_branch]; args.num_branches];
-    let mut x_test: Vec<Vec<f64>> = vec![vec![0.0; gt_per_branch]; args.num_branches];
-    let mut x_means: Vec<Vec<f64>> =
+    let mut x_train: Vec<Vec<f32>> = vec![vec![0.0; gt_per_branch]; args.num_branches];
+    let mut x_test: Vec<Vec<f32>> = vec![vec![0.0; gt_per_branch]; args.num_branches];
+    let mut x_means: Vec<Vec<f32>> =
         vec![vec![0.0; args.num_markers_per_branch]; args.num_branches];
-    let mut x_stds: Vec<Vec<f64>> = vec![vec![0.0; args.num_markers_per_branch]; args.num_branches];
+    let mut x_stds: Vec<Vec<f32>> = vec![vec![0.0; args.num_markers_per_branch]; args.num_branches];
     for branch_ix in 0..args.num_branches {
         for marker_ix in 0..args.num_markers_per_branch {
             let maf = Uniform::from(0.0..0.5).sample(&mut rng);
@@ -104,14 +104,14 @@ fn simulate(args: SimulateArgs) {
             let binom = Binomial::new(2, maf).unwrap();
             (0..args.num_individuals).for_each(|i| {
                 x_train[branch_ix][marker_ix * args.num_individuals + i] =
-                    binom.sample(&mut rng) as f64
+                    binom.sample(&mut rng) as f32
             });
 
             let maf = Uniform::from(0.0..0.5).sample(&mut rng);
             let binom = Binomial::new(2, maf).unwrap();
             (0..args.num_individuals).for_each(|i| {
                 x_test[branch_ix][marker_ix * args.num_individuals + i] =
-                    binom.sample(&mut rng) as f64
+                    binom.sample(&mut rng) as f32
             });
         }
     }
@@ -126,7 +126,7 @@ fn simulate(args: SimulateArgs) {
         let rv_train_dist = Normal::new(0.0, train_residual_variance.sqrt()).unwrap();
         y_train
             .iter_mut()
-            .for_each(|e| *e += rv_train_dist.sample(&mut rng) as f64);
+            .for_each(|e| *e += rv_train_dist.sample(&mut rng) as f32);
         info!("Train data: Added residual variance of {:2} to variance explained {:2} (total variance: {:2})", train_residual_variance, s2_train, (&y_train).variance());
 
         let s2_test = (&y_test).variance();
@@ -134,7 +134,7 @@ fn simulate(args: SimulateArgs) {
         let rv_test_dist = Normal::new(0.0, test_residual_variance.sqrt()).unwrap();
         y_test
             .iter_mut()
-            .for_each(|e| *e += rv_test_dist.sample(&mut rng) as f64);
+            .for_each(|e| *e += rv_test_dist.sample(&mut rng) as f32);
         info!("Test data: Added residual variance of {:2} to variance explained {:2} (total variance: {:2})", test_residual_variance, s2_test, (&y_test).variance());
     }
 
@@ -265,16 +265,16 @@ fn train(args: TrainArgs) {
 //     info!("Starting af test");
 
 //     // make random data
-//     let w0: Array<f64> = randn(dim4![
+//     let w0: Array<f32> = randn(dim4![
 //         args.num_markers as u64,
 //         args.hidden_layer_width as u64,
 //         1,
 //         1
 //     ]);
-//     let w1: Array<f64> = randn(dim4![args.hidden_layer_width as u64, 1, 1, 1]);
-//     let w2: Array<f64> = randn(dim4![1, 1, 1, 1]);
-//     let b0: Array<f64> = randn(dim4![1, args.hidden_layer_width as u64, 1, 1]);
-//     let b1: Array<f64> = randn(dim4![1, 1, 1, 1]);
+//     let w1: Array<f32> = randn(dim4![args.hidden_layer_width as u64, 1, 1, 1]);
+//     let w2: Array<f32> = randn(dim4![1, 1, 1, 1]);
+//     let b0: Array<f32> = randn(dim4![1, args.hidden_layer_width as u64, 1, 1]);
+//     let b1: Array<f32> = randn(dim4![1, 1, 1, 1]);
 //     let true_net = BranchBuilder::new()
 //         .with_num_markers(args.num_markers as usize)
 //         .add_hidden_layer(args.hidden_layer_width as usize)
@@ -285,14 +285,14 @@ fn train(args: TrainArgs) {
 //         .add_output_weight(&w2)
 //         .build();
 
-//     let x_train: Array<f64> = randn(dim4![
+//     let x_train: Array<f32> = randn(dim4![
 //         args.num_individuals as u64,
 //         args.num_markers as u64,
 //         1,
 //         1
 //     ]);
 //     let y_train = true_net.predict(&x_train);
-//     let x_test: Array<f64> = randn(dim4![
+//     let x_test: Array<f32> = randn(dim4![
 //         args.num_individuals as u64,
 //         args.num_markers as u64,
 //         1,
@@ -341,7 +341,7 @@ fn train(args: TrainArgs) {
 //         }
 //     }
 
-//     let acceptance_rate: f64 = accepted_samples as f64 / args.chain_length as f64;
+//     let acceptance_rate: f32 = accepted_samples as f32 / args.chain_length as f32;
 //     info!("Finished. Overall acceptance rate: {:?}", acceptance_rate);
 // }
 
@@ -373,5 +373,5 @@ fn train(args: TrainArgs) {
 //         mg.set_params(&new_pos);
 //     }
 //     mg.forget_marker_data();
-//     dbg!(n_rejected as f64 / n_samples as f64);
+//     dbg!(n_rejected as f32 / n_samples as f32);
 // }

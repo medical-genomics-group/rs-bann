@@ -7,13 +7,13 @@ use std::fmt;
 
 #[derive(Clone)]
 pub struct BranchHyperparams {
-    pub weight_precisions: Vec<Array<f64>>,
-    pub bias_precisions: Vec<f64>,
-    pub error_precision: f64,
+    pub weight_precisions: Vec<Array<f32>>,
+    pub bias_precisions: Vec<f32>,
+    pub error_precision: f32,
 }
 
 impl BranchHyperparams {
-    fn weight_precisions_to_host(&self) -> Vec<Vec<f64>> {
+    fn weight_precisions_to_host(&self) -> Vec<Vec<f32>> {
         let mut res = Vec::with_capacity(self.weight_precisions.len());
         for arr in &self.weight_precisions {
             res.push(to_host(arr));
@@ -39,8 +39,8 @@ impl Serialize for BranchHyperparams {
 /// Weights and biases
 #[derive(Clone)]
 pub struct BranchParams {
-    pub weights: Vec<Array<f64>>,
-    pub biases: Vec<Array<f64>>,
+    pub weights: Vec<Array<f32>>,
+    pub biases: Vec<Array<f32>>,
 }
 
 impl fmt::Debug for BranchParams {
@@ -51,12 +51,12 @@ impl fmt::Debug for BranchParams {
 
 impl BranchParams {
     pub fn from_param_vec(
-        param_vec: &[f64],
+        param_vec: &[f32],
         layer_widths: &Vec<usize>,
         num_markers: usize,
     ) -> Self {
-        let mut weights: Vec<Array<f64>> = vec![];
-        let mut biases: Vec<Array<f64>> = vec![];
+        let mut weights: Vec<Array<f32>> = vec![];
+        let mut biases: Vec<Array<f32>> = vec![];
         let mut prev_width = num_markers;
         let mut read_ix: usize = 0;
         for width in layer_widths {
@@ -81,7 +81,7 @@ impl BranchParams {
 
     pub fn load_param_vec(
         &mut self,
-        param_vec: &[f64],
+        param_vec: &[f32],
         layer_widths: &Vec<usize>,
         num_markers: usize,
     ) {
@@ -106,7 +106,7 @@ impl BranchParams {
         }
     }
 
-    pub fn param_vec(&self) -> Vec<f64> {
+    pub fn param_vec(&self) -> Vec<f32> {
         let mut host_vec = Vec::new();
         host_vec.resize(self.num_params(), 0.);
         let mut insert_ix: usize = 0;
@@ -143,11 +143,11 @@ impl BranchParams {
         }
     }
 
-    pub fn weights(&self, index: usize) -> &Array<f64> {
+    pub fn weights(&self, index: usize) -> &Array<f32> {
         &self.weights[index]
     }
 
-    pub fn biases(&self, index: usize) -> &Array<f64> {
+    pub fn biases(&self, index: usize) -> &Array<f32> {
         &self.biases[index]
     }
 }

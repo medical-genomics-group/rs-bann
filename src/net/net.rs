@@ -18,42 +18,42 @@ use std::{
 };
 
 pub struct OutputBias {
-    pub(crate) precision: f64,
-    pub(crate) bias: f64,
+    pub(crate) precision: f32,
+    pub(crate) bias: f32,
 }
 
 impl OutputBias {
     fn sample_bias(
         &mut self,
-        error_precision: f64,
-        residual: &Array<f64>,
+        error_precision: f32,
+        residual: &Array<f32>,
         n: usize,
         rng: &mut ThreadRng,
     ) {
         let (sum_r, _) = sum_all(residual);
-        let nu = error_precision / (n as f64 * error_precision + self.precision);
+        let nu = error_precision / (n as f32 * error_precision + self.precision);
         let mean = nu * sum_r;
-        let std = (1. / (n as f64 * error_precision + self.precision)).sqrt();
+        let std = (1. / (n as f32 * error_precision + self.precision)).sqrt();
         self.bias = Normal::new(mean, std).unwrap().sample(rng);
     }
 
-    fn sample_precision(&mut self, prior_shape: f64, prior_scale: f64, rng: &mut ThreadRng) {
+    fn sample_precision(&mut self, prior_shape: f32, prior_scale: f32, rng: &mut ThreadRng) {
         self.precision = single_param_precision_posterior(prior_shape, prior_scale, self.bias, rng);
     }
 
-    fn af_bias(&self) -> Array<f64> {
+    fn af_bias(&self) -> Array<f32> {
         Array::new(&[self.bias], dim4!(1, 1, 1, 1))
     }
 }
 
 /// The full network model
 pub struct Net<B: Branch> {
-    pub(crate) precision_prior_shape: f64,
-    pub(crate) precision_prior_scale: f64,
+    pub(crate) precision_prior_shape: f32,
+    pub(crate) precision_prior_scale: f32,
     pub(crate) num_branches: usize,
     pub(crate) branch_cfgs: Vec<BranchCfg>,
     pub(crate) output_bias: OutputBias,
-    pub(crate) error_precision: f64,
+    pub(crate) error_precision: f32,
     pub(crate) training_stats: TrainingStats,
     pub(crate) branch_type: PhantomData<B>,
 }
@@ -78,7 +78,15 @@ impl<B: Branch> Net<B> {
     // TODO: do not assume that all branches are the same!
     pub fn write_meta(&self, mcmc_cfg: &MCMCCfg) {
         let w = BufWriter::new(File::create(mcmc_cfg.meta_path()).unwrap());
-        to_writer(w, &BranchMeta::from_cfg(&self.branch_cfgs[0])).unwrap();
+        to_writer(
+            w,
+            &BranchMeta::from_cfg(
+                &self.branch_cfgs[0],
+                self.precision_prior_shape,
+                self.precision_prior_scale,
+            ),
+        )
+        .unwrap();
     }
 
     // X has to be column major!
@@ -191,7 +199,7 @@ impl<B: Branch> Net<B> {
     }
 
     // TODO: predict using posterior predictive distribution instead of point estimate
-    pub fn predict(&self, x_test: &Vec<Vec<f64>>, num_individuals: usize) -> Vec<f64> {
+    pub fn predict(&self, x_test: &Vec<Vec<f32>>, num_individuals: usize) -> Vec<f32> {
         // I expect X to be column major
         let mut y_hat = Array::new(
             &vec![0.0; num_individuals],
@@ -218,12 +226,12 @@ impl<B: Branch> Net<B> {
         }
     }
 
-    fn residual(&self, x: &Vec<Vec<f64>>, y: &Array<f64>) -> Array<f64> {
+    fn residual(&self, x: &Vec<Vec<f32>>, y: &Array<f32>) -> Array<f32> {
         y - self.predict_device(x, y.elements())
     }
 
     // TODO: predict using posterior predictive distribution instead of point estimate
-    fn predict_device(&self, x_test: &Vec<Vec<f64>>, num_individuals: usize) -> Array<f64> {
+    fn predict_device(&self, x_test: &Vec<Vec<f32>>, num_individuals: usize) -> Array<f32> {
         // I expect X to be column major
         let mut y_hat = Array::new(
             &vec![0.0; num_individuals],
@@ -243,15 +251,15 @@ impl<B: Branch> Net<B> {
         y_hat
     }
 
-    pub fn rss(&self, data: &Data) -> f64 {
+    pub fn rss(&self, data: &Data) -> f32 {
         let y_test_arr = Array::new(&data.y, dim4!(data.y.len() as u64, 1, 1, 1));
         let y_hat = self.predict_device(&data.x, data.y.len());
         let residual = y_test_arr - y_hat;
         super::gibbs_steps::sum_of_squares(&residual)
     }
 
-    pub fn mse(&self, data: &Data) -> f64 {
-        self.rss(data) / data.num_individuals() as f64
+    pub fn mse(&self, data: &Data) -> f32 {
+        self.rss(data) / data.num_individuals() as f32
     }
 
     fn report_training_state(&self, iteration: usize) {
