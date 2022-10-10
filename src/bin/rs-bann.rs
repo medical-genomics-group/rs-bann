@@ -101,7 +101,7 @@ fn simulate(args: SimulateArgs) {
             x_means[branch_ix][marker_ix] = 2. * maf;
             x_stds[branch_ix][marker_ix] = (2. * maf * (1. - maf)).sqrt();
 
-            let binom = Binomial::new(2, maf).unwrap();
+            let binom = Binomial::new(2, maf as f64).unwrap();
             (0..args.num_individuals).for_each(|i| {
                 x_train[branch_ix][marker_ix * args.num_individuals + i] =
                     binom.sample(&mut rng) as f32
@@ -121,21 +121,18 @@ fn simulate(args: SimulateArgs) {
     let mut y_test = net.predict(&x_test, args.num_individuals);
 
     if let Some(h) = args.heritability {
-        let s2_train = (&y_train).variance();
-        let train_residual_variance = s2_train * (1. / h - 1.);
+        let s2_train = (&y_train.iter().map(|e| *e as f64).collect::<Vec<f64>>()).variance();
+        let train_residual_variance = s2_train * (1. / h as f64 - 1.);
         let rv_train_dist = Normal::new(0.0, train_residual_variance.sqrt()).unwrap();
         y_train
             .iter_mut()
             .for_each(|e| *e += rv_train_dist.sample(&mut rng) as f32);
-        info!("Train data: Added residual variance of {:2} to variance explained {:2} (total variance: {:2})", train_residual_variance, s2_train, (&y_train).variance());
-
-        let s2_test = (&y_test).variance();
-        let test_residual_variance = s2_test * (1. / h - 1.);
+        let s2_test = (&y_test.iter().map(|e| *e as f64).collect::<Vec<f64>>()).variance();
+        let test_residual_variance = s2_test * (1. / h as f64 - 1.);
         let rv_test_dist = Normal::new(0.0, test_residual_variance.sqrt()).unwrap();
         y_test
             .iter_mut()
             .for_each(|e| *e += rv_test_dist.sample(&mut rng) as f32);
-        info!("Test data: Added residual variance of {:2} to variance explained {:2} (total variance: {:2})", test_residual_variance, s2_test, (&y_test).variance());
     }
 
     Data::new(

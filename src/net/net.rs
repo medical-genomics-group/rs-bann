@@ -219,6 +219,13 @@ impl<B: Branch> Net<B> {
         to_host(&y_hat)
     }
 
+    pub fn predict_f64(&self, x_test: &Vec<Vec<f32>>, num_individuals: usize) -> Vec<f64> {
+        self.predict(x_test, num_individuals)
+            .iter()
+            .map(|e| *e as f64)
+            .collect()
+    }
+
     fn record_mse(&mut self, train_data: &Data, test_data: Option<&Data>) {
         self.training_stats.add_mse_train(self.mse(train_data));
         if let Some(tst) = test_data {

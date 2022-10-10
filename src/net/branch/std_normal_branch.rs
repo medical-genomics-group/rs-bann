@@ -128,7 +128,7 @@ impl Branch for StdNormalBranch {
         for index in 0..self.num_layers() {
             wrt_weights.push(
                 std::f32::consts::PI
-                    / (2.
+                    / (2f32
                         * sqrt(&self.hyperparams().weight_precisions[index])
                         * integration_length as f32),
             );
@@ -180,7 +180,7 @@ impl Branch for StdNormalBranch {
         }
         for layer_index in 0..self.num_layers() - 1 {
             ldg_wrt_biases.push(
-                -1. * self.biases(layer_index)
+                -1f32 * self.biases(layer_index)
                     - self.error_precision() * &d_rss_wrt_biases[layer_index],
             );
         }

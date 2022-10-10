@@ -129,7 +129,7 @@ impl Branch for BaseBranch {
         for index in 0..self.num_layers() {
             wrt_weights.push(
                 std::f32::consts::PI
-                    / (2.
+                    / (2f32
                         * sqrt(&self.hyperparams().weight_precisions[index])
                         * integration_length as f32),
             );

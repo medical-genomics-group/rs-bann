@@ -115,7 +115,7 @@ impl Branch for ArdBranch {
         for index in 0..self.num_layers() {
             wrt_weights.push(tile(
                 &(std::f32::consts::PI
-                    / (2.
+                    / (2f32
                         * sqrt(&self.hyperparams().weight_precisions[index])
                         * integration_length as f32)),
                 dim4!(1, self.layer_widths[index] as u64, 1, 1),
