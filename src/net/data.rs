@@ -9,10 +9,10 @@ use std::{
 
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub struct Data {
-    pub x: Vec<Vec<f32>>,
-    pub y: Vec<f32>,
-    pub x_means: Vec<Vec<f32>>,
-    pub x_stds: Vec<Vec<f32>>,
+    pub x: Vec<Vec<f64>>,
+    pub y: Vec<f64>,
+    pub x_means: Vec<Vec<f64>>,
+    pub x_stds: Vec<Vec<f64>>,
     num_markers_per_branch: usize,
     num_individuals: usize,
     standardized: bool,
@@ -20,10 +20,10 @@ pub struct Data {
 
 impl Data {
     pub fn new(
-        x: Vec<Vec<f32>>,
-        y: Vec<f32>,
-        x_means: Vec<Vec<f32>>,
-        x_stds: Vec<Vec<f32>>,
+        x: Vec<Vec<f64>>,
+        y: Vec<f64>,
+        x_means: Vec<Vec<f64>>,
+        x_stds: Vec<Vec<f64>>,
         num_markers_per_branch: usize,
         num_individuals: usize,
         standardized: bool,

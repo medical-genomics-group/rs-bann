@@ -14,9 +14,9 @@ pub struct BlockNetCfg<B: Branch> {
     num_markers: Vec<usize>,
     depth: usize,
     widths: Vec<usize>,
-    precision_prior_shape: f32,
-    precision_prior_scale: f32,
-    initial_random_range: f32,
+    precision_prior_shape: f64,
+    precision_prior_scale: f64,
+    initial_random_range: f64,
     branch_type: PhantomData<B>,
 }
 
@@ -45,13 +45,13 @@ impl<B: Branch> BlockNetCfg<B> {
         self
     }
 
-    pub fn with_precision_prior(mut self, shape: f32, scale: f32) -> Self {
+    pub fn with_precision_prior(mut self, shape: f64, scale: f64) -> Self {
         self.precision_prior_shape = shape;
         self.precision_prior_scale = scale;
         self
     }
 
-    pub fn with_initial_random_range(mut self, val: f32) -> Self {
+    pub fn with_initial_random_range(mut self, val: f64) -> Self {
         self.initial_random_range = val;
         self
     }

@@ -88,11 +88,11 @@ impl Branch for StdNormalBranch {
         self.layer_widths[index]
     }
 
-    fn set_error_precision(&mut self, val: f32) {
+    fn set_error_precision(&mut self, val: f64) {
         self.hyperparams.error_precision = val;
     }
 
-    fn std_scaled_step_sizes(&self, const_factor: f32) -> StepSizes {
+    fn std_scaled_step_sizes(&self, const_factor: f64) -> StepSizes {
         let mut wrt_weights = Vec::with_capacity(self.num_layers());
         let mut wrt_biases = Vec::with_capacity(self.num_layers() - 1);
 
@@ -122,25 +122,25 @@ impl Branch for StdNormalBranch {
     }
 
     fn izmailov_step_sizes(&mut self, integration_length: usize) -> StepSizes {
-        let mut wrt_weights: Vec<Array<f32>> = Vec::with_capacity(self.num_layers());
+        let mut wrt_weights: Vec<Array<f64>> = Vec::with_capacity(self.num_layers());
         let mut wrt_biases = Vec::with_capacity(self.num_layers() - 1);
 
         for index in 0..self.num_layers() {
             wrt_weights.push(
-                std::f32::consts::PI
+                std::f64::consts::PI
                     / (2.
                         * sqrt(&self.hyperparams().weight_precisions[index])
-                        * integration_length as f32),
+                        * integration_length as f64),
             );
         }
 
         for index in 0..self.num_layers() - 1 {
             wrt_biases.push(Array::new(
                 &vec![
-                    std::f32::consts::PI
+                    std::f64::consts::PI
                         / (2.
                             * &self.hyperparams().bias_precisions[index].sqrt()
-                            * integration_length as f32);
+                            * integration_length as f64);
                     self.biases(index).elements()
                 ],
                 self.biases(index).dims(),
@@ -153,8 +153,8 @@ impl Branch for StdNormalBranch {
         }
     }
 
-    fn log_density(&self, params: &BranchParams, hyperparams: &BranchHyperparams, rss: f32) -> f32 {
-        let mut log_density: f32 = -0.5 * hyperparams.error_precision * rss;
+    fn log_density(&self, params: &BranchParams, hyperparams: &BranchHyperparams, rss: f64) -> f64 {
+        let mut log_density: f64 = -0.5 * hyperparams.error_precision * rss;
         for i in 0..self.num_layers() {
             log_density -= 0.5 * arrayfire::sum_all(&(params.weights(i) * params.weights(i))).0;
         }
@@ -166,12 +166,12 @@ impl Branch for StdNormalBranch {
 
     fn log_density_gradient(
         &self,
-        x_train: &Array<f32>,
-        y_train: &Array<f32>,
+        x_train: &Array<f64>,
+        y_train: &Array<f64>,
     ) -> BranchLogDensityGradient {
         let (d_rss_wrt_weights, d_rss_wrt_biases) = self.backpropagate(x_train, y_train);
-        let mut ldg_wrt_weights: Vec<Array<f32>> = Vec::with_capacity(self.num_layers);
-        let mut ldg_wrt_biases: Vec<Array<f32>> = Vec::with_capacity(self.num_layers - 1);
+        let mut ldg_wrt_weights: Vec<Array<f64>> = Vec::with_capacity(self.num_layers);
+        let mut ldg_wrt_biases: Vec<Array<f64>> = Vec::with_capacity(self.num_layers - 1);
         for layer_index in 0..self.num_layers() {
             ldg_wrt_weights.push(
                 -(self.error_precision() * &d_rss_wrt_weights[layer_index]
@@ -192,5 +192,5 @@ impl Branch for StdNormalBranch {
     }
 
     /// Samples precision values from their posterior distribution in a Gibbs step.
-    fn sample_precisions(&mut self, _prior_shape: f32, _prior_scale: f32) {}
+    fn sample_precisions(&mut self, _prior_shape: f64, _prior_scale: f64) {}
 }

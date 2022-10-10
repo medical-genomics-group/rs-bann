@@ -9,9 +9,9 @@ pub struct BranchCfgBuilder {
     num_markers: usize,
     layer_widths: Vec<usize>,
     num_layers: usize,
-    initial_weight_value: Option<f32>,
-    initial_bias_value: Option<f32>,
-    initial_random_range: f32,
+    initial_weight_value: Option<f64>,
+    initial_bias_value: Option<f64>,
+    initial_random_range: f64,
 }
 
 impl BranchCfgBuilder {
@@ -38,17 +38,17 @@ impl BranchCfgBuilder {
         self.num_layers += 1;
     }
 
-    pub fn with_initial_random_range(mut self, range: f32) -> Self {
+    pub fn with_initial_random_range(mut self, range: f64) -> Self {
         self.initial_random_range = range;
         self
     }
 
-    pub fn with_initial_weights_value(mut self, value: f32) -> Self {
+    pub fn with_initial_weights_value(mut self, value: f64) -> Self {
         self.initial_weight_value = Some(value);
         self
     }
 
-    pub fn with_initial_bias_value(mut self, value: f32) -> Self {
+    pub fn with_initial_bias_value(mut self, value: f64) -> Self {
         self.initial_bias_value = Some(value);
         self
     }
@@ -70,7 +70,7 @@ impl BranchCfgBuilder {
         // remove count for output bias
         self.num_params -= 1;
 
-        let mut params: Vec<f32> = vec![0.0; self.num_params];
+        let mut params: Vec<f64> = vec![0.0; self.num_params];
 
         if let Some(v) = self.initial_weight_value {
             params[0..num_weights].iter_mut().for_each(|x| *x = v);
@@ -121,7 +121,7 @@ impl BranchCfgBuilder {
         // remove count for output bias
         self.num_params -= 1;
 
-        let mut params: Vec<f32> = vec![0.0; self.num_params];
+        let mut params: Vec<f64> = vec![0.0; self.num_params];
 
         if let Some(v) = self.initial_weight_value {
             params[0..num_weights].iter_mut().for_each(|x| *x = v);

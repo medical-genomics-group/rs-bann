@@ -89,11 +89,11 @@ impl Branch for BaseBranch {
         self.layer_widths[index]
     }
 
-    fn set_error_precision(&mut self, val: f32) {
+    fn set_error_precision(&mut self, val: f64) {
         self.hyperparams.error_precision = val;
     }
 
-    fn std_scaled_step_sizes(&self, const_factor: f32) -> StepSizes {
+    fn std_scaled_step_sizes(&self, const_factor: f64) -> StepSizes {
         let mut wrt_weights = Vec::with_capacity(self.num_layers());
         let mut wrt_biases = Vec::with_capacity(self.num_layers() - 1);
 
@@ -123,25 +123,25 @@ impl Branch for BaseBranch {
     }
 
     fn izmailov_step_sizes(&mut self, integration_length: usize) -> StepSizes {
-        let mut wrt_weights: Vec<Array<f32>> = Vec::with_capacity(self.num_layers());
+        let mut wrt_weights: Vec<Array<f64>> = Vec::with_capacity(self.num_layers());
         let mut wrt_biases = Vec::with_capacity(self.num_layers() - 1);
 
         for index in 0..self.num_layers() {
             wrt_weights.push(
-                std::f32::consts::PI
+                std::f64::consts::PI
                     / (2.
                         * sqrt(&self.hyperparams().weight_precisions[index])
-                        * integration_length as f32),
+                        * integration_length as f64),
             );
         }
 
         for index in 0..self.num_layers() - 1 {
             wrt_biases.push(Array::new(
                 &vec![
-                    std::f32::consts::PI
+                    std::f64::consts::PI
                         / (2.
                             * &self.hyperparams().bias_precisions[index].sqrt()
-                            * integration_length as f32);
+                            * integration_length as f64);
                     self.biases(index).elements()
                 ],
                 self.biases(index).dims(),
@@ -154,8 +154,8 @@ impl Branch for BaseBranch {
         }
     }
 
-    fn log_density(&self, params: &BranchParams, hyperparams: &BranchHyperparams, rss: f32) -> f32 {
-        let mut log_density: f32 = -0.5 * hyperparams.error_precision * rss;
+    fn log_density(&self, params: &BranchParams, hyperparams: &BranchHyperparams, rss: f64) -> f64 {
+        let mut log_density: f64 = -0.5 * hyperparams.error_precision * rss;
         for i in 0..self.num_layers() {
             log_density -= 0.5
                 * arrayfire::sum_all(
@@ -173,12 +173,12 @@ impl Branch for BaseBranch {
 
     fn log_density_gradient(
         &self,
-        x_train: &Array<f32>,
-        y_train: &Array<f32>,
+        x_train: &Array<f64>,
+        y_train: &Array<f64>,
     ) -> BranchLogDensityGradient {
         let (d_rss_wrt_weights, d_rss_wrt_biases) = self.backpropagate(x_train, y_train);
-        let mut ldg_wrt_weights: Vec<Array<f32>> = Vec::with_capacity(self.num_layers);
-        let mut ldg_wrt_biases: Vec<Array<f32>> = Vec::with_capacity(self.num_layers - 1);
+        let mut ldg_wrt_weights: Vec<Array<f64>> = Vec::with_capacity(self.num_layers);
+        let mut ldg_wrt_biases: Vec<Array<f64>> = Vec::with_capacity(self.num_layers - 1);
         for layer_index in 0..self.num_layers() {
             ldg_wrt_weights.push(
                 -(self.error_precision() * &d_rss_wrt_weights[layer_index]
@@ -199,7 +199,7 @@ impl Branch for BaseBranch {
     }
 
     /// Samples precision values from their posterior distribution in a Gibbs step.
-    fn sample_precisions(&mut self, prior_shape: f32, prior_scale: f32) {
+    fn sample_precisions(&mut self, prior_shape: f64, prior_scale: f64) {
         for i in 0..self.params.weights.len() {
             self.hyperparams.weight_precisions[i] = Array::new(
                 &[multi_param_precision_posterior(
@@ -239,7 +239,7 @@ mod tests {
     //     let num_rows: u64 = 5;
     //     let num_cols: u64 = 3;
     //     let dims = Dim4::new(&[num_rows, num_cols, 1, 1]);
-    //     let a = randu::<f32>(dims);
+    //     let a = randu::<f64>(dims);
     //     af_print!("Create a 5-by-3 matrix of random floats on the GPU", a);
     // }
 
@@ -265,7 +265,7 @@ mod tests {
             .build_base()
     }
 
-    fn make_test_uniform_params(c: f32) -> BranchParams {
+    fn make_test_uniform_params(c: f64) -> BranchParams {
         let weights = [
             Array::new(&[c; 6], dim4![3, 2, 1, 1]),
             Array::new(&[c; 2], dim4![2, 1, 1, 1]),
@@ -280,7 +280,7 @@ mod tests {
         BranchParams { weights, biases }
     }
 
-    fn make_test_uniform_momenta(c: f32) -> BranchMomenta {
+    fn make_test_uniform_momenta(c: f64) -> BranchMomenta {
         let wrt_weights = [
             Array::new(&[c; 6], dim4![3, 2, 1, 1]),
             Array::new(&[c; 2], dim4![2, 1, 1, 1]),
@@ -303,7 +303,7 @@ mod tests {
         let num_individuals = 4;
         let num_markers = 3;
         let branch = make_test_branch();
-        let x_train: Array<f32> = Array::new(
+        let x_train: Array<f64> = Array::new(
             &[1., 0., 0., 2., 1., 1., 2., 0., 0., 2., 0., 1.],
             dim4![num_individuals, num_markers, 1, 1],
         );
@@ -321,7 +321,7 @@ mod tests {
             );
         }
 
-        let exp_activations: Vec<Array<f32>> = vec![
+        let exp_activations: Vec<Array<f64>> = vec![
             Array::new(
                 &[
                     0.7615941559557649,
@@ -366,11 +366,11 @@ mod tests {
         let num_individuals = 4;
         let num_markers = 3;
         let branch = make_test_branch();
-        let x_train: Array<f32> = Array::new(
+        let x_train: Array<f64> = Array::new(
             &[1., 0., 0., 2., 1., 1., 2., 0., 0., 2., 0., 1.],
             dim4![num_individuals, num_markers, 1, 1],
         );
-        let y_train: Array<f32> = Array::new(&[0.0, 2.0, 1.0, 1.5], dim4![4, 1, 1, 1]);
+        let y_train: Array<f64> = Array::new(&[0.0, 2.0, 1.0, 1.5], dim4![4, 1, 1, 1]);
         let (weights_gradient, bias_gradient) = branch.backpropagate(&x_train, &y_train);
 
         // correct number of gradients
@@ -428,11 +428,11 @@ mod tests {
         let num_individuals = 4;
         let num_markers = 3;
         let branch = make_test_branch();
-        let x_train: Array<f32> = Array::new(
+        let x_train: Array<f64> = Array::new(
             &[1., 0., 0., 2., 1., 1., 2., 0., 0., 2., 0., 1.],
             dim4![num_individuals, num_markers, 1, 1],
         );
-        let y_train: Array<f32> = Array::new(&[0.0, 2.0, 1.0, 1.5], dim4![4, 1, 1, 1]);
+        let y_train: Array<f64> = Array::new(&[0.0, 2.0, 1.0, 1.5], dim4![4, 1, 1, 1]);
         let ldg = branch.log_density_gradient(&x_train, &y_train);
 
         // correct output length
