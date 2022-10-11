@@ -288,8 +288,8 @@ def plot_single_branch_trace(wdir: str, branch_ix=0):
     # weight precisions
     for lix in range(trace.depth()):
         axes[4, lix].plot(trace.weight_precisions[lix], label="w")
-        if lix != (trace.depth() - 1):
-            axes[4, lix].plot(trace.bias_precisions[:, lix], label="b")
+        # if lix != (trace.depth() - 1):
+        #     axes[4, lix].plot(trace.bias_precisions[:, lix], label="b")
     axes[4, 0].set_ylabel(r"$\sigma^{-2}_{w}$")
 
     plt.tight_layout()

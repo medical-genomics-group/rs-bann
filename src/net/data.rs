@@ -12,11 +12,18 @@ use std::{
 pub struct PhenStats {
     mean: f32,
     variance: f32,
+    env_variance: f32,
+    mse: f32,
 }
 
 impl PhenStats {
-    pub fn new(mean: f32, variance: f32) -> Self {
-        Self { mean, variance }
+    pub fn new(mean: f32, variance: f32, env_variance: f32, mse: f32) -> Self {
+        Self {
+            mean,
+            variance,
+            env_variance,
+            mse,
+        }
     }
 
     pub fn to_file(&self, path: &Path) {

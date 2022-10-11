@@ -120,53 +120,62 @@ fn simulate(args: SimulateArgs) {
     let mut y_train = net.predict(&x_train, args.num_individuals);
     let mut y_test = net.predict(&x_test, args.num_individuals);
 
+    let mut train_residual_variance: f64 = 0.0;
+    let mut test_residual_variance: f64 = 0.0;
+
     if let Some(h) = args.heritability {
         let s2_train = (&y_train.iter().map(|e| *e as f64).collect::<Vec<f64>>()).variance();
-        let train_residual_variance = s2_train * (1. / h as f64 - 1.);
+        train_residual_variance = s2_train * (1. / h as f64 - 1.);
         let rv_train_dist = Normal::new(0.0, train_residual_variance.sqrt()).unwrap();
         y_train
             .iter_mut()
             .for_each(|e| *e += rv_train_dist.sample(&mut rng) as f32);
         let s2_test = (&y_test.iter().map(|e| *e as f64).collect::<Vec<f64>>()).variance();
-        let test_residual_variance = s2_test * (1. / h as f64 - 1.);
+        test_residual_variance = s2_test * (1. / h as f64 - 1.);
         let rv_test_dist = Normal::new(0.0, test_residual_variance.sqrt()).unwrap();
         y_test
             .iter_mut()
             .for_each(|e| *e += rv_test_dist.sample(&mut rng) as f32);
     }
 
+    let train_data = Data::new(
+        x_train,
+        y_train.clone(),
+        x_means.clone(),
+        x_stds.clone(),
+        args.num_markers_per_branch,
+        args.num_individuals,
+        false,
+    );
+
+    let test_data = Data::new(
+        x_test,
+        y_test.clone(),
+        x_means,
+        x_stds,
+        args.num_markers_per_branch,
+        args.num_individuals,
+        false,
+    );
+
     PhenStats::new(
         (&y_test.iter().map(|e| *e as f64).collect::<Vec<f64>>()).mean() as f32,
         (&y_test.iter().map(|e| *e as f64).collect::<Vec<f64>>()).variance() as f32,
+        test_residual_variance as f32,
+        net.mse(&test_data),
     )
     .to_file(&path.join("test_phen_stats.json"));
 
     PhenStats::new(
         (&y_train.iter().map(|e| *e as f64).collect::<Vec<f64>>()).mean() as f32,
         (&y_train.iter().map(|e| *e as f64).collect::<Vec<f64>>()).variance() as f32,
+        train_residual_variance as f32,
+        net.mse(&train_data),
     )
     .to_file(&path.join("train_phen_stats.json"));
 
-    Data::new(
-        x_train,
-        y_train,
-        x_means.clone(),
-        x_stds.clone(),
-        args.num_markers_per_branch,
-        args.num_individuals,
-        false,
-    )
-    .to_file(&train_path);
-    Data::new(
-        x_test,
-        y_test,
-        x_means,
-        x_stds,
-        args.num_markers_per_branch,
-        args.num_individuals,
-        false,
-    )
-    .to_file(&test_path);
+    train_data.to_file(&train_path);
+    test_data.to_file(&test_path);
 
     args.to_file(&args_path);
 }
