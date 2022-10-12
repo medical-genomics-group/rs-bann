@@ -7,6 +7,7 @@ use super::{
 };
 use crate::to_host;
 use arrayfire::{dim4, matmul, sqrt, sum, sum_all, tile, Array, MatProp};
+use log::info;
 use rand::prelude::ThreadRng;
 use rand::thread_rng;
 use rand_distr::{Distribution, Gamma};
@@ -202,17 +203,18 @@ impl Branch for ArdBranch {
     /// Samples precision values from their posterior distribution in a Gibbs step.
     fn sample_precisions(&mut self, prior_shape: f32, prior_scale: f32) {
         // this iterates over layers
-        let mut num_incoming_signals: f32 = self.num_markers as f32;
         for i in 0..self.params.weights.len() {
-            let posterior_shape = num_incoming_signals / 2. + prior_shape;
+            let param_group_size = self.layer_width(1) as f32;
+            let posterior_shape = param_group_size / 2. + prior_shape;
             // compute sums of squares of all rows
             self.hyperparams.weight_precisions[i] = Array::new(
                 &to_host(&sum(
                     &(&self.params.weights[i] * &self.params.weights[i]),
-                    0,
+                    1,
                 ))
                 .iter()
                 .map(|sum_squares| {
+                    // info!("map sum: {:2}", sum_squares);
                     let posterior_scale = 2. * prior_scale / (2. + prior_scale * sum_squares);
                     Gamma::new(posterior_shape, posterior_scale)
                         .unwrap()
@@ -225,7 +227,6 @@ impl Branch for ArdBranch {
                 .collect::<Vec<f32>>(),
                 self.hyperparams.weight_precisions[i].dims(),
             );
-            num_incoming_signals = self.layer_width(i) as f32;
         }
         // TODO: do I want those per node or per layer?
         // At the moment this is per layer
