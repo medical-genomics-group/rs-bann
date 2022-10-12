@@ -263,8 +263,12 @@ def plot_single_branch_trace(wdir: str, ddir: str, branch_ix=0):
 
     fig.suptitle(wdir)
 
+    BURN_IN = 30
+
     axes[0, 0].set_title("ERROR PRECISION")
     axes[0, 0].plot(trace.error_precision)
+    axes[0, 0].hlines(np.mean(trace.error_precision[BURN_IN:]), 0,
+                      len(trace.error_precision), colors=["r"], linestyles="dashed")
     axes[0, 0].hlines(1 / phen_stats["env_variance"],
                       0, len(trace.error_precision), colors=["k"], linestyles="dashed")
 
