@@ -255,6 +255,35 @@ def load_phen_stats(wdir: str):
         return json.load(fin)
 
 
+def plot_single_branch_perf(wdir: str, ddir: str, branch_ix=0):
+    phen_stats = load_phen_stats(ddir)
+    training_stats = load_json_training_stats(wdir)
+    trace = load_json_trace(wdir, branch_ix)
+    fig, axes = plt.subplots(1, 2, sharex=True, figsize=(10, 3))
+
+    fig.suptitle(wdir)
+
+    BURN_IN = 30
+
+    axes[0].set_title("ERROR PRECISION")
+    axes[0].plot(trace.error_precision)
+    axes[0].hlines(
+        [
+            np.mean(trace.error_precision[BURN_IN:]),
+            1 / phen_stats["env_variance"]],
+        0,
+        len(trace.error_precision),
+        colors=["r", "k"],
+        linestyles="dashed")
+
+    axes[1].set_title("MSE")
+    axes[1].plot(training_stats["mse_train"], label="train")
+    axes[1].plot(training_stats["mse_test"], label="test")
+    axes[1].legend()
+
+    plt.tight_layout()
+
+
 def plot_single_branch_trace(wdir: str, ddir: str, branch_ix=0):
     phen_stats = load_phen_stats(ddir)
     training_stats = load_json_training_stats(wdir)
@@ -268,13 +297,13 @@ def plot_single_branch_trace(wdir: str, ddir: str, branch_ix=0):
     axes[0, 0].set_title("ERROR PRECISION")
     axes[0, 0].plot(trace.error_precision)
     axes[0, 0].hlines(
-            [
-                np.mean(trace.error_precision[BURN_IN:]),
-                1 / phen_stats["env_variance"]],
-            0,
-            len(trace.error_precision),
-            colors=["r", "k"],
-            linestyles="dashed")
+        [
+            np.mean(trace.error_precision[BURN_IN:]),
+            1 / phen_stats["env_variance"]],
+        0,
+        len(trace.error_precision),
+        colors=["r", "k"],
+        linestyles="dashed")
 
     axes[0, 1].set_title("MSE")
     axes[0, 1].plot(training_stats["mse_train"], label="train")
