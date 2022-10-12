@@ -250,7 +250,13 @@ def load_json_training_stats(wdir: str):
         return json.load(fin)
 
 
-def plot_single_branch_trace(wdir: str, branch_ix=0):
+def load_phen_stats(wdir: str):
+    with open(wdir + "/train_phen_stats.json", "r") as fin:
+        return json.load(fin)
+
+
+def plot_single_branch_trace(wdir: str, ddir: str, branch_ix=0):
+    phen_stats = load_phen_stats(ddir)
     training_stats = load_json_training_stats(wdir)
     trace = load_json_trace(wdir, branch_ix)
     fig, axes = plt.subplots(5, trace.depth(), sharex=True, figsize=(15, 10))
@@ -259,13 +265,16 @@ def plot_single_branch_trace(wdir: str, branch_ix=0):
 
     axes[0, 0].set_title("ERROR PRECISION")
     axes[0, 0].plot(trace.error_precision)
+    axes[0, 0].hlines(1 / phen_stats["env_variance"],
+                      0, len(trace.error_precision), colors=["k"], linestyles="dashed")
 
     axes[0, 1].set_title("MSE")
     axes[0, 1].plot(training_stats["mse_train"], label="train")
     axes[0, 1].plot(training_stats["mse_test"], label="test")
     axes[0, 1].legend()
 
-    axes[0, trace.depth() - 1].set_axis_off()
+    if trace.depth() > 2:
+        axes[0, trace.depth() - 1].set_axis_off()
 
     # biases
     for lix in range(trace.depth() - 1):
