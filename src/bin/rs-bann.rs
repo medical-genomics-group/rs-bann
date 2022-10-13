@@ -51,14 +51,21 @@ fn main() {
 fn simulate(args: SimulateArgs) {
     simple_logger::init_with_level(log::Level::Info).unwrap();
 
-    if let Some(val) = args.heritability {
-        if !(val >= 0. && val <= 1.) {
-            panic!("Heritability must be within [0, 1].");
-        }
+    if !(args.heritability >= 0. && args.heritability <= 1.) {
+        panic!("Heritability must be within [0, 1].");
     }
-    let path = Path::new(&args.outdir);
+
+    let path = Path::new(&args.outdir).join(format!(
+        "b{}_w{}_d{}_m{}_n{}_h{}",
+        args.num_branches,
+        args.hidden_layer_width,
+        args.branch_depth,
+        args.num_markers_per_branch,
+        args.num_individuals,
+        args.heritability
+    ));
     if !path.exists() {
-        std::fs::create_dir_all(path).expect("Could not create output directory!");
+        std::fs::create_dir_all(&path).expect("Could not create output directory!");
     }
     let train_path = path.join("train.bin");
     let test_path = path.join("test.bin");
@@ -123,15 +130,15 @@ fn simulate(args: SimulateArgs) {
     let mut train_residual_variance: f64 = 0.0;
     let mut test_residual_variance: f64 = 0.0;
 
-    if let Some(h) = args.heritability {
+    if args.heritability != 1. {
         let s2_train = (&y_train.iter().map(|e| *e as f64).collect::<Vec<f64>>()).variance();
-        train_residual_variance = s2_train * (1. / h as f64 - 1.);
+        train_residual_variance = s2_train * (1. / args.heritability as f64 - 1.);
         let rv_train_dist = Normal::new(0.0, train_residual_variance.sqrt()).unwrap();
         y_train
             .iter_mut()
             .for_each(|e| *e += rv_train_dist.sample(&mut rng) as f32);
         let s2_test = (&y_test.iter().map(|e| *e as f64).collect::<Vec<f64>>()).variance();
-        test_residual_variance = s2_test * (1. / h as f64 - 1.);
+        test_residual_variance = s2_test * (1. / args.heritability as f64 - 1.);
         let rv_test_dist = Normal::new(0.0, test_residual_variance.sqrt()).unwrap();
         y_test
             .iter_mut()
