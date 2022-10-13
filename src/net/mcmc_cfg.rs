@@ -1,6 +1,9 @@
 use serde::Serialize;
 
-use std::path::{Path, PathBuf};
+use std::{
+    fmt::{Display, Formatter},
+    path::{Path, PathBuf},
+};
 
 /// Parameters for MCMC sampling.
 pub struct MCMCCfg {
@@ -45,4 +48,12 @@ pub enum StepSizeMode {
     Random,
     StdScaled,
     Izmailov,
+}
+
+impl Display for StepSizeMode {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+        // or, alternatively:
+        // fmt::Debug::fmt(self, f)
+    }
 }
