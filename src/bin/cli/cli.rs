@@ -40,6 +40,7 @@ pub(crate) enum SubCmd {
 #[derive(Args, Debug, Serialize, Deserialize)]
 pub(crate) struct SimulateArgs {
     /// path to output dir. Dir with the simulated data will be created there.
+    #[clap(short, long, default_value = "./")]
     pub outdir: String,
 
     /// number of input features per branch (markers)
