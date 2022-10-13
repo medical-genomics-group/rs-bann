@@ -3,6 +3,7 @@ use log::info;
 use rs_bann::net::mcmc_cfg::StepSizeMode;
 use serde::{Deserialize, Serialize};
 use serde_json::to_writer_pretty;
+use std::fmt::{Display, Formatter};
 use std::{fs::File, path::Path};
 
 #[derive(Parser)]
@@ -18,6 +19,14 @@ pub(crate) enum ModelType {
     ARD,
     Base,
     StdNormal,
+}
+
+impl Display for ModelType {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+        // or, alternatively:
+        // fmt::Debug::fmt(self, f)
+    }
 }
 
 #[derive(Subcommand)]
@@ -67,6 +76,7 @@ pub(crate) struct TrainArgs {
     pub model_type: ModelType,
 
     /// input directory with train.bin and test.bin files
+    #[clap(short, long, default_value = "./")]
     pub indir: String,
 
     /// width of hidden layer
@@ -79,12 +89,14 @@ pub(crate) struct TrainArgs {
     pub chain_length: usize,
 
     /// hmc max hamiltonian error
+    #[clap(default_value_t = 10., long)]
     pub max_hamiltonian_error: f32,
 
     /// hmc integration length
     pub integration_length: usize,
 
     /// hmc step size, acts as a modifying factor on random step sizes if enabled
+    #[clap(default_value_t = 0.1, long)]
     pub step_size: f32,
 
     #[clap(default_value_t = 1, long)]
@@ -99,12 +111,12 @@ pub(crate) struct TrainArgs {
     /// prior scale
     pub prior_scale: f32,
 
-    /// Output path
-    #[clap(short, long)]
+    #[clap(short, long, default_value = "./")]
+    /// Output path. Outdir will be created there.
     pub outpath: String,
 
     ///  Step size mode
-    #[clap(value_enum, default_value_t = StepSizeMode::Uniform, long)]
+    #[clap(value_enum, default_value_t = StepSizeMode::Izmailov, long)]
     pub step_size_mode: StepSizeMode,
 
     /// enable debug prints
