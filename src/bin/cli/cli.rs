@@ -30,7 +30,7 @@ pub(crate) enum SubCmd {
 
 #[derive(Args, Debug, Serialize, Deserialize)]
 pub(crate) struct SimulateArgs {
-    /// path to output dir. Will be created if it does not exist
+    /// path to output dir. Dir with the simulated data will be created there.
     pub outdir: String,
 
     /// number of input features per branch (markers)
@@ -49,7 +49,8 @@ pub(crate) struct SimulateArgs {
     pub branch_depth: usize,
 
     /// heritability (determines amount of Gaussian noise added), must be in [0, 1]
-    pub heritability: Option<f32>,
+    #[clap(default_value_t = 1.0)]
+    pub heritability: f32,
 }
 
 impl SimulateArgs {
