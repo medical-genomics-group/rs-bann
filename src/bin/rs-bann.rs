@@ -204,13 +204,25 @@ fn train(args: TrainArgs) {
         test_data.standardize();
     }
 
+    let outdir = format!(
+        "{}_w{}_d{}_cl{}_il{}_{}_k{}_s{}",
+        args.model_type,
+        args.hidden_layer_width,
+        args.branch_depth,
+        args.chain_length,
+        args.integration_length,
+        args.step_size_mode,
+        args.prior_shape,
+        args.prior_scale,
+    );
+
     let mcmc_cfg = MCMCCfg {
         hmc_step_size_factor: args.step_size.clone(),
         hmc_max_hamiltonian_error: args.max_hamiltonian_error.clone(),
         hmc_integration_length: args.integration_length.clone(),
         hmc_step_size_mode: args.step_size_mode.clone(),
         chain_length: args.chain_length.clone(),
-        outpath: args.outpath.clone(),
+        outpath: outdir,
         trace: args.trace.clone(),
         trajectories: args.trajectories.clone(),
         num_grad_traj: args.num_grad_traj.clone(),
