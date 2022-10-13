@@ -16,7 +16,7 @@ pub struct BlockNetCfg<B: Branch> {
     widths: Vec<usize>,
     precision_prior_shape: f32,
     precision_prior_scale: f32,
-    initial_random_range: f32,
+    init_param_variance: f32,
     branch_type: PhantomData<B>,
 }
 
@@ -30,7 +30,7 @@ impl<B: Branch> BlockNetCfg<B> {
             widths: vec![],
             precision_prior_shape: 1.,
             precision_prior_scale: 1.,
-            initial_random_range: 0.05,
+            init_param_variance: 0.05,
             branch_type: PhantomData,
         }
     }
@@ -51,8 +51,8 @@ impl<B: Branch> BlockNetCfg<B> {
         self
     }
 
-    pub fn with_initial_random_range(mut self, val: f32) -> Self {
-        self.initial_random_range = val;
+    pub fn with_init_param_variance(mut self, val: f32) -> Self {
+        self.init_param_variance = val;
         self
     }
 
@@ -62,7 +62,7 @@ impl<B: Branch> BlockNetCfg<B> {
         for branch_ix in 0..num_branches {
             let mut cfg_bld = BranchCfgBuilder::new()
                 .with_num_markers(self.num_markers[branch_ix])
-                .with_initial_random_range(self.initial_random_range);
+                .with_init_param_variance(self.init_param_variance);
             for _ in 0..self.depth {
                 cfg_bld.add_hidden_layer(self.widths[branch_ix]);
             }

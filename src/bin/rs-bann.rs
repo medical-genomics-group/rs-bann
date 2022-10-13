@@ -75,7 +75,7 @@ fn simulate(args: SimulateArgs) {
     info!("Building model");
     let mut net_cfg = BlockNetCfg::<BaseBranch>::new()
         .with_depth(args.branch_depth)
-        .with_initial_random_range(2.0);
+        .with_init_param_variance(2.0);
     for _ in 0..args.num_branches {
         net_cfg.add_branch(args.num_markers_per_branch, args.hidden_layer_width);
     }

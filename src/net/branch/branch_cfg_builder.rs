@@ -1,8 +1,9 @@
 use super::branch::BranchCfg;
 use super::params::BranchHyperparams;
 use arrayfire::{constant, dim4, Array};
-use rand::distributions::{Distribution, Uniform};
+use rand::distributions::Distribution;
 use rand::thread_rng;
+use rand_distr::Normal;
 
 pub struct BranchCfgBuilder {
     num_params: usize,
@@ -11,7 +12,7 @@ pub struct BranchCfgBuilder {
     num_layers: usize,
     initial_weight_value: Option<f32>,
     initial_bias_value: Option<f32>,
-    initial_random_range: f32,
+    init_param_variance: f32,
 }
 
 impl BranchCfgBuilder {
@@ -24,7 +25,7 @@ impl BranchCfgBuilder {
             num_layers: 2,
             initial_weight_value: None,
             initial_bias_value: None,
-            initial_random_range: 0.05,
+            init_param_variance: 0.05,
         }
     }
 
@@ -38,8 +39,8 @@ impl BranchCfgBuilder {
         self.num_layers += 1;
     }
 
-    pub fn with_initial_random_range(mut self, range: f32) -> Self {
-        self.initial_random_range = range;
+    pub fn with_init_param_variance(mut self, range: f32) -> Self {
+        self.init_param_variance = range;
         self
     }
 
@@ -75,7 +76,7 @@ impl BranchCfgBuilder {
         if let Some(v) = self.initial_weight_value {
             params[0..num_weights].iter_mut().for_each(|x| *x = v);
         } else {
-            let d = Uniform::from(-self.initial_random_range..self.initial_random_range);
+            let d = Normal::new(0.0, self.init_param_variance.sqrt()).unwrap();
             params[0..num_weights]
                 .iter_mut()
                 .for_each(|x| *x = d.sample(&mut rng));
@@ -84,7 +85,7 @@ impl BranchCfgBuilder {
         if let Some(v) = self.initial_bias_value {
             params[num_weights..].iter_mut().for_each(|x| *x = v);
         } else {
-            let d = Uniform::from(-self.initial_random_range..self.initial_random_range);
+            let d = Normal::new(0.0, self.init_param_variance.sqrt()).unwrap();
             params[num_weights..]
                 .iter_mut()
                 .for_each(|x| *x = d.sample(&mut rng));
@@ -126,7 +127,7 @@ impl BranchCfgBuilder {
         if let Some(v) = self.initial_weight_value {
             params[0..num_weights].iter_mut().for_each(|x| *x = v);
         } else {
-            let d = Uniform::from(-self.initial_random_range..self.initial_random_range);
+            let d = Normal::new(0.0, self.init_param_variance.sqrt()).unwrap();
             params[0..num_weights]
                 .iter_mut()
                 .for_each(|x| *x = d.sample(&mut rng));
@@ -135,7 +136,7 @@ impl BranchCfgBuilder {
         if let Some(v) = self.initial_bias_value {
             params[num_weights..].iter_mut().for_each(|x| *x = v);
         } else {
-            let d = Uniform::from(-self.initial_random_range..self.initial_random_range);
+            let d = Normal::new(0.0, self.init_param_variance.sqrt()).unwrap();
             params[num_weights..]
                 .iter_mut()
                 .for_each(|x| *x = d.sample(&mut rng));
