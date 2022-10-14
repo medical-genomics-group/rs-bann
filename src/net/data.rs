@@ -1,7 +1,6 @@
 use bincode::{deserialize_from, serialize_into};
-use log::info;
 use serde::{Deserialize, Serialize};
-use serde_json::to_writer_pretty;
+use serde_json::{to_writer, to_writer_pretty};
 use std::{
     fs::File,
     io::{BufReader, BufWriter},
@@ -27,7 +26,6 @@ impl PhenStats {
     }
 
     pub fn to_file(&self, path: &Path) {
-        info!("Creating: {:?}", path);
         to_writer_pretty(File::create(path).unwrap(), self).unwrap();
     }
 }
@@ -70,9 +68,12 @@ impl Data {
     }
 
     pub fn to_file(&self, path: &Path) {
-        info!("Creating: {:?}", path);
         let mut f = BufWriter::new(File::create(path).unwrap());
         serialize_into(&mut f, self).unwrap();
+    }
+
+    pub fn to_json(&self, path: &Path) {
+        to_writer(File::create(path).unwrap(), self).unwrap();
     }
 
     pub fn num_branches(&self) -> usize {

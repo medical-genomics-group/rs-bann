@@ -213,6 +213,11 @@ where
     train_data.to_file(&train_path);
     test_data.to_file(&test_path);
 
+    if args.json_data {
+        train_data.to_json(&path.join("train.json"));
+        test_data.to_json(&path.join("test.json"));
+    }
+
     args.to_file(&args_path);
 }
 

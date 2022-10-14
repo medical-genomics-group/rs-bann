@@ -77,6 +77,10 @@ pub(crate) struct SimulateArgs {
     /// heritability (determines amount of Gaussian noise added), must be in [0, 1]
     #[clap(default_value_t = 1.0)]
     pub heritability: f32,
+
+    /// write data to json files, e.g. for easier parsing into python
+    #[clap(long)]
+    pub json_data: bool,
 }
 
 impl SimulateArgs {
