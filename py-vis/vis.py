@@ -160,6 +160,49 @@ class Trajectory:
 
 
 @dataclass
+class ModelBranchParams:
+    num_params: int
+    num_markers: int
+    layer_widths: np.array
+    params: np.array
+    weight_precisions: np.array
+    bias_precisions: np.array
+
+    def layer_width(self, lix: int):
+        return self.layer_widths[lix]
+
+    def layer_weight_ixs(self, lix: int):
+        pix = 0
+        prev_width = self.num_markers
+        for i in range(lix):
+            pix += prev_width * self.layer_width(i)
+            prev_width = self.layer_width(i)
+        return pix, pix + prev_width * self.layer_width(lix)
+
+    def bias_start_pix(self):
+        pix = 0
+        prev_width = self.num_markers
+        for width in self.layer_widths:
+            pix += prev_width * width
+            prev_width = width
+        return pix
+
+    def layer_bias_ixs(self, lix: int):
+        pix = self.bias_start_pix()
+        for i in range(lix):
+            pix += self.layer_width(i)
+        return pix, pix + self.layer_width(lix)
+
+    def layer_weights(self, lix: int):
+        start, stop = self.layer_weight_ixs(lix)
+        return self.params[start:stop]
+
+    def layer_biases(self, lix: int):
+        start, stop = self.layer_bias_ixs(lix)
+        return self.params[start:stop]
+
+
+@dataclass
 class Trace:
     model_cfg: ModelCfg
     params: np.array
@@ -202,6 +245,21 @@ class Trace:
             pix += self.layer_width(i)
 
         return self.params[:, pix: pix + self.layer_width(lix)]
+
+
+def load_true_params(wdir: str):
+    with open(wdir + "/model.params", "r") as fin:
+        model_params = json.load(fin)
+    res = []
+    for branch in model_params:
+        res.append(ModelBranchParams(
+            branch["num_params"],
+            branch["num_markers"],
+            branch["layer_widths"],
+            np.array(branch["params"]),
+            branch["hyperparams"]["weight_precisions"],
+            branch["hyperparams"]["bias_precisions"]))
+    return res
 
 
 def load_json_trace(wdir: str, branch_ix=0):
