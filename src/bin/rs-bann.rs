@@ -7,11 +7,15 @@ use rand::thread_rng;
 use rand_distr::{Binomial, Distribution, Normal, Uniform};
 use rs_bann::net::{
     architectures::BlockNetCfg,
-    branch::{ard_branch::ArdBranch, base_branch::BaseBranch, std_normal_branch::StdNormalBranch},
+    branch::{
+        ard_branch::ArdBranch, base_branch::BaseBranch, branch::Branch,
+        std_normal_branch::StdNormalBranch,
+    },
     data::{Data, PhenStats},
     mcmc_cfg::MCMCCfg,
     train_stats::ReportCfg,
 };
+use serde_json::to_writer;
 use statrs::statistics::Statistics;
 use std::{
     fs::File,
@@ -21,7 +25,11 @@ use std::{
 
 fn main() {
     match Cli::parse().cmd {
-        SubCmd::Simulate(args) => simulate(args),
+        SubCmd::Simulate(args) => match args.model_type {
+            ModelType::Base => simulate::<BaseBranch>(args),
+            ModelType::ARD => simulate::<ArdBranch>(args),
+            ModelType::StdNormal => simulate::<StdNormalBranch>(args),
+        },
         SubCmd::Train(args) => train(args),
     }
 }
@@ -48,22 +56,43 @@ fn main() {
 //     unimplemented!();
 // }
 
-fn simulate(args: SimulateArgs) {
+fn simulate<B>(args: SimulateArgs)
+where
+    B: Branch,
+{
     simple_logger::init_with_level(log::Level::Info).unwrap();
 
     if !(args.heritability >= 0. && args.heritability <= 1.) {
         panic!("Heritability must be within [0, 1].");
     }
 
-    let path = Path::new(&args.outdir).join(format!(
-        "b{}_w{}_d{}_m{}_n{}_h{}",
+    let mut path = Path::new(&args.outdir).join(format!(
+        "{}_b{}_w{}_d{}_m{}_n{}_h{}_v{}",
+        args.model_type,
         args.num_branches,
         args.hidden_layer_width,
         args.branch_depth,
         args.num_markers_per_branch,
         args.num_individuals,
-        args.heritability
+        args.heritability,
+        args.init_param_variance
     ));
+
+    if let (Some(k), Some(s)) = (args.init_gamma_shape, args.init_gamma_scale) {
+        path = Path::new(&args.outdir).join(format!(
+            "{}_b{}_w{}_d{}_m{}_n{}_h{}_k{}_s{}",
+            args.model_type,
+            args.num_branches,
+            args.hidden_layer_width,
+            args.branch_depth,
+            args.num_markers_per_branch,
+            args.num_individuals,
+            args.heritability,
+            k,
+            s
+        ));
+    }
+
     if !path.exists() {
         std::fs::create_dir_all(&path).expect("Could not create output directory!");
     }
@@ -73,9 +102,15 @@ fn simulate(args: SimulateArgs) {
     let params_path = path.join("model.params");
 
     info!("Building model");
-    let mut net_cfg = BlockNetCfg::<BaseBranch>::new()
-        .with_depth(args.branch_depth)
-        .with_init_param_variance(2.0);
+    let mut net_cfg = if let (Some(k), Some(s)) = (args.init_gamma_shape, args.init_gamma_scale) {
+        BlockNetCfg::<B>::new()
+            .with_depth(args.branch_depth)
+            .with_init_gamma_params(k, s)
+    } else {
+        BlockNetCfg::<B>::new()
+            .with_depth(args.branch_depth)
+            .with_init_param_variance(args.init_param_variance)
+    };
     for _ in 0..args.num_branches {
         net_cfg.add_branch(args.num_markers_per_branch, args.hidden_layer_width);
     }
@@ -84,14 +119,8 @@ fn simulate(args: SimulateArgs) {
     info!("Saving model params");
     info!("Creating: {:?}", params_path);
     let mut net_params_file = BufWriter::new(File::create(params_path).unwrap());
-    for branch_ix in 0..args.num_branches {
-        writeln!(
-            &mut net_params_file,
-            "{:?}",
-            net.branch_cfg(branch_ix).params()
-        )
-        .expect("Failed to write model params");
-    }
+    to_writer(&mut net_params_file, net.branch_cfgs()).unwrap();
+    net_params_file.write_all(b"\n").unwrap();
 
     let mut rng = thread_rng();
 

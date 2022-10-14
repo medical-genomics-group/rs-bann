@@ -14,7 +14,7 @@ pub(crate) struct Cli {
     pub(crate) cmd: SubCmd,
 }
 
-#[derive(clap::ValueEnum, Clone, Debug, Serialize)]
+#[derive(clap::ValueEnum, Clone, Debug, Serialize, Deserialize)]
 pub(crate) enum ModelType {
     ARD,
     Base,
@@ -43,6 +43,10 @@ pub(crate) struct SimulateArgs {
     #[clap(short, long, default_value = "./")]
     pub outdir: String,
 
+    /// Prior structure of model.
+    #[clap(value_enum)]
+    pub model_type: ModelType,
+
     /// number of input features per branch (markers)
     pub num_markers_per_branch: usize,
 
@@ -57,6 +61,18 @@ pub(crate) struct SimulateArgs {
 
     /// number of hidden layers in branches
     pub branch_depth: usize,
+
+    /// variance of network params upon initialization
+    #[clap(long, default_value_t = 1.0)]
+    pub init_param_variance: f32,
+
+    /// shape of gamma prior for network param initialization
+    #[clap(long)]
+    pub init_gamma_shape: Option<f32>,
+
+    /// scale of gamma prior for network param initialization
+    #[clap(long)]
+    pub init_gamma_scale: Option<f32>,
 
     /// heritability (determines amount of Gaussian noise added), must be in [0, 1]
     #[clap(default_value_t = 1.0)]

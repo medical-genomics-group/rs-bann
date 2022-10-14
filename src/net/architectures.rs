@@ -17,6 +17,8 @@ pub struct BlockNetCfg<B: Branch> {
     precision_prior_shape: f32,
     precision_prior_scale: f32,
     init_param_variance: f32,
+    init_gamma_shape: Option<f32>,
+    init_gamma_scale: Option<f32>,
     branch_type: PhantomData<B>,
 }
 
@@ -31,6 +33,8 @@ impl<B: Branch> BlockNetCfg<B> {
             precision_prior_shape: 1.,
             precision_prior_scale: 1.,
             init_param_variance: 0.05,
+            init_gamma_shape: None,
+            init_gamma_scale: None,
             branch_type: PhantomData,
         }
     }
@@ -56,13 +60,26 @@ impl<B: Branch> BlockNetCfg<B> {
         self
     }
 
+    pub fn with_init_gamma_params(mut self, shape: f32, scale: f32) -> Self {
+        self.init_gamma_shape = Some(shape);
+        self.init_gamma_scale = Some(scale);
+        self
+    }
+
     pub fn build_net(&self) -> Net<B> {
         let mut branch_cfgs: Vec<BranchCfg> = Vec::new();
         let num_branches = self.widths.len();
         for branch_ix in 0..num_branches {
-            let mut cfg_bld = BranchCfgBuilder::new()
-                .with_num_markers(self.num_markers[branch_ix])
-                .with_init_param_variance(self.init_param_variance);
+            let mut cfg_bld =
+                if let (Some(k), Some(s)) = (self.init_gamma_shape, self.init_gamma_scale) {
+                    BranchCfgBuilder::new()
+                        .with_num_markers(self.num_markers[branch_ix])
+                        .with_init_gamma_params(k, s)
+                } else {
+                    BranchCfgBuilder::new()
+                        .with_num_markers(self.num_markers[branch_ix])
+                        .with_init_param_variance(self.init_param_variance)
+                };
             for _ in 0..self.depth {
                 cfg_bld.add_hidden_layer(self.widths[branch_ix]);
             }

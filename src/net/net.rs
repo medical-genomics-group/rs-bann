@@ -63,6 +63,10 @@ impl<B: Branch> Net<B> {
         &self.branch_cfgs[branch_ix]
     }
 
+    pub fn branch_cfgs(&self) -> &Vec<BranchCfg> {
+        &self.branch_cfgs
+    }
+
     pub fn num_params(&self) -> usize {
         let mut res = 0;
         for cfg in &self.branch_cfgs {

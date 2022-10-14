@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use super::{
     branch::{Branch, BranchCfg, BranchLogDensityGradient},
     branch_cfg_builder::BranchCfgBuilder,

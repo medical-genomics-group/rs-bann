@@ -504,6 +504,10 @@ impl BranchCfg {
     pub fn params(&self) -> &Vec<f32> {
         &self.params
     }
+
+    pub fn hyperparams(&self) -> &BranchHyperparams {
+        &self.hyperparams
+    }
 }
 
 pub enum HMCStepResult {
