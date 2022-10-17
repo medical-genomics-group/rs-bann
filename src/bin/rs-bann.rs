@@ -181,6 +181,7 @@ where
         x_stds.clone(),
         args.num_markers_per_branch,
         args.num_individuals,
+        args.num_branches,
         false,
     );
 
@@ -191,6 +192,7 @@ where
         x_stds,
         args.num_markers_per_branch,
         args.num_individuals,
+        args.num_branches,
         false,
     );
 

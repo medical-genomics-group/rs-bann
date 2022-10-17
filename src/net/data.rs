@@ -38,6 +38,7 @@ pub struct Data {
     pub x_stds: Vec<Vec<f32>>,
     num_markers_per_branch: usize,
     num_individuals: usize,
+    num_branches: usize,
     standardized: bool,
 }
 
@@ -49,6 +50,7 @@ impl Data {
         x_stds: Vec<Vec<f32>>,
         num_markers_per_branch: usize,
         num_individuals: usize,
+        num_branches: usize,
         standardized: bool,
     ) -> Self {
         Data {
@@ -58,6 +60,7 @@ impl Data {
             x_stds,
             num_markers_per_branch,
             num_individuals,
+            num_branches,
             standardized,
         }
     }
