@@ -1,7 +1,9 @@
 import numpy as np
+from sklearn.linear_model import LinearRegression, Ridge
 from matplotlib import pyplot as plt
 from dataclasses import dataclass
 import json
+from typing import List
 
 SMALL_SIZE = 10
 MEDIUM_SIZE = 12
@@ -247,6 +249,43 @@ class Trace:
         return self.params[:, pix: pix + self.layer_width(lix)]
 
 
+@dataclass
+class Data:
+    x: List[np.array]
+    y: np.array
+    x_means: np.array
+    x_stds: np.array
+    num_markers_per_branch: int
+    num_individuals: int
+    num_branches: int
+    standardized: bool
+
+    def load_train(wdir: str):
+        with open(wdir + "/train.json", "r") as fin:
+            data = json.load(fin)
+        return Data.__from_json(data)
+
+    def load_test(wdir: str):
+        with open(wdir + "/test.json", "r") as fin:
+            data = json.load(fin)
+        return Data.__from_json(data)
+
+    def __from_json(data):
+        x = []
+        for branch_data in data["x"]:
+            x.append(np.array(branch_data, order="F").reshape(
+                (data["num_individuals"], data["num_markers_per_branch"])))
+        return Data(
+            x,
+            np.array(data['y']),
+            np.array(data['x_means']),
+            np.array(data['x_stds']),
+            data['num_markers_per_branch'],
+            data['num_individuals'],
+            data['num_branches'],
+            data['standardized'])
+
+
 def load_true_params(wdir: str):
     with open(wdir + "/model.params", "r") as fin:
         model_params = json.load(fin)
@@ -397,3 +436,31 @@ def plot_single_branch_trace(wdir: str, ddir: str, branch_ix=0):
     axes[4, 0].set_ylabel(r"$\sigma^{-2}_{w}$")
 
     plt.tight_layout()
+
+
+def mse_ridge(train_data, test_data, alpha=1.0):
+    assert train_data.num_branches == 1, "Fitting for multiple branches not implemented yet."
+    x_train = train_data.x[0]
+    y_train = train_data.y
+    x_test = test_data.x[0]
+    y_test = test_data.y
+    reg = Ridge(alpha).fit(x_train, y_train)
+    mse_train = mse(reg.predict(x_train), y_train)
+    mse_test = mse(reg.predict(x_test), y_test)
+    return mse_train, mse_test
+
+
+def mse_linreg(train_data, test_data):
+    assert train_data.num_branches == 1, "Fitting for multiple branches not implemented yet."
+    x_train = train_data.x[0]
+    y_train = train_data.y
+    x_test = test_data.x[0]
+    y_test = test_data.y
+    reg = LinearRegression().fit(x_train, y_train)
+    mse_train = mse(reg.predict(x_train), y_train)
+    mse_test = mse(reg.predict(x_test), y_test)
+    return mse_train, mse_test
+
+
+def mse(y_pred, y_true):
+    return ((y_pred - y_true) ** 2).mean()
