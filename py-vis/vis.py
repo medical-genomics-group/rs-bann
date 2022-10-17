@@ -4,6 +4,7 @@ from matplotlib import pyplot as plt
 from dataclasses import dataclass
 import json
 from typing import List
+from pathlib import Path
 
 SMALL_SIZE = 10
 MEDIUM_SIZE = 12
@@ -352,7 +353,17 @@ def load_phen_stats(wdir: str):
         return json.load(fin)
 
 
-def plot_single_branch_perf(wdir: str, ddir: str, branch_ix=0):
+def data_dir(wdir: str):
+    return str(Path(wdir).parent)
+
+
+def plot_single_branch_perf(wdir: str, burn_in, branch_ix=0):
+    ddir = data_dir(wdir)
+    train_data = Data.load_train(ddir)
+    test_data = Data.load_test(ddir)
+
+    ridge_mse_train, ridge_mse_test = mse_ridge(train_data, test_data)
+
     phen_stats = load_phen_stats(ddir)
     training_stats = load_json_training_stats(wdir)
     trace = load_json_trace(wdir, branch_ix)
@@ -360,80 +371,83 @@ def plot_single_branch_perf(wdir: str, ddir: str, branch_ix=0):
 
     fig.suptitle(wdir)
 
-    BURN_IN = 30
-
     axes[0].set_title("ERROR PRECISION")
     axes[0].plot(trace.error_precision)
     axes[0].hlines(
-        [
-            np.mean(trace.error_precision[BURN_IN:]),
-            1 / phen_stats["env_variance"]],
+        np.mean(trace.error_precision[burn_in:]),
         0,
         len(trace.error_precision),
-        colors=["r", "k"],
-        linestyles="dashed")
+        color="r",
+        linestyle="dashed",
+        label="nn posterior mean"
+    )
+    axes[0].hlines(
+        1 / phen_stats["env_variance"],
+        0,
+        len(trace.error_precision),
+        color="k",
+        linestyle="dotted",
+        label="true"
+    )
+    axes[0].legend()
 
     axes[1].set_title("MSE")
-    axes[1].plot(training_stats["mse_train"], label="train")
-    axes[1].plot(training_stats["mse_test"], label="test")
+    axes[1].plot(training_stats["mse_train"], label="nn train")
+    axes[1].plot(training_stats["mse_test"], label="nn test")
+    axes[1].hlines(
+        ridge_mse_train,
+        0,
+        len(trace.error_precision),
+        color="gray",
+        linestyle="dashed",
+        label="ridge train"
+    )
+    axes[1].hlines(
+        ridge_mse_test,
+        0,
+        len(trace.error_precision),
+        color="gray",
+        linestyle="dotted",
+        label="ridge test"
+    )
     axes[1].legend()
 
     plt.tight_layout()
 
 
-def plot_single_branch_trace(wdir: str, ddir: str, branch_ix=0):
-    phen_stats = load_phen_stats(ddir)
-    training_stats = load_json_training_stats(wdir)
+def plot_single_branch_trace(wdir: str, branch_ix=0):
     trace = load_json_trace(wdir, branch_ix)
-    fig, axes = plt.subplots(5, trace.depth(), sharex=True, figsize=(15, 10))
+    fig, axes = plt.subplots(4, trace.depth(), sharex=True, figsize=(15, 10))
 
     fig.suptitle(wdir)
-
-    BURN_IN = 30
-
-    axes[0, 0].set_title("ERROR PRECISION")
-    axes[0, 0].plot(trace.error_precision)
-    axes[0, 0].hlines(
-        [
-            np.mean(trace.error_precision[BURN_IN:]),
-            1 / phen_stats["env_variance"]],
-        0,
-        len(trace.error_precision),
-        colors=["r", "k"],
-        linestyles="dashed")
-
-    axes[0, 1].set_title("MSE")
-    axes[0, 1].plot(training_stats["mse_train"], label="train")
-    axes[0, 1].plot(training_stats["mse_test"], label="test")
-    axes[0, 1].legend()
 
     if trace.depth() > 2:
         axes[0, trace.depth() - 1].set_axis_off()
 
     # biases
     for lix in range(trace.depth() - 1):
-        axes[1, lix].set_title(f"LAYER {lix + 1}")
-        axes[1, lix].plot(trace.layer_biases(lix))
-    axes[1, 0].set_ylabel(r"$b$")
-    axes[1, trace.depth() - 1].set_axis_off()
+        axes[0, lix].set_title(f"LAYER {lix + 1}")
+        axes[0, lix].plot(trace.layer_biases(lix))
+    axes[0, 0].set_ylabel(r"$b$")
+    axes[0, trace.depth() - 1].set_axis_off()
 
     # bias precisions
     for lix in range(trace.depth() - 1):
-        axes[2, lix].plot(trace.bias_precisions[:, lix], label="b")
-    axes[2, 0].set_ylabel(r"$\sigma^{-2}_{b}$")
-    axes[2, trace.depth() - 1].set_axis_off()
+        axes[1, lix].plot(trace.bias_precisions[:, lix], label="b")
+    axes[1, 0].set_ylabel(r"$\sigma^{-2}_{b}$")
+    axes[1, trace.depth() - 1].set_axis_off()
 
     # weights
     for lix in range(trace.depth()):
-        axes[3, lix].plot(trace.layer_weights(lix))
-    axes[3, 0].set_ylabel(r"$W$")
+        axes[2, lix].plot(trace.layer_weights(lix))
+    axes[2, 0].set_ylabel(r"$W$")
 
     # weight precisions
     for lix in range(trace.depth()):
-        axes[4, lix].plot(trace.weight_precisions[lix], label="w")
+        axes[3, lix].plot(trace.weight_precisions[lix], label="w")
         # if lix != (trace.depth() - 1):
         #     axes[4, lix].plot(trace.bias_precisions[:, lix], label="b")
-    axes[4, 0].set_ylabel(r"$\sigma^{-2}_{w}$")
+    axes[3, 0].set_ylabel(r"$\sigma^{-2}_{w}$")
 
     plt.tight_layout()
 
