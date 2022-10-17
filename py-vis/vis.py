@@ -168,8 +168,8 @@ class ModelBranchParams:
     num_markers: int
     layer_widths: np.array
     params: np.array
-    weight_precisions: np.array
-    bias_precisions: np.array
+    weight_precisions: List[List[float]]
+    bias_precisions: List[float]
 
     def layer_width(self, lix: int):
         return self.layer_widths[lix]
@@ -203,6 +203,12 @@ class ModelBranchParams:
     def layer_biases(self, lix: int):
         start, stop = self.layer_bias_ixs(lix)
         return self.params[start:stop]
+
+    def layer_weight_precisions(self, lix: int):
+        return self.weight_precisions[lix]
+
+    def layer_bias_precision(self, lix: int):
+        return self.bias_precisions[lix]
 
 
 @dataclass
@@ -248,6 +254,12 @@ class Trace:
             pix += self.layer_width(i)
 
         return self.params[:, pix: pix + self.layer_width(lix)]
+
+    def layer_weight_precisions(self, lix: int):
+        return self.weight_precisions[lix]
+
+    def layer_bias_precision(self, lix: int):
+        return self.bias_precisions[:, lix]
 
 
 @dataclass
@@ -355,6 +367,61 @@ def load_phen_stats(wdir: str):
 
 def data_dir(wdir: str):
     return str(Path(wdir).parent)
+
+
+def plot_single_branch_posterior_means(wdir: str, burn_in, branch_ix=0):
+    ddir = data_dir(wdir)
+    trace = load_json_trace(wdir, branch_ix)
+    truth = load_true_params(ddir)[branch_ix]
+
+    fig, axes = plt.subplots(4, trace.depth(), figsize=(15, 10))
+
+    axes[0, 0].set_ylabel(r"$E(W | D)$")
+    axes[1, 0].set_ylabel(r"$E(\lambda_W | D)$")
+    axes[2, 0].set_ylabel(r"$E(b | D)$")
+    axes[3, 0].set_ylabel(r"$E(\lambda_b | D)$")
+
+    for lix in range(trace.depth()):
+        w_pm = trace.layer_weights(lix)[burn_in:].mean(axis=0)
+        w_t = truth.layer_weights(lix)
+        try:
+            w_pm.sort()
+            w_t.sort()
+        except:
+            pass
+        axes[0, lix].plot(w_t, w_pm, 'k.')
+        axes[0, lix].plot(w_t, w_t, 'k:')
+        axes[0, lix].set_xlabel(r"$W$")
+
+        wp_pm = trace.layer_weight_precisions(lix)[burn_in:].mean(axis=0)
+        wp_t = truth.layer_weight_precisions(lix)
+        try:
+            wp_pm.sort()
+            wp_t.sort()
+        except:
+            pass
+        axes[1, lix].plot(wp_t, wp_pm, 'k.')
+        axes[1, lix].plot(wp_t, wp_t, 'k:')
+        axes[1, lix].set_xlabel(r"$\lambda_W$")
+
+        if lix < (trace.depth() - 1):
+            b_pm = trace.layer_biases(lix)[burn_in:].mean()
+            b_t = truth.layer_biases(lix)
+            try:
+                b_pm.sort()
+                b_t.sort()
+            except:
+                pass
+            axes[2, lix].plot(b_t, b_pm, 'k.')
+            axes[2, lix].plot(b_t, b_t, 'k:')
+            axes[2, lix].set_xlabel(r"$b$")
+
+            bp_pm = trace.layer_bias_precision(lix)[burn_in:].mean()
+            bp_t = truth.layer_bias_precision(lix)
+            axes[3, lix].plot(bp_t, bp_pm, 'k.')
+            axes[3, lix].set_xlabel(r"$\lambda_b$")
+
+    plt.tight_layout()
 
 
 def plot_single_branch_perf(wdir: str, burn_in, branch_ix=0):
