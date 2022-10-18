@@ -405,7 +405,7 @@ def plot_single_branch_posterior_means(wdir: str, burn_in, branch_ix=0):
         axes[1, lix].set_xlabel(r"$\lambda_W$")
 
         if lix < (trace.depth() - 1):
-            b_pm = trace.layer_biases(lix)[burn_in:].mean()
+            b_pm = trace.layer_biases(lix)[burn_in:].mean(axis=0)
             b_t = truth.layer_biases(lix)
             try:
                 b_pm.sort()
