@@ -309,7 +309,7 @@ def load_true_params(wdir: str):
             branch["num_markers"],
             branch["layer_widths"],
             np.array(branch["params"]),
-            branch["hyperparams"]["weight_precisions"],
+            [e['data'] for e in branch["hyperparams"]["weight_precisions"]],
             branch["hyperparams"]["bias_precisions"]))
     return res
 
@@ -521,10 +521,9 @@ def plot_single_branch_trace(wdir: str, branch_ix=0):
 
 
 def mse_ridge(train_data, test_data, alpha=1.0):
-    assert train_data.num_branches == 1, "Fitting for multiple branches not implemented yet."
-    x_train = train_data.x[0]
+    x_train = np.hstack(train_data.x)
     y_train = train_data.y
-    x_test = test_data.x[0]
+    x_test = np.hstack(test_data.x)
     y_test = test_data.y
     reg = Ridge(alpha).fit(x_train, y_train)
     mse_train = mse(reg.predict(x_train), y_train)
@@ -533,10 +532,9 @@ def mse_ridge(train_data, test_data, alpha=1.0):
 
 
 def mse_linreg(train_data, test_data):
-    assert train_data.num_branches == 1, "Fitting for multiple branches not implemented yet."
-    x_train = train_data.x[0]
+    x_train = np.hstack(train_data.x)
     y_train = train_data.y
-    x_test = test_data.x[0]
+    x_test = np.hstack(test_data.x)
     y_test = test_data.y
     reg = LinearRegression().fit(x_train, y_train)
     mse_train = mse(reg.predict(x_train), y_train)
