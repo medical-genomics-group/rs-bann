@@ -350,8 +350,8 @@ fn train(args: TrainArgs) {
     let model_path = Path::new(&args.model_file);
 
     let outdir = format!(
-        "{:?}_cl{}_il{}_{}",
-        model_path.file_stem().unwrap(),
+        "{}_cl{}_il{}_{}",
+        model_path.file_stem().unwrap().to_string_lossy(),
         args.chain_length,
         args.integration_length,
         args.step_size_mode,
