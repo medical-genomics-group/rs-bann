@@ -1,5 +1,8 @@
 use super::{
-    super::mcmc_cfg::{MCMCCfg, StepSizeMode},
+    super::{
+        mcmc_cfg::{MCMCCfg, StepSizeMode},
+        net::ModelType,
+    },
     branch_cfg_builder::BranchCfgBuilder,
     momenta::BranchMomenta,
     params::BranchHyperparams,
@@ -21,6 +24,8 @@ use std::{
 const NUMERICAL_DELTA: f32 = 0.0000001;
 
 pub trait Branch {
+    fn model_type() -> ModelType;
+
     fn build_cfg(cfg_bld: BranchCfgBuilder) -> BranchCfg;
 
     fn from_cfg(cfg: &BranchCfg) -> Self;

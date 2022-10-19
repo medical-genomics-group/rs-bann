@@ -1,9 +1,8 @@
 use clap::{Args, Parser, Subcommand};
 use log::info;
-use rs_bann::net::mcmc_cfg::StepSizeMode;
+use rs_bann::net::{mcmc_cfg::StepSizeMode, net::ModelType};
 use serde::{Deserialize, Serialize};
 use serde_json::to_writer_pretty;
-use std::fmt::{Display, Formatter};
 use std::{fs::File, path::Path};
 
 #[derive(Parser)]
@@ -14,26 +13,13 @@ pub(crate) struct Cli {
     pub(crate) cmd: SubCmd,
 }
 
-#[derive(clap::ValueEnum, Clone, Debug, Serialize, Deserialize)]
-pub(crate) enum ModelType {
-    ARD,
-    Base,
-    StdNormal,
-}
-
-impl Display for ModelType {
-    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-        write!(f, "{:?}", self)
-        // or, alternatively:
-        // fmt::Debug::fmt(self, f)
-    }
-}
-
 #[derive(Subcommand)]
 pub(crate) enum SubCmd {
     /// Simulate marker and phenotype data
     Simulate(SimulateArgs),
-    /// Train Model
+    /// Train new Model
+    TrainNew(TrainNewArgs),
+    /// Train prespecified model
     Train(TrainArgs),
 }
 
@@ -92,6 +78,74 @@ impl SimulateArgs {
 
 #[derive(Args, Debug, Serialize)]
 pub(crate) struct TrainArgs {
+    /// Prior structure of model.
+    #[clap(value_enum)]
+    pub model_type: ModelType,
+
+    /// model file
+    pub model_file: String,
+
+    /// input directory with train.bin and test.bin files
+    #[clap(short, long, default_value = "./")]
+    pub indir: String,
+
+    /// full model chain length
+    pub chain_length: usize,
+
+    /// hmc max hamiltonian error
+    #[clap(default_value_t = 10., long)]
+    pub max_hamiltonian_error: f32,
+
+    /// hmc integration length
+    pub integration_length: usize,
+
+    /// hmc step size, acts as a modifying factor on random step sizes if enabled
+    #[clap(default_value_t = 0.1, long)]
+    pub step_size: f32,
+
+    #[clap(default_value_t = 1, long)]
+    /// training stats report interval
+    pub report_interval: usize,
+
+    #[clap(short, long, default_value = "./")]
+    /// Output path. Outdir will be created there.
+    pub outpath: String,
+
+    ///  Step size mode
+    #[clap(value_enum, default_value_t = StepSizeMode::Izmailov, long)]
+    pub step_size_mode: StepSizeMode,
+
+    /// enable debug prints
+    #[clap(short, long)]
+    pub debug_prints: bool,
+
+    /// standardize input data
+    #[clap(short, long)]
+    pub standardize: bool,
+
+    /// Output trace
+    #[clap(long)]
+    pub trace: bool,
+
+    /// Output hmc trajectories
+    #[clap(long)]
+    pub trajectories: bool,
+
+    /// Output numerical gradients
+    /// CAUTION: this is extremely expensive, do not run this in production.
+    #[clap(long)]
+    pub num_grad_traj: bool,
+}
+
+impl TrainArgs {
+    pub fn to_file(&self, path: &Path) {
+        info!("Creating: {:?}", path);
+        to_writer_pretty(File::create(path).unwrap(), self).unwrap();
+    }
+}
+
+#[derive(Args, Debug, Serialize)]
+pub(crate) struct TrainNewArgs {
     /// Prior structure of model.
     #[clap(value_enum)]
     pub model_type: ModelType,
@@ -162,7 +216,7 @@ pub(crate) struct TrainArgs {
     pub num_grad_traj: bool,
 }
 
-impl TrainArgs {
+impl TrainNewArgs {
     pub fn to_file(&self, path: &Path) {
         info!("Creating: {:?}", path);
         to_writer_pretty(File::create(path).unwrap(), self).unwrap();

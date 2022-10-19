@@ -1,5 +1,8 @@
 use super::{
-    branch::branch::{Branch, BranchCfg, BranchMeta, HMCStepResult},
+    branch::{
+        base_branch::BaseBranch,
+        branch::{Branch, BranchCfg, BranchMeta, HMCStepResult},
+    },
     data::Data,
     gibbs_steps::{multi_param_precision_posterior, single_param_precision_posterior},
     mcmc_cfg::MCMCCfg,
@@ -10,15 +13,31 @@ use arrayfire::{dim4, sum_all, Array};
 use bincode::{deserialize_from, serialize_into};
 use log::{debug, info};
 use rand::{prelude::SliceRandom, rngs::ThreadRng, thread_rng};
-use rand_distr::{Distribution, Normal};
+use rand_distr::{Distribution, Normal, StandardNormal};
 use serde::{Deserialize, Serialize};
 use serde_json::to_writer;
 use std::path::Path;
 use std::{
+    fmt::{Display, Formatter},
     fs::File,
     io::{BufReader, BufWriter, Write},
     marker::PhantomData,
 };
+
+#[derive(clap::ValueEnum, Clone, Debug, Serialize, Deserialize)]
+pub enum ModelType {
+    ARD,
+    Base,
+    StdNormal,
+}
+
+impl Display for ModelType {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+        // or, alternatively:
+        // fmt::Debug::fmt(self, f)
+    }
+}
 
 #[derive(Serialize, Deserialize)]
 pub struct OutputBias {
@@ -72,6 +91,10 @@ impl<B: Branch> Net<B> {
     pub fn to_file(&self, path: &Path) {
         let mut f = BufWriter::new(File::create(path).unwrap());
         serialize_into(&mut f, self).unwrap();
+    }
+
+    pub fn model_type(&self) -> ModelType {
+        B::model_type()
     }
 
     pub fn branch_cfg(&self, branch_ix: usize) -> &BranchCfg {

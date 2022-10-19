@@ -1,6 +1,5 @@
-use std::sync::Arc;
-
 use super::{
+    super::net::ModelType,
     branch::{Branch, BranchCfg, BranchLogDensityGradient},
     branch_cfg_builder::BranchCfgBuilder,
     params::{BranchHyperparams, BranchParams},
@@ -22,6 +21,10 @@ pub struct StdNormalBranch {
 }
 
 impl Branch for StdNormalBranch {
+    fn model_type() -> ModelType {
+        ModelType::StdNormal
+    }
+
     fn build_cfg(cfg_bld: BranchCfgBuilder) -> BranchCfg {
         cfg_bld.build_base()
     }

@@ -1,5 +1,6 @@
 use super::{
     super::gibbs_steps::multi_param_precision_posterior,
+    super::net::ModelType,
     branch::{Branch, BranchCfg, BranchLogDensityGradient},
     branch_cfg_builder::BranchCfgBuilder,
     params::{BranchHyperparams, BranchParams},
@@ -7,7 +8,6 @@ use super::{
 };
 use crate::to_host;
 use arrayfire::{dim4, matmul, sqrt, sum, sum_all, tile, Array, MatProp};
-use log::info;
 use rand::prelude::ThreadRng;
 use rand::thread_rng;
 use rand_distr::{Distribution, Gamma};
@@ -25,6 +25,10 @@ pub struct ArdBranch {
 // Weights in this branch are grouped by the node they
 // are going out of.
 impl Branch for ArdBranch {
+    fn model_type() -> ModelType {
+        ModelType::ARD
+    }
+
     fn build_cfg(cfg_bld: BranchCfgBuilder) -> BranchCfg {
         cfg_bld.build_ard()
     }

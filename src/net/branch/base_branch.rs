@@ -1,5 +1,6 @@
 use super::{
     super::gibbs_steps::multi_param_precision_posterior,
+    super::net::ModelType,
     branch::{Branch, BranchCfg, BranchLogDensityGradient},
     branch_cfg_builder::BranchCfgBuilder,
     params::{BranchHyperparams, BranchParams},
@@ -21,6 +22,10 @@ pub struct BaseBranch {
 }
 
 impl Branch for BaseBranch {
+    fn model_type() -> ModelType {
+        ModelType::Base
+    }
+
     fn build_cfg(cfg_bld: BranchCfgBuilder) -> BranchCfg {
         cfg_bld.build_base()
     }

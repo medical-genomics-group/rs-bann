@@ -1,7 +1,7 @@
 mod cli;
 
 use clap::Parser;
-use cli::cli::{Cli, ModelType, SimulateArgs, SubCmd, TrainArgs};
+use cli::cli::{Cli, SimulateArgs, SubCmd, TrainArgs, TrainNewArgs};
 use log::info;
 use rand::thread_rng;
 use rand_distr::{Binomial, Distribution, Normal, Uniform};
@@ -13,6 +13,7 @@ use rs_bann::net::{
     },
     data::{Data, PhenStats},
     mcmc_cfg::MCMCCfg,
+    net::{ModelType, Net},
     train_stats::ReportCfg,
 };
 use serde_json::to_writer;
@@ -30,6 +31,7 @@ fn main() {
             ModelType::ARD => simulate::<ArdBranch>(args),
             ModelType::StdNormal => simulate::<StdNormalBranch>(args),
         },
+        SubCmd::TrainNew(args) => train_new(args),
         SubCmd::Train(args) => train(args),
     }
 }
@@ -227,7 +229,7 @@ where
     args.to_file(&args_path);
 }
 
-fn train(args: TrainArgs) {
+fn train_new(args: TrainNewArgs) {
     if args.debug_prints {
         simple_logger::init_with_level(log::Level::Debug).unwrap();
     } else {
@@ -321,6 +323,74 @@ fn train(args: TrainArgs) {
                 "Built net with {:} params per branch.",
                 net.num_branch_params(0)
             );
+            net.write_meta(&mcmc_cfg);
+            info!("Training net");
+            net.train(&train_data, &mcmc_cfg, true, Some(report_cfg));
+        }
+    };
+}
+
+fn train(args: TrainArgs) {
+    if args.debug_prints {
+        simple_logger::init_with_level(log::Level::Debug).unwrap();
+    } else {
+        simple_logger::init_with_level(log::Level::Info).unwrap();
+    }
+
+    info!("Loading data");
+    let mut train_data = Data::from_file(&Path::new(&args.indir).join("train.bin"));
+    let mut test_data = Data::from_file(&Path::new(&args.indir).join("test.bin"));
+
+    if args.standardize {
+        info!("Standardizing data");
+        train_data.standardize();
+        test_data.standardize();
+    }
+
+    let model_path = Path::new(&args.model_file);
+
+    let outdir = format!(
+        "{:?}_cl{}_il{}_{}",
+        model_path.file_stem().unwrap(),
+        args.chain_length,
+        args.integration_length,
+        args.step_size_mode,
+    );
+
+    let mcmc_cfg = MCMCCfg {
+        hmc_step_size_factor: args.step_size.clone(),
+        hmc_max_hamiltonian_error: args.max_hamiltonian_error.clone(),
+        hmc_integration_length: args.integration_length.clone(),
+        hmc_step_size_mode: args.step_size_mode.clone(),
+        chain_length: args.chain_length.clone(),
+        outpath: outdir,
+        trace: args.trace.clone(),
+        trajectories: args.trajectories.clone(),
+        num_grad_traj: args.num_grad_traj.clone(),
+    };
+    mcmc_cfg.create_out();
+
+    args.to_file(&mcmc_cfg.args_path());
+
+    let report_cfg = ReportCfg::new(args.report_interval, Some(&test_data));
+
+    info!("Loading net");
+
+    match args.model_type {
+        ModelType::Base => {
+            let mut net = Net::<BaseBranch>::from_file(&model_path);
+            net.write_meta(&mcmc_cfg);
+            info!("Training net");
+            net.train(&train_data, &mcmc_cfg, true, Some(report_cfg));
+        }
+        ModelType::ARD => {
+            let mut net = Net::<ArdBranch>::from_file(&model_path);
+            net.write_meta(&mcmc_cfg);
+            info!("Training net");
+            net.train(&train_data, &mcmc_cfg, true, Some(report_cfg));
+        }
+        ModelType::StdNormal => {
+            let mut net = Net::<StdNormalBranch>::from_file(&model_path);
             net.write_meta(&mcmc_cfg);
             info!("Training net");
             net.train(&train_data, &mcmc_cfg, true, Some(report_cfg));
