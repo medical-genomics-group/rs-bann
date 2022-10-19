@@ -100,6 +100,7 @@ where
     let test_path = path.join("test.bin");
     let args_path = path.join("args.json");
     let params_path = path.join("model.params");
+    let model_path = path.join("model.bin");
 
     info!("Building model");
     let mut net_cfg = if let (Some(k), Some(s)) = (args.init_gamma_shape, args.init_gamma_scale) {
@@ -115,6 +116,9 @@ where
         net_cfg.add_branch(args.num_markers_per_branch, args.hidden_layer_width);
     }
     let net = net_cfg.build_net();
+
+    info!("Saving model");
+    net.to_file(&model_path);
 
     info!("Saving model params");
     info!("Creating: {:?}", params_path);

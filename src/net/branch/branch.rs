@@ -7,11 +7,11 @@ use super::{
     step_sizes::StepSizes,
     trajectory::Trajectory,
 };
-use crate::{scalar_to_host, to_host};
-use arrayfire::{diag_extract, dim4, dot, matmul, randu, sqrt, sum, tanh, Array, MatProp};
+use crate::scalar_to_host;
+use arrayfire::{diag_extract, dim4, dot, matmul, randu, sum, tanh, Array, MatProp};
 use log::{debug, warn};
 use rand::{prelude::ThreadRng, Rng};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::to_writer;
 use std::{
     fs::File,
@@ -491,7 +491,7 @@ impl BranchLogDensityGradient {
     }
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct BranchCfg {
     pub(crate) num_params: usize,
     pub(crate) num_markers: usize,

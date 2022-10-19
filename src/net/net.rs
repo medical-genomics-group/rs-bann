@@ -7,16 +7,20 @@ use super::{
 };
 use crate::to_host;
 use arrayfire::{dim4, sum_all, Array};
+use bincode::serialize_into;
 use log::{debug, info};
 use rand::{prelude::SliceRandom, rngs::ThreadRng, thread_rng};
 use rand_distr::{Distribution, Normal};
+use serde::{Deserialize, Serialize};
 use serde_json::to_writer;
+use std::path::Path;
 use std::{
     fs::File,
     io::{BufWriter, Write},
     marker::PhantomData,
 };
 
+#[derive(Serialize, Deserialize)]
 pub struct OutputBias {
     pub(crate) precision: f32,
     pub(crate) bias: f32,
@@ -46,6 +50,7 @@ impl OutputBias {
     }
 }
 
+#[derive(Serialize, Deserialize)]
 /// The full network model
 pub struct Net<B: Branch> {
     pub(crate) precision_prior_shape: f32,
@@ -59,6 +64,11 @@ pub struct Net<B: Branch> {
 }
 
 impl<B: Branch> Net<B> {
+    pub fn to_file(&self, path: &Path) {
+        let mut f = BufWriter::new(File::create(path).unwrap());
+        serialize_into(&mut f, self).unwrap();
+    }
+
     pub fn branch_cfg(&self, branch_ix: usize) -> &BranchCfg {
         &self.branch_cfgs[branch_ix]
     }

@@ -1,6 +1,6 @@
 use super::branch::branch::HMCStepResult;
 use super::data::Data;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::to_writer;
 use std::fs::File;
 use std::io::BufWriter;
@@ -20,7 +20,7 @@ impl<'data> ReportCfg<'data> {
     }
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub(crate) struct TrainingStats {
     pub(crate) num_samples: usize,
     pub(crate) num_accepted: usize,
