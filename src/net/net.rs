@@ -7,7 +7,7 @@ use super::{
 };
 use crate::to_host;
 use arrayfire::{dim4, sum_all, Array};
-use bincode::serialize_into;
+use bincode::{deserialize_from, serialize_into};
 use log::{debug, info};
 use rand::{prelude::SliceRandom, rngs::ThreadRng, thread_rng};
 use rand_distr::{Distribution, Normal};
@@ -16,7 +16,7 @@ use serde_json::to_writer;
 use std::path::Path;
 use std::{
     fs::File,
-    io::{BufWriter, Write},
+    io::{BufReader, BufWriter, Write},
     marker::PhantomData,
 };
 
@@ -64,6 +64,11 @@ pub struct Net<B: Branch> {
 }
 
 impl<B: Branch> Net<B> {
+    pub fn from_file(path: &Path) -> Self {
+        let mut r = BufReader::new(File::open(path).unwrap());
+        deserialize_from(&mut r).unwrap()
+    }
+
     pub fn to_file(&self, path: &Path) {
         let mut f = BufWriter::new(File::create(path).unwrap());
         serialize_into(&mut f, self).unwrap();
