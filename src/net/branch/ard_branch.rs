@@ -211,8 +211,6 @@ impl Branch for ArdBranch {
             let param_group_size = self.layer_width(i) as f32;
             let posterior_shape = param_group_size / 2. + prior_shape;
             // compute sums of squares of all rows
-            // TODO: check that this sums along the right axis
-            // TODO: check dims and contents of resulting weight_precisions entries
             self.hyperparams.weight_precisions[i] = Array::new(
                 &to_host(&sum(
                     &(&self.params.weights[i] * &self.params.weights[i]),
@@ -220,16 +218,11 @@ impl Branch for ArdBranch {
                 ))
                 .iter()
                 .map(|sum_squares| {
-                    // info!("map sum: {:2}", sum_squares);
                     let posterior_scale = 2. * prior_scale / (2. + prior_scale * sum_squares);
                     Gamma::new(posterior_shape, posterior_scale)
                         .unwrap()
                         .sample(self.rng())
                 })
-                .collect::<Vec<f32>>()
-                .into_iter()
-                .cycle()
-                .take(self.hyperparams.weight_precisions[i].elements())
                 .collect::<Vec<f32>>(),
                 self.hyperparams.weight_precisions[i].dims(),
             );
@@ -249,7 +242,7 @@ impl Branch for ArdBranch {
 
 #[cfg(test)]
 mod tests {
-    use arrayfire::{dim4, Array};
+    use arrayfire::{dim4, sum, Array};
     // use arrayfire::{af_print, randu};
 
     use super::super::{branch::Branch, branch_builder::BranchBuilder};
@@ -267,6 +260,14 @@ mod tests {
     //     let a = randu::<f32>(dims);
     //     af_print!("Create a 5-by-3 matrix of random floats on the GPU", a);
     // }
+
+    #[test]
+    fn test_af_sum_axis() {
+        // AF sum(_, 1) sums along columns, i.e. the output vector has entries equal to the number of rows
+        // of the _ matrix.
+        let a = Array::new(&[0f32, 1f32, 2f32, 3f32, 4f32, 5f32], dim4![3, 2, 1, 1]);
+        assert_eq!(to_host(&sum(&a, 1)), vec![3f32, 5f32, 7f32]);
+    }
 
     // this actually causes undefined behaviour.
     #[test]
