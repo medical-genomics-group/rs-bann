@@ -478,6 +478,7 @@ def plot_single_branch_perf(wdir: str, burn_in, branch_ix=0):
         label="ridge test"
     )
     axes[1].legend()
+    axes[1].set_yscale("log")
 
     plt.tight_layout()
 
