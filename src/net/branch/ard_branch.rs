@@ -208,9 +208,11 @@ impl Branch for ArdBranch {
     fn sample_precisions(&mut self, prior_shape: f32, prior_scale: f32) {
         // this iterates over layers
         for i in 0..self.params.weights.len() {
-            let param_group_size = self.layer_width(1) as f32;
+            let param_group_size = self.layer_width(i) as f32;
             let posterior_shape = param_group_size / 2. + prior_shape;
             // compute sums of squares of all rows
+            // TODO: check that this sums along the right axis
+            // TODO: check dims and contents of resulting weight_precisions entries
             self.hyperparams.weight_precisions[i] = Array::new(
                 &to_host(&sum(
                     &(&self.params.weights[i] * &self.params.weights[i]),

@@ -327,7 +327,7 @@ def load_json_trace(wdir: str, branch_ix=0):
             for lix, p in enumerate(l["hyperparams"]["weight_precisions"]):
                 if len(wp) <= lix:
                     wp.append([])
-                wp[lix].append(p)
+                wp[lix].append(p["data"])
             bp.append(l["hyperparams"]["bias_precisions"])
             ep.append(l["hyperparams"]["error_precision"])
     for lix in range(len(wp)):

@@ -109,6 +109,7 @@ where
         BlockNetCfg::<B>::new()
             .with_depth(args.branch_depth)
             .with_init_gamma_params(k, s)
+            .with_precision_prior(k, s)
     } else {
         BlockNetCfg::<B>::new()
             .with_depth(args.branch_depth)
