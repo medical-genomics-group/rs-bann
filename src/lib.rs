@@ -2,7 +2,6 @@ extern crate blas_src;
 extern crate openblas_src;
 
 pub mod net;
-pub mod network;
 
 use arrayfire::Array;
 
