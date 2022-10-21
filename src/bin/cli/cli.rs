@@ -15,8 +15,10 @@ pub(crate) struct Cli {
 
 #[derive(Subcommand)]
 pub(crate) enum SubCmd {
+    /// Simulate phenotype data given marker data
+    SimulateY(SimulateYArgs),
     /// Simulate marker and phenotype data
-    Simulate(SimulateArgs),
+    SimulateXY(SimulateXYArgs),
     /// Train new Model
     TrainNew(TrainNewArgs),
     /// Train prespecified model
@@ -24,7 +26,57 @@ pub(crate) enum SubCmd {
 }
 
 #[derive(Args, Debug, Serialize, Deserialize)]
-pub(crate) struct SimulateArgs {
+pub(crate) struct SimulateYArgs {
+    /// path to output dir. Dir with the simulated data will be created there.
+    #[clap(short, long, default_value = "./")]
+    pub outdir: String,
+
+    /// path to .bed file
+    pub bed: String,
+
+    /// path to file with marker groupings. Should have two columns: marker_index, group_index
+    pub groups: String,
+
+    /// Prior structure of model.
+    #[clap(value_enum)]
+    pub model_type: ModelType,
+
+    /// width of hidden layer
+    pub hidden_layer_width: usize,
+
+    /// number of hidden layers in branches
+    pub branch_depth: usize,
+
+    /// variance of network params upon initialization
+    #[clap(long, default_value_t = 1.0)]
+    pub init_param_variance: f32,
+
+    /// shape of gamma prior for network param initialization
+    #[clap(long)]
+    pub init_gamma_shape: Option<f32>,
+
+    /// scale of gamma prior for network param initialization
+    #[clap(long)]
+    pub init_gamma_scale: Option<f32>,
+
+    /// heritability (determines amount of Gaussian noise added), must be in [0, 1]
+    #[clap(default_value_t = 1.0)]
+    pub heritability: f32,
+
+    /// write data to json files, e.g. for easier parsing into python
+    #[clap(long)]
+    pub json_data: bool,
+}
+
+impl SimulateYArgs {
+    pub fn to_file(&self, path: &Path) {
+        info!("Creating: {:?}", path);
+        to_writer_pretty(File::create(path).unwrap(), self).unwrap();
+    }
+}
+
+#[derive(Args, Debug, Serialize, Deserialize)]
+pub(crate) struct SimulateXYArgs {
     /// path to output dir. Dir with the simulated data will be created there.
     #[clap(short, long, default_value = "./")]
     pub outdir: String,
@@ -69,7 +121,7 @@ pub(crate) struct SimulateArgs {
     pub json_data: bool,
 }
 
-impl SimulateArgs {
+impl SimulateXYArgs {
     pub fn to_file(&self, path: &Path) {
         info!("Creating: {:?}", path);
         to_writer_pretty(File::create(path).unwrap(), self).unwrap();

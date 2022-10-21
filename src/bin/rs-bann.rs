@@ -1,7 +1,7 @@
 mod cli;
 
 use clap::Parser;
-use cli::cli::{Cli, SimulateArgs, SubCmd, TrainArgs, TrainNewArgs};
+use cli::cli::{Cli, SimulateXYArgs, SimulateYArgs, SubCmd, TrainArgs, TrainNewArgs};
 use log::info;
 use rand::thread_rng;
 use rand_distr::{Binomial, Distribution, Normal, Uniform};
@@ -26,39 +26,194 @@ use std::{
 
 fn main() {
     match Cli::parse().cmd {
-        SubCmd::Simulate(args) => match args.model_type {
-            ModelType::Base => simulate::<BaseBranch>(args),
-            ModelType::ARD => simulate::<ArdBranch>(args),
-            ModelType::StdNormal => simulate::<StdNormalBranch>(args),
+        SubCmd::SimulateY(args) => match args.model_type {
+            ModelType::Base => simulate_y::<BaseBranch>(args),
+            ModelType::ARD => simulate_y::<ArdBranch>(args),
+            ModelType::StdNormal => simulate_y::<StdNormalBranch>(args),
+        },
+        SubCmd::SimulateXY(args) => match args.model_type {
+            ModelType::Base => simulate_xy::<BaseBranch>(args),
+            ModelType::ARD => simulate_xy::<ArdBranch>(args),
+            ModelType::StdNormal => simulate_xy::<StdNormalBranch>(args),
         },
         SubCmd::TrainNew(args) => train_new(args),
         SubCmd::Train(args) => train(args),
     }
 }
 
-// TODO:
-// Unless the groups get to large, I can do everything on col major files
-// and col major bedvecs.
-// the preprocessing routine only has to split the large .bed into groups
-// following some annotation input.
-// fn preprocess() {
-//     unimplemented!();
-// }
+fn simulate_y<B>(args: SimulateYArgs)
+where
+    B: Branch,
+{
+    // simple_logger::init_with_level(log::Level::Info).unwrap();
 
-// // The following lower bounds for memory consumption are expected,
-// // if only a subset of all samples is loaded at a time
-// // n    pg  mem[mb]
-// // 10k  1k  10**4 * 1x10**3 * 0.25 = 10**7 * 0.75 b =  7.5 Mb
-// // I need fast random reading of this data.
-// fn train() {
-//     unimplemented!();
-// }
+    // if !(args.heritability >= 0. && args.heritability <= 1.) {
+    //     panic!("Heritability must be within [0, 1].");
+    // }
 
-// fn predict() {
-//     unimplemented!();
-// }
+    // let bed_path = Path::new(&args.bed);
 
-fn simulate<B>(args: SimulateArgs)
+    // let mut path = Path::new(&args.outdir).join(format!(
+    //     "{}_{}_d{}_h{}_v{}",
+    //     bed_path.file_stem().unwrap().to_string_lossy(),
+    //     args.model_type,
+    //     args.branch_depth,
+    //     args.heritability,
+    //     args.init_param_variance
+    // ));
+
+    // if let (Some(k), Some(s)) = (args.init_gamma_shape, args.init_gamma_scale) {
+    //     path = Path::new(&args.outdir).join(format!(
+    //         "{}_{}_d{}_h{}_k{}_s{}",
+    //         bed_path.file_stem().unwrap().to_string_lossy(),
+    //         args.model_type,
+    //         args.branch_depth,
+    //         args.heritability,
+    //         k,
+    //         s
+    //     ));
+    // }
+
+    // if !path.exists() {
+    //     std::fs::create_dir_all(&path).expect("Could not create output directory!");
+    // }
+    // let train_path = path.join("train.bin");
+    // let test_path = path.join("test.bin");
+    // let args_path = path.join("args.json");
+    // let params_path = path.join("model.params");
+    // let model_path = path.join("model.bin");
+
+    // info!("Building model");
+    // let mut net_cfg = if let (Some(k), Some(s)) = (args.init_gamma_shape, args.init_gamma_scale) {
+    //     BlockNetCfg::<B>::new()
+    //         .with_depth(args.branch_depth)
+    //         .with_init_gamma_params(k, s)
+    //         .with_precision_prior(k, s)
+    // } else {
+    //     BlockNetCfg::<B>::new()
+    //         .with_depth(args.branch_depth)
+    //         .with_init_param_variance(args.init_param_variance)
+    // };
+
+    // // from here on Ill need the group data at least
+
+    // // use 0.5 num markers in branch?
+    // for _ in 0..args.num_branches {
+    //     net_cfg.add_branch(args.num_markers_per_branch, args.hidden_layer_width);
+    // }
+    // let net = net_cfg.build_net();
+
+    // info!("Saving model");
+    // net.to_file(&model_path);
+
+    // info!("Saving model params");
+    // info!("Creating: {:?}", params_path);
+    // let mut net_params_file = BufWriter::new(File::create(params_path).unwrap());
+    // to_writer(&mut net_params_file, net.branch_cfgs()).unwrap();
+    // net_params_file.write_all(b"\n").unwrap();
+
+    // let mut rng = thread_rng();
+
+    // info!("Generating random marker data");
+    // let gt_per_branch = args.num_markers_per_branch * args.num_individuals;
+    // let mut x_train: Vec<Vec<f32>> = vec![vec![0.0; gt_per_branch]; args.num_branches];
+    // let mut x_test: Vec<Vec<f32>> = vec![vec![0.0; gt_per_branch]; args.num_branches];
+    // let mut x_means: Vec<Vec<f32>> =
+    //     vec![vec![0.0; args.num_markers_per_branch]; args.num_branches];
+    // let mut x_stds: Vec<Vec<f32>> = vec![vec![0.0; args.num_markers_per_branch]; args.num_branches];
+    // for branch_ix in 0..args.num_branches {
+    //     for marker_ix in 0..args.num_markers_per_branch {
+    //         let maf = Uniform::from(0.0..0.5).sample(&mut rng);
+    //         x_means[branch_ix][marker_ix] = 2. * maf;
+    //         x_stds[branch_ix][marker_ix] = (2. * maf * (1. - maf)).sqrt();
+
+    //         let binom = Binomial::new(2, maf as f64).unwrap();
+    //         (0..args.num_individuals).for_each(|i| {
+    //             x_train[branch_ix][marker_ix * args.num_individuals + i] =
+    //                 binom.sample(&mut rng) as f32
+    //         });
+
+    //         let maf = Uniform::from(0.0..0.5).sample(&mut rng);
+    //         let binom = Binomial::new(2, maf).unwrap();
+    //         (0..args.num_individuals).for_each(|i| {
+    //             x_test[branch_ix][marker_ix * args.num_individuals + i] =
+    //                 binom.sample(&mut rng) as f32
+    //         });
+    //     }
+    // }
+
+    // info!("Making phenotype data");
+    // let mut y_train = net.predict(&x_train, args.num_individuals);
+    // let mut y_test = net.predict(&x_test, args.num_individuals);
+
+    // let mut train_residual_variance: f64 = 0.0;
+    // let mut test_residual_variance: f64 = 0.0;
+
+    // if args.heritability != 1. {
+    //     let s2_train = (&y_train.iter().map(|e| *e as f64).collect::<Vec<f64>>()).variance();
+    //     train_residual_variance = s2_train * (1. / args.heritability as f64 - 1.);
+    //     let rv_train_dist = Normal::new(0.0, train_residual_variance.sqrt()).unwrap();
+    //     y_train
+    //         .iter_mut()
+    //         .for_each(|e| *e += rv_train_dist.sample(&mut rng) as f32);
+    //     let s2_test = (&y_test.iter().map(|e| *e as f64).collect::<Vec<f64>>()).variance();
+    //     test_residual_variance = s2_test * (1. / args.heritability as f64 - 1.);
+    //     let rv_test_dist = Normal::new(0.0, test_residual_variance.sqrt()).unwrap();
+    //     y_test
+    //         .iter_mut()
+    //         .for_each(|e| *e += rv_test_dist.sample(&mut rng) as f32);
+    // }
+
+    // let train_data = Data::new(
+    //     x_train,
+    //     y_train.clone(),
+    //     x_means.clone(),
+    //     x_stds.clone(),
+    //     args.num_markers_per_branch,
+    //     args.num_individuals,
+    //     args.num_branches,
+    //     false,
+    // );
+
+    // let test_data = Data::new(
+    //     x_test,
+    //     y_test.clone(),
+    //     x_means,
+    //     x_stds,
+    //     args.num_markers_per_branch,
+    //     args.num_individuals,
+    //     args.num_branches,
+    //     false,
+    // );
+
+    // PhenStats::new(
+    //     (&y_test.iter().map(|e| *e as f64).collect::<Vec<f64>>()).mean() as f32,
+    //     (&y_test.iter().map(|e| *e as f64).collect::<Vec<f64>>()).variance() as f32,
+    //     test_residual_variance as f32,
+    //     net.mse(&test_data),
+    // )
+    // .to_file(&path.join("test_phen_stats.json"));
+
+    // PhenStats::new(
+    //     (&y_train.iter().map(|e| *e as f64).collect::<Vec<f64>>()).mean() as f32,
+    //     (&y_train.iter().map(|e| *e as f64).collect::<Vec<f64>>()).variance() as f32,
+    //     train_residual_variance as f32,
+    //     net.mse(&train_data),
+    // )
+    // .to_file(&path.join("train_phen_stats.json"));
+
+    // train_data.to_file(&train_path);
+    // test_data.to_file(&test_path);
+
+    // if args.json_data {
+    //     train_data.to_json(&path.join("train.json"));
+    //     test_data.to_json(&path.join("test.json"));
+    // }
+
+    // args.to_file(&args_path);
+}
+
+fn simulate_xy<B>(args: SimulateXYArgs)
 where
     B: Branch,
 {
