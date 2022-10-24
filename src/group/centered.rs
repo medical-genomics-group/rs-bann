@@ -22,6 +22,7 @@ impl SNPId2Ix {
         let mut ix = 0;
         while let Ok(_) = reader.read_line(&mut buffer) {
             println!("{}", ix);
+            print!("{}", buffer);
             let id = buffer
                 .split_whitespace()
                 .enumerate()
