@@ -1,3 +1,4 @@
+use super::grouping::MarkerGrouping;
 use std::{
     collections::{HashMap, HashSet},
     fs::File,
@@ -20,9 +21,10 @@ impl SNPId2Ix {
         let mut buffer = String::new();
 
         let mut ix = 0;
-        while let Ok(_) = reader.read_line(&mut buffer) {
-            println!("{}", ix);
-            print!("{}", buffer);
+        while let Ok(bytes_read) = reader.read_line(&mut buffer) {
+            if bytes_read == 0 {
+                break;
+            }
             let id = buffer
                 .split_whitespace()
                 .enumerate()
@@ -32,6 +34,7 @@ impl SNPId2Ix {
 
             res.map.insert(id.to_string(), ix);
             ix += 1;
+            buffer.clear();
         }
 
         res
@@ -51,31 +54,35 @@ impl CorrGraph {
         let id2ix = SNPId2Ix::from_bim(bim_file);
         let mut res = CorrGraph { g: HashMap::new() };
 
-        // let file = File::open(ld_file).unwrap();
-        // let mut reader = BufReader::new(file);
-        // let mut buffer = String::new();
+        let file = File::open(ld_file).unwrap();
+        let mut reader = BufReader::new(file);
+        let mut buffer = String::new();
 
-        // let mut lix = 0;
+        let mut lix = 0;
 
-        // while let Ok(_) = reader.read_line(&mut buffer) {
-        //     // skip header line
-        //     if lix > 0 {
-        //         let fields = buffer.split_whitespace().collect::<Vec<&str>>();
-        //         // TODO: there should be a proper error message here
-        //         let ix1 = id2ix.ix(fields[2]).unwrap();
-        //         let ix2 = id2ix.ix(fields[5]).unwrap();
-        //         res.g.entry(*ix1).or_insert(HashSet::new()).insert(*ix2);
-        //         res.g.entry(*ix2).or_insert(HashSet::new()).insert(*ix1);
-        //     }
-        //     lix += 1;
-        // }
+        while let Ok(bytes_read) = reader.read_line(&mut buffer) {
+            if bytes_read == 0 {
+                break;
+            }
+            // skip header line
+            if lix > 0 {
+                let fields = buffer.split_whitespace().collect::<Vec<&str>>();
+                // TODO: there should be a proper error message here
+                let ix1 = id2ix.ix(fields[2]).unwrap();
+                let ix2 = id2ix.ix(fields[5]).unwrap();
+                res.g.entry(*ix1).or_insert(HashSet::new()).insert(*ix2);
+                res.g.entry(*ix2).or_insert(HashSet::new()).insert(*ix1);
+            }
+            lix += 1;
+            buffer.clear();
+        }
 
-        // // insert isolated nodes
-        // for ix in id2ix.map.values() {
-        //     if !res.g.contains_key(ix) {
-        //         res.g.insert(*ix, HashSet::new());
-        //     }
-        // }
+        // insert isolated nodes
+        for ix in id2ix.map.values() {
+            if !res.g.contains_key(ix) {
+                res.g.insert(*ix, HashSet::new());
+            }
+        }
 
         res
     }
@@ -104,8 +111,10 @@ impl CorrGraph {
                     for d in 1..100 {
                         if let Some(n) = grouping.groups.get_mut(&(cix - d)) {
                             n.push(cix);
+                            break;
                         } else if let Some(n) = grouping.groups.get_mut(&(cix + d)) {
                             n.push(cix);
+                            break;
                         }
                     }
                 }
@@ -132,6 +141,16 @@ impl CenteredGrouping {
     }
 }
 
+impl MarkerGrouping for CenteredGrouping {
+    fn num_groups(&self) -> usize {
+        self.groups.len()
+    }
+
+    fn group(&self, ix: usize) -> Option<&Vec<usize>> {
+        self.groups.get(&ix)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -149,11 +168,22 @@ mod tests {
         println!("{:?}", bim_path.as_os_str());
 
         let g = CorrGraph::from_plink_ld(&ld_path, &bim_path);
-        println!("Made a graph!");
-        // let grouping = g.centered_grouping();
 
-        // assert_eq!(*grouping.groups.get(&0).unwrap(), vec![2, 3, 4, 1]);
-        // assert_eq!(*grouping.groups.get(&1).unwrap(), vec![4, 6, 7, 5]);
-        // assert_eq!(*grouping.groups.get(&2).unwrap(), vec![9, 10, 11, 8]);
+        println!("{:?}", g.g);
+
+        let grouping = g.centered_grouping();
+
+        assert_eq!(
+            grouping.groups.get(&0).unwrap().clone().sort(),
+            vec![0, 1, 2, 3].sort()
+        );
+        assert_eq!(
+            grouping.groups.get(&1).unwrap().clone().sort(),
+            vec![3, 4, 5, 6].sort()
+        );
+        assert_eq!(
+            grouping.groups.get(&2).unwrap().clone().sort(),
+            vec![7, 8, 9, 10].sort()
+        );
     }
 }
