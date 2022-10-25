@@ -214,6 +214,10 @@ impl<B: Branch> Net<B> {
                 self.branch_cfgs[branch_ix] = branch.to_cfg();
             }
 
+            // TODO:
+            // this can be easily done without predicting again,
+            // just by saving the last predictions of each branch
+            // and combining them.
             self.record_mse(train_data, report_cfg.as_ref().unwrap().test_data);
 
             // update error precision
