@@ -1,49 +1,12 @@
-use bed_reader::{Bed, ReadOptions};
 use bincode::{deserialize_from, serialize_into};
 use serde::{Deserialize, Serialize};
 use serde_json::{to_writer, to_writer_pretty};
-use std::collections::HashMap;
+
 use std::{
     fs::File,
-    io::{BufRead, BufReader, BufWriter},
+    io::{BufReader, BufWriter},
     path::Path,
 };
-
-/// Mapping from branch id to marker ids
-pub struct MarkerGrouping {
-    groups: HashMap<usize, Vec<usize>>,
-}
-
-impl MarkerGrouping {
-    /// This assumes a two column file with columns: marker_id, group_id
-    pub fn from_file(file: &Path) -> Self {
-        let mut res = MarkerGrouping {
-            groups: HashMap::new(),
-        };
-
-        let file = File::open(file).unwrap();
-        let mut reader = BufReader::new(file);
-        let mut buffer = String::new();
-        let mut line_fields = [0, 0];
-
-        while let Ok(_) = reader.read_line(&mut buffer) {
-            // TODO: this will panic if the file has to many line entries
-            // and will cause undesired behaviour if too few line entries
-            buffer
-                .split_whitespace()
-                .map(|e| e.parse::<usize>().unwrap())
-                .enumerate()
-                .for_each(|(ix, e)| line_fields[ix] = e);
-
-            res.groups
-                .entry(line_fields[1])
-                .or_insert(Vec::new())
-                .push(line_fields[0]);
-        }
-
-        res
-    }
-}
 
 #[derive(Serialize, Deserialize)]
 pub struct PhenStats {
