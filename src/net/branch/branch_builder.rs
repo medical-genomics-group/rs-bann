@@ -419,7 +419,6 @@ mod tests {
         assert_eq!(branch.num_layers(), 3);
         assert_eq!(branch.num_markers, 3);
         for i in 0..branch.num_layers() {
-            println!("{:?}", i);
             assert_eq!(branch.layer_width(i), exp_layer_widths[i]);
             assert_eq!(branch.weights(i).dims(), exp_weight_dims[i]);
             if i < branch.num_layers() - 1 {

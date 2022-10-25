@@ -388,7 +388,6 @@ mod tests {
         ];
         // correct values of activations
         for i in 0..(branch.num_layers) {
-            println!("{:?}", i);
             assert_eq!(to_host(&activations[i]), to_host(&exp_activations[i]));
         }
     }
@@ -411,7 +410,6 @@ mod tests {
 
         // correct dimensions of gradients
         for i in 0..(branch.num_layers) {
-            println!("{:?}", i);
             assert_eq!(weights_gradient[i].dims(), branch.weights(i).dims());
         }
         for i in 0..(branch.num_layers - 1) {
@@ -444,7 +442,6 @@ mod tests {
             assert_eq!(to_host(&weights_gradient[i]), to_host(&exp_weight_grad[i]));
         }
         for i in 0..(branch.num_layers - 1) {
-            println!("{:?}", i);
             assert_eq!(to_host(&bias_gradient[i]), to_host(&exp_bias_grad[i]));
         }
     }
@@ -467,7 +464,6 @@ mod tests {
 
         // correct dimensions
         for i in 0..(branch.num_layers) {
-            println!("{:?}", i);
             assert_eq!(ldg.wrt_weights[i].dims(), branch.weights(i).dims());
         }
         for i in 0..(branch.num_layers - 1) {
@@ -497,7 +493,6 @@ mod tests {
 
         // correct values
         for i in 0..(branch.num_layers) {
-            println!("{:?}", i);
             assert_eq!(to_host(&ldg.wrt_weights[i]), to_host(&exp_ldg_wrt_w[i]));
         }
         for i in 0..(branch.num_layers - 1) {

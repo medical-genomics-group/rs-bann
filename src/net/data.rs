@@ -8,6 +8,8 @@ use std::{
     path::Path,
 };
 
+use crate::group::grouping::MarkerGrouping;
+
 #[derive(Serialize, Deserialize)]
 pub struct PhenStats {
     mean: f32,
@@ -66,7 +68,10 @@ impl Data {
         }
     }
 
-    // pub fn from_bed(bed_path: &Path, group_ix_path: &Path) -> Self {
+    // pub fn from_bed<G>(bed_path: &Path, grouping: &G) -> Self
+    // where
+    //     G: MarkerGrouping,
+    // {
     //     // the bed reader output is row major, but I'd need to put it
     //     // in the array as col major I think?
     //     // .c option should make it 'row major' in their mind,
@@ -115,5 +120,28 @@ impl Data {
             }
             self.standardized = true;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use bed_reader::{sample_bed_file, Bed, ReadOptions};
+    use std::env;
+    use std::path::Path;
+
+    #[test]
+    fn test() {
+        let base_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
+        let base_path = Path::new(&base_dir);
+        let bed_path = base_path.join("resources/test/small.bed");
+
+        println!();
+        // let file_name = sample_bed_file(&bed_path).unwrap();
+        println!("{}", bed_path.to_string_lossy());
+
+        let mut bed = Bed::new(&bed_path).unwrap();
+        let val = ReadOptions::builder().f32().read(&mut bed).unwrap();
+        println!("{:?}", val);
+        println!();
     }
 }

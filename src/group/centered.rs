@@ -164,12 +164,7 @@ mod tests {
         let ld_path = base_path.join("resources/test/small.ld");
         let bim_path = base_path.join("resources/test/small.bim");
 
-        println!("{:?}", ld_path.as_os_str());
-        println!("{:?}", bim_path.as_os_str());
-
         let g = CorrGraph::from_plink_ld(&ld_path, &bim_path);
-
-        println!("{:?}", g.g);
 
         let grouping = g.centered_grouping();
 
