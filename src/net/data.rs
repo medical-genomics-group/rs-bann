@@ -125,7 +125,7 @@ impl Data {
 
 #[cfg(test)]
 mod tests {
-    use bed_reader::{sample_bed_file, Bed, ReadOptions};
+    use bed_reader::{Bed, ReadOptions};
     use std::env;
     use std::path::Path;
 
@@ -134,10 +134,6 @@ mod tests {
         let base_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
         let base_path = Path::new(&base_dir);
         let bed_path = base_path.join("resources/test/small.bed");
-
-        println!();
-        // let file_name = sample_bed_file(&bed_path).unwrap();
-        println!("{}", bed_path.to_string_lossy());
 
         let mut bed = Bed::new(&bed_path).unwrap();
         let val = ReadOptions::builder().f32().read(&mut bed).unwrap();

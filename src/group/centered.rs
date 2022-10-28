@@ -1,4 +1,5 @@
 use super::grouping::MarkerGrouping;
+use std::cmp::Reverse;
 use std::{
     collections::{HashMap, HashSet},
     fs::File,
@@ -70,8 +71,8 @@ impl CorrGraph {
                 // TODO: there should be a proper error message here
                 let ix1 = id2ix.ix(fields[2]).unwrap();
                 let ix2 = id2ix.ix(fields[5]).unwrap();
-                res.g.entry(*ix1).or_insert(HashSet::new()).insert(*ix2);
-                res.g.entry(*ix2).or_insert(HashSet::new()).insert(*ix1);
+                res.g.entry(*ix1).or_insert_with(HashSet::new).insert(*ix2);
+                res.g.entry(*ix2).or_insert_with(HashSet::new).insert(*ix1);
             }
             lix += 1;
             buffer.clear();
@@ -92,7 +93,7 @@ impl CorrGraph {
 
         let mut degrees: Vec<(usize, usize)> = self.g.iter().map(|(k, v)| (*k, v.len())).collect();
         // descending order by degree
-        degrees.sort_by(|a, b| b.1.cmp(&a.1));
+        degrees.sort_by_key(|e| (Reverse(e.1), e.0));
 
         let mut no_centers = HashSet::<usize>::new();
         let mut gix = 0;
@@ -100,7 +101,7 @@ impl CorrGraph {
             if !no_centers.contains(&cix) {
                 let neighbors = self.g.get(&cix).unwrap();
                 if !neighbors.is_empty() {
-                    let mut group = neighbors.iter().map(|e| *e).collect::<Vec<usize>>();
+                    let mut group = neighbors.iter().copied().collect::<Vec<usize>>();
                     group.push(cix);
                     // group.sort();
                     no_centers.extend(group.iter());
@@ -168,17 +169,12 @@ mod tests {
 
         let grouping = g.centered_grouping();
 
-        assert_eq!(
-            grouping.groups.get(&0).unwrap().clone().sort(),
-            vec![0, 1, 2, 3].sort()
-        );
-        assert_eq!(
-            grouping.groups.get(&1).unwrap().clone().sort(),
-            vec![3, 4, 5, 6].sort()
-        );
-        assert_eq!(
-            grouping.groups.get(&2).unwrap().clone().sort(),
-            vec![7, 8, 9, 10].sort()
-        );
+        let exp_groups = vec![vec![0, 1, 2, 3], vec![3, 4, 5], vec![6, 7, 8, 9, 10]];
+
+        for gix in 0..=2 {
+            let mut group = grouping.groups.get(&gix).unwrap().clone();
+            group.sort_unstable();
+            assert_eq!(group, exp_groups[gix]);
+        }
     }
 }
