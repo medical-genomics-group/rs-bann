@@ -8,7 +8,7 @@ use std::{
 };
 
 pub struct SNPId2Ix {
-    map: HashMap<String, usize>,
+    map: HashMap<String, isize>,
 }
 
 impl SNPId2Ix {
@@ -41,13 +41,13 @@ impl SNPId2Ix {
         res
     }
 
-    pub fn ix(&self, id: &str) -> Option<&usize> {
+    pub fn ix(&self, id: &str) -> Option<&isize> {
         self.map.get(id)
     }
 }
 
 pub struct CorrGraph {
-    g: HashMap<usize, HashSet<usize>>,
+    g: HashMap<isize, HashSet<isize>>,
 }
 
 impl CorrGraph {
@@ -91,17 +91,17 @@ impl CorrGraph {
     pub fn centered_grouping(&self) -> CenteredGrouping {
         let mut grouping = CenteredGrouping::new();
 
-        let mut degrees: Vec<(usize, usize)> = self.g.iter().map(|(k, v)| (*k, v.len())).collect();
+        let mut degrees: Vec<(isize, usize)> = self.g.iter().map(|(k, v)| (*k, v.len())).collect();
         // descending order by degree
         degrees.sort_by_key(|e| (Reverse(e.1), e.0));
 
-        let mut no_centers = HashSet::<usize>::new();
+        let mut no_centers = HashSet::<isize>::new();
         let mut gix = 0;
         for (cix, _) in degrees {
             if !no_centers.contains(&cix) {
                 let neighbors = self.g.get(&cix).unwrap();
                 if !neighbors.is_empty() {
-                    let mut group = neighbors.iter().copied().collect::<Vec<usize>>();
+                    let mut group = neighbors.iter().copied().collect::<Vec<isize>>();
                     group.push(cix);
                     // group.sort();
                     no_centers.extend(group.iter());
@@ -110,10 +110,10 @@ impl CorrGraph {
                 } else {
                     // find closest (by id) group
                     for d in 1..100 {
-                        if let Some(n) = grouping.groups.get_mut(&(cix - d)) {
+                        if let Some(n) = grouping.groups.get_mut(&((cix - d) as usize)) {
                             n.push(cix);
                             break;
-                        } else if let Some(n) = grouping.groups.get_mut(&(cix + d)) {
+                        } else if let Some(n) = grouping.groups.get_mut(&((cix + d) as usize)) {
                             n.push(cix);
                             break;
                         }
@@ -131,7 +131,7 @@ impl CorrGraph {
 /// remaining degree. All SNPs correlated with a center SNP are
 /// part of the same
 pub struct CenteredGrouping {
-    pub groups: HashMap<usize, Vec<usize>>,
+    pub groups: HashMap<usize, Vec<isize>>,
 }
 
 impl CenteredGrouping {
@@ -147,7 +147,7 @@ impl MarkerGrouping for CenteredGrouping {
         self.groups.len()
     }
 
-    fn group(&self, ix: usize) -> Option<&Vec<usize>> {
+    fn group(&self, ix: usize) -> Option<&Vec<isize>> {
         self.groups.get(&ix)
     }
 }

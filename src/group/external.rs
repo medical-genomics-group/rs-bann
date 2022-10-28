@@ -6,7 +6,7 @@ use std::path::Path;
 
 /// Mapping from branch id to marker ids
 pub struct ExternalGrouping {
-    groups: HashMap<usize, Vec<usize>>,
+    groups: HashMap<usize, Vec<isize>>,
 }
 
 impl ExternalGrouping {
@@ -29,12 +29,12 @@ impl ExternalGrouping {
             // and will cause undesired behaviour if too few line entries
             buffer
                 .split_whitespace()
-                .map(|e| e.parse::<usize>().unwrap())
+                .map(|e| e.parse::<isize>().unwrap())
                 .enumerate()
                 .for_each(|(ix, e)| line_fields[ix] = e);
 
             res.groups
-                .entry(line_fields[1])
+                .entry(line_fields[1] as usize)
                 .or_insert(Vec::new())
                 .push(line_fields[0]);
 
@@ -50,7 +50,7 @@ impl MarkerGrouping for ExternalGrouping {
         self.groups.len()
     }
 
-    fn group(&self, ix: usize) -> Option<&Vec<usize>> {
+    fn group(&self, ix: usize) -> Option<&Vec<isize>> {
         self.groups.get(&ix)
     }
 }
