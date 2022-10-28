@@ -341,7 +341,7 @@ where
         y_train.clone(),
         x_means.clone(),
         x_stds.clone(),
-        args.num_markers_per_branch,
+        vec![args.num_markers_per_branch; args.num_branches],
         args.num_individuals,
         args.num_branches,
         false,
@@ -352,7 +352,7 @@ where
         y_test.clone(),
         x_means,
         x_stds,
-        args.num_markers_per_branch,
+        vec![args.num_markers_per_branch; args.num_branches],
         args.num_individuals,
         args.num_branches,
         false,
@@ -439,8 +439,11 @@ fn train_new(args: TrainNewArgs) {
                 .with_depth(args.branch_depth)
                 .with_precision_prior(args.prior_shape, args.prior_scale);
 
-            for _ in 0..train_data.num_branches() {
-                net_cfg.add_branch(train_data.num_markers_per_branch(), args.hidden_layer_width);
+            for bix in 0..train_data.num_branches() {
+                net_cfg.add_branch(
+                    train_data.num_markers_in_branch(bix),
+                    args.hidden_layer_width,
+                );
             }
             let mut net = net_cfg.build_net();
             info!(
@@ -456,8 +459,11 @@ fn train_new(args: TrainNewArgs) {
                 .with_depth(args.branch_depth)
                 .with_precision_prior(args.prior_shape, args.prior_scale);
 
-            for _ in 0..train_data.num_branches() {
-                net_cfg.add_branch(train_data.num_markers_per_branch(), args.hidden_layer_width);
+            for bix in 0..train_data.num_branches() {
+                net_cfg.add_branch(
+                    train_data.num_markers_in_branch(bix),
+                    args.hidden_layer_width,
+                );
             }
             let mut net = net_cfg.build_net();
             info!(
@@ -471,8 +477,11 @@ fn train_new(args: TrainNewArgs) {
         ModelType::StdNormal => {
             let mut net_cfg = BlockNetCfg::<StdNormalBranch>::new().with_depth(args.branch_depth);
 
-            for _ in 0..train_data.num_branches() {
-                net_cfg.add_branch(train_data.num_markers_per_branch(), args.hidden_layer_width);
+            for bix in 0..train_data.num_branches() {
+                net_cfg.add_branch(
+                    train_data.num_markers_in_branch(bix),
+                    args.hidden_layer_width,
+                );
             }
             let mut net = net_cfg.build_net();
             info!(

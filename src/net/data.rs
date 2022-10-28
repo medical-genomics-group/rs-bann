@@ -1,7 +1,8 @@
+use bed_reader::{Bed, ReadOptions};
 use bincode::{deserialize_from, serialize_into};
+use ndarray::Array;
 use serde::{Deserialize, Serialize};
 use serde_json::{to_writer, to_writer_pretty};
-
 use std::{
     fs::File,
     io::{BufReader, BufWriter},
@@ -39,7 +40,7 @@ pub struct Data {
     pub y: Vec<f32>,
     pub x_means: Vec<Vec<f32>>,
     pub x_stds: Vec<Vec<f32>>,
-    num_markers_per_branch: usize,
+    num_markers_per_branch: Vec<usize>,
     num_individuals: usize,
     num_branches: usize,
     standardized: bool,
@@ -51,7 +52,7 @@ impl Data {
         y: Vec<f32>,
         x_means: Vec<Vec<f32>>,
         x_stds: Vec<Vec<f32>>,
-        num_markers_per_branch: usize,
+        num_markers_per_branch: Vec<usize>,
         num_individuals: usize,
         num_branches: usize,
         standardized: bool,
@@ -68,17 +69,30 @@ impl Data {
         }
     }
 
-    // pub fn from_bed<G>(bed_path: &Path, grouping: &G) -> Self
-    // where
-    //     G: MarkerGrouping,
-    // {
-    //     // the bed reader output is row major, but I'd need to put it
-    //     // in the array as col major I think?
-    //     // .c option should make it 'row major' in their mind,
-    //     // I have to try what the actual output format is.
-    //     let mut bed = Bed::new(bed_path).unwrap();
-    //     let val = ReadOptions::builder().f32().read(&mut bed).unwrap();
-    // }
+    pub fn from_bed<G>(bed_path: &Path, grouping: &G)
+    where
+        G: MarkerGrouping,
+    {
+        let mut bed = Bed::new(bed_path).unwrap();
+        let mut x = Vec::new();
+        let mut num_markers_per_branch = Vec::new();
+        let num_branches = grouping.num_groups();
+        for gix in 0..grouping.num_groups() {
+            // I might want to sort the grouping first. I think that might be more expensive than just
+            // reading the data out of order.
+            // + I have to save the grouping anyway, or create output reports with the original snp indexing
+            // (If there will ever ber single SNP PIP or sth like that)
+            let val = ReadOptions::builder()
+                .f32()
+                .f()
+                .sid_index(grouping.group(gix).unwrap())
+                .read(&mut bed)
+                .unwrap();
+            // TODO: make sure that t().iter() actually is column-major iteration.
+            x.push(val.t().iter().copied().collect::<Vec<f32>>());
+            num_markers_per_branch.push(grouping.group_size(gix).unwrap());
+        }
+    }
 
     pub fn from_file(path: &Path) -> Self {
         let mut r = BufReader::new(File::open(path).unwrap());
@@ -98,8 +112,12 @@ impl Data {
         self.x.len()
     }
 
-    pub fn num_markers_per_branch(&self) -> usize {
-        self.num_markers_per_branch
+    pub fn num_markers_per_branch(&self) -> &Vec<usize> {
+        &self.num_markers_per_branch
+    }
+
+    pub fn num_markers_in_branch(&self, ix: usize) -> usize {
+        self.num_markers_per_branch[ix]
     }
 
     pub fn num_individuals(&self) -> usize {
@@ -109,7 +127,7 @@ impl Data {
     pub fn standardize(&mut self) {
         if !self.standardized {
             for branch_ix in 0..self.num_branches() {
-                for marker_ix in 0..self.num_markers_per_branch {
+                for marker_ix in 0..self.num_markers_in_branch(branch_ix) {
                     (0..self.num_individuals).for_each(|i| {
                         let val = self.x[branch_ix][self.num_individuals * marker_ix + i];
                         self.x[branch_ix][self.num_individuals * marker_ix + i] = (val
