@@ -69,19 +69,23 @@ impl Data {
         }
     }
 
-    pub fn from_bed<G>(bed_path: &Path, grouping: &G)
+    pub fn from_bed<G>(bed_path: &Path, grouping: &G) -> Self
     where
         G: MarkerGrouping,
     {
         let mut bed = Bed::new(bed_path).unwrap();
+        let mut y = Vec::new();
         let mut x = Vec::new();
+        let mut x_means = Vec::new();
+        let mut x_stds = Vec::new();
         let mut num_markers_per_branch = Vec::new();
+        let mut num_individuals = 0;
         let num_branches = grouping.num_groups();
         for gix in 0..grouping.num_groups() {
             // I might want to sort the grouping first. I think that might be more expensive than just
             // reading the data out of order.
             // + I have to save the grouping anyway, or create output reports with the original snp indexing
-            // (If there will ever ber single SNP PIP or sth like that)
+            // (If there will ever be single SNP PIP or sth like that)
             let val = ReadOptions::builder()
                 .f32()
                 .f()
@@ -89,8 +93,21 @@ impl Data {
                 .read(&mut bed)
                 .unwrap();
             // TODO: make sure that t().iter() actually is column-major iteration.
+            num_individuals = val.nrows();
             x.push(val.t().iter().copied().collect::<Vec<f32>>());
+            x_means.push(val.t().mean_axis(ndarray::Axis(0)).unwrap().to_vec());
+            x_stds.push(val.t().std_axis(ndarray::Axis(0), 1f32).to_vec());
             num_markers_per_branch.push(grouping.group_size(gix).unwrap());
+        }
+        Data {
+            x,
+            y,
+            x_means,
+            x_stds,
+            num_markers_per_branch,
+            num_individuals,
+            num_branches,
+            standardized: false,
         }
     }
 
