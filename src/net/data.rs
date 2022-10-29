@@ -34,47 +34,65 @@ impl PhenStats {
     }
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Debug)]
-pub struct Data {
-    pub x: Vec<Vec<f32>>,
-    pub y: Vec<f32>,
-    pub x_means: Vec<Vec<f32>>,
-    pub x_stds: Vec<Vec<f32>>,
-    num_markers_per_branch: Vec<usize>,
-    num_individuals: usize,
-    num_branches: usize,
-    standardized: bool,
+pub struct DataBuilder {
+    x: Option<Vec<Vec<f32>>>,
+    y: Option<Vec<f32>>,
+    x_means: Option<Vec<Vec<f32>>>,
+    x_stds: Option<Vec<Vec<f32>>>,
+    num_markers_per_branch: Option<Vec<usize>>,
+    num_individuals: Option<usize>,
+    num_branches: Option<usize>,
+    standardized: Option<bool>,
 }
 
-impl Data {
-    pub fn new(
-        x: Vec<Vec<f32>>,
-        y: Vec<f32>,
-        x_means: Vec<Vec<f32>>,
-        x_stds: Vec<Vec<f32>>,
-        num_markers_per_branch: Vec<usize>,
-        num_individuals: usize,
-        num_branches: usize,
-        standardized: bool,
-    ) -> Self {
-        Data {
-            x,
-            y,
-            x_means,
-            x_stds,
-            num_markers_per_branch,
-            num_individuals,
-            num_branches,
-            standardized,
+impl DataBuilder {
+    fn new() -> Self {
+        DataBuilder {
+            x: None,
+            y: None,
+            x_means: None,
+            x_stds: None,
+            num_markers_per_branch: None,
+            num_individuals: None,
+            num_branches: None,
+            standardized: None,
         }
     }
 
-    pub fn from_bed<G>(bed_path: &Path, grouping: &G) -> Self
+    fn with_y(mut self, y: Vec<f32>) -> Self {
+        self.y = Some(y);
+        self
+    }
+
+    fn with_x_means(mut self, x_means: Vec<Vec<f32>>) -> Self {
+        self.x_means = Some(x_means);
+        self
+    }
+
+    fn with_x_stds(mut self, x_stds: Vec<Vec<f32>>) -> Self {
+        self.x_stds = Some(x_stds);
+        self
+    }
+
+    // TODO: compute stds and means in here, too
+    fn with_x(
+        mut self,
+        x: Vec<Vec<f32>>,
+        num_markers_per_branch: Vec<usize>,
+        num_individuals: usize,
+    ) -> Self {
+        self.x = Some(x);
+        self.num_branches = Some(num_markers_per_branch.len());
+        self.num_markers_per_branch = Some(num_markers_per_branch);
+        self.num_individuals = Some(num_individuals);
+        self
+    }
+
+    pub fn with_x_from_bed<G>(mut self, bed_path: &Path, grouping: &G) -> Self
     where
         G: MarkerGrouping,
     {
         let mut bed = Bed::new(bed_path).unwrap();
-        let mut y = Vec::new();
         let mut x = Vec::new();
         let mut x_means = Vec::new();
         let mut x_stds = Vec::new();
@@ -99,18 +117,32 @@ impl Data {
             x_stds.push(val.t().std_axis(ndarray::Axis(0), 1f32).to_vec());
             num_markers_per_branch.push(grouping.group_size(gix).unwrap());
         }
-        Data {
-            x,
-            y,
-            x_means,
-            x_stds,
-            num_markers_per_branch,
-            num_individuals,
-            num_branches,
-            standardized: false,
-        }
+        self.x = Some(x);
+        self.x_means = Some(x_means);
+        self.x_stds = Some(x_stds);
+        self.num_markers_per_branch = Some(num_markers_per_branch);
+        self.num_individuals = Some(num_individuals);
+        self.num_branches = Some(num_branches);
+        self.standardized = Some(false);
+        self
     }
 
+    fn build(mut self) -> Result<Data> {}
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Debug)]
+pub struct Data {
+    pub x: Vec<Vec<f32>>,
+    pub y: Vec<f32>,
+    pub x_means: Vec<Vec<f32>>,
+    pub x_stds: Vec<Vec<f32>>,
+    num_markers_per_branch: Vec<usize>,
+    num_individuals: usize,
+    num_branches: usize,
+    standardized: bool,
+}
+
+impl Data {
     pub fn from_file(path: &Path) -> Self {
         let mut r = BufReader::new(File::open(path).unwrap());
         deserialize_from(&mut r).unwrap()
