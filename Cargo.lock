@@ -1297,6 +1297,7 @@ dependencies = [
  "serde_json",
  "simple_logger",
  "statrs 0.15.0",
+ "thiserror",
 ]
 
 [[package]]

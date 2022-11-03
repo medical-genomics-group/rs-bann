@@ -1,6 +1,6 @@
+use crate::error::Error;
 use bed_reader::{Bed, ReadOptions};
 use bincode::{deserialize_from, serialize_into};
-use ndarray::Array;
 use serde::{Deserialize, Serialize};
 use serde_json::{to_writer, to_writer_pretty};
 use std::{
@@ -46,7 +46,7 @@ pub struct DataBuilder {
 }
 
 impl DataBuilder {
-    fn new() -> Self {
+    pub fn new() -> Self {
         DataBuilder {
             x: None,
             y: None,
@@ -59,23 +59,23 @@ impl DataBuilder {
         }
     }
 
-    fn with_y(mut self, y: Vec<f32>) -> Self {
+    pub fn with_y(mut self, y: Vec<f32>) -> Self {
         self.y = Some(y);
         self
     }
 
-    fn with_x_means(mut self, x_means: Vec<Vec<f32>>) -> Self {
+    pub fn with_x_means(mut self, x_means: Vec<Vec<f32>>) -> Self {
         self.x_means = Some(x_means);
         self
     }
 
-    fn with_x_stds(mut self, x_stds: Vec<Vec<f32>>) -> Self {
+    pub fn with_x_stds(mut self, x_stds: Vec<Vec<f32>>) -> Self {
         self.x_stds = Some(x_stds);
         self
     }
 
     // TODO: compute stds and means in here, too
-    fn with_x(
+    pub fn with_x(
         mut self,
         x: Vec<Vec<f32>>,
         num_markers_per_branch: Vec<usize>,
@@ -127,18 +127,38 @@ impl DataBuilder {
         self
     }
 
-    fn build(mut self) -> Result<Data> {}
+    pub fn build(mut self) -> Result<Data, Error> {
+        if self.x.is_none() {
+            return Err(Error::MissingX);
+        }
+        if self.y.is_none() {
+            self.y = Some(vec![0f32; self.num_individuals.unwrap()]);
+        }
+        if self.standardized.is_none() {
+            self.standardized = Some(true);
+        }
+        Ok(Data {
+            x: self.x.unwrap(),
+            y: self.y.unwrap(),
+            num_markers_per_branch: self.num_markers_per_branch.unwrap(),
+            num_individuals: self.num_individuals.unwrap(),
+            num_branches: self.num_branches.unwrap(),
+            x_means: self.x_means,
+            x_stds: self.x_stds,
+            standardized: self.standardized.unwrap(),
+        })
+    }
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub struct Data {
     pub x: Vec<Vec<f32>>,
     pub y: Vec<f32>,
-    pub x_means: Vec<Vec<f32>>,
-    pub x_stds: Vec<Vec<f32>>,
     num_markers_per_branch: Vec<usize>,
     num_individuals: usize,
     num_branches: usize,
+    pub x_means: Option<Vec<Vec<f32>>>,
+    pub x_stds: Option<Vec<Vec<f32>>>,
     standardized: bool,
 }
 
@@ -175,15 +195,23 @@ impl Data {
 
     pub fn standardize(&mut self) {
         if !self.standardized {
-            for branch_ix in 0..self.num_branches() {
-                for marker_ix in 0..self.num_markers_in_branch(branch_ix) {
-                    (0..self.num_individuals).for_each(|i| {
-                        let val = self.x[branch_ix][self.num_individuals * marker_ix + i];
-                        self.x[branch_ix][self.num_individuals * marker_ix + i] = (val
-                            - self.x_means[branch_ix][marker_ix])
-                            / self.x_stds[branch_ix][marker_ix];
-                    })
+            if self.x_means.is_some() && self.x_stds.is_some() {
+                let x_means = self.x_means.as_ref().unwrap();
+                let x_stds = self.x_stds.as_ref().unwrap();
+                for branch_ix in 0..self.num_branches() {
+                    for marker_ix in 0..self.num_markers_in_branch(branch_ix) {
+                        (0..self.num_individuals).for_each(|i| {
+                            let val = self.x[branch_ix][self.num_individuals * marker_ix + i];
+                            self.x[branch_ix][self.num_individuals * marker_ix + i] = (val
+                                - x_means[branch_ix][marker_ix])
+                                / x_stds[branch_ix][marker_ix];
+                        })
+                    }
                 }
+            } else {
+                unimplemented!(
+                    "Standardization without precomputed means and stds is not implemented yet."
+                );
             }
             self.standardized = true;
         }

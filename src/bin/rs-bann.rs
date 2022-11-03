@@ -11,7 +11,7 @@ use rs_bann::net::{
         ard_branch::ArdBranch, base_branch::BaseBranch, branch::Branch,
         std_normal_branch::StdNormalBranch,
     },
-    data::{Data, PhenStats},
+    data::{Data, DataBuilder, PhenStats},
     mcmc_cfg::MCMCCfg,
     net::{ModelType, Net},
     train_stats::ReportCfg,
@@ -336,27 +336,27 @@ where
             .for_each(|e| *e += rv_test_dist.sample(&mut rng) as f32);
     }
 
-    let train_data = Data::new(
-        x_train,
-        y_train.clone(),
-        x_means.clone(),
-        x_stds.clone(),
-        vec![args.num_markers_per_branch; args.num_branches],
-        args.num_individuals,
-        args.num_branches,
-        false,
-    );
+    let train_data = DataBuilder::new()
+        .with_x(
+            x_train,
+            vec![args.num_markers_per_branch; args.num_branches],
+            args.num_individuals,
+        )
+        .with_x_means(x_means.clone())
+        .with_x_stds(x_stds.clone())
+        .build()
+        .unwrap();
 
-    let test_data = Data::new(
-        x_test,
-        y_test.clone(),
-        x_means,
-        x_stds,
-        vec![args.num_markers_per_branch; args.num_branches],
-        args.num_individuals,
-        args.num_branches,
-        false,
-    );
+    let test_data = DataBuilder::new()
+        .with_x(
+            x_test,
+            vec![args.num_markers_per_branch; args.num_branches],
+            args.num_individuals,
+        )
+        .with_x_means(x_means.clone())
+        .with_x_stds(x_stds.clone())
+        .build()
+        .unwrap();
 
     PhenStats::new(
         (&y_test.iter().map(|e| *e as f64).collect::<Vec<f64>>()).mean() as f32,
