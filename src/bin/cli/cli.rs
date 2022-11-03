@@ -15,6 +15,8 @@ pub(crate) struct Cli {
 
 #[derive(Subcommand)]
 pub(crate) enum SubCmd {
+    /// Group markers by LD
+    GroupCentered(GroupCenteredArgs),
     /// Simulate phenotype data given marker data
     SimulateY(SimulateYArgs),
     /// Simulate marker and phenotype data
@@ -23,6 +25,16 @@ pub(crate) enum SubCmd {
     TrainNew(TrainNewArgs),
     /// Train prespecified model
     Train(TrainArgs),
+}
+
+#[derive(Args, Debug, Serialize, Deserialize)]
+pub(crate) struct GroupCenteredArgs {
+    /// path to input (just the file stem without .bim and .corr suffixes)
+    pub inpath: String,
+
+    /// path to output directory
+    #[clap(short, long, default_value = "./")]
+    pub outdir: String,
 }
 
 #[derive(Args, Debug, Serialize, Deserialize)]
