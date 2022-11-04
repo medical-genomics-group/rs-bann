@@ -18,8 +18,10 @@ pub(crate) enum SubCmd {
     /// Group markers by LD
     GroupCentered(GroupCenteredArgs),
     /// Simulate phenotype data given marker data
+    ///
+    /// Branch width is fixed to 1/2 the number of input nodes in a branch.
     SimulateY(SimulateYArgs),
-    /// Simulate marker and phenotype data
+    /// Simulate marker and phenotype data under a network model.
     SimulateXY(SimulateXYArgs),
     /// Train new Model
     TrainNew(TrainNewArgs),
@@ -43,8 +45,11 @@ pub(crate) struct SimulateYArgs {
     #[clap(short, long, default_value = "./")]
     pub outdir: String,
 
-    /// path to .bed file
-    pub bed: String,
+    /// path to train .bed file
+    pub train_bed: String,
+
+    /// path to test .bed file
+    pub test_bed: String,
 
     /// path to file with marker groupings. Should have two columns: marker_index, group_index
     pub groups: String,
@@ -52,9 +57,6 @@ pub(crate) struct SimulateYArgs {
     /// Prior structure of model.
     #[clap(value_enum)]
     pub model_type: ModelType,
-
-    /// width of hidden layer
-    pub hidden_layer_width: usize,
 
     /// number of hidden layers in branches
     pub branch_depth: usize,

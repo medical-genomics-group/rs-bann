@@ -5,13 +5,14 @@ use cli::cli::{Cli, SimulateXYArgs, SimulateYArgs, SubCmd, TrainArgs, TrainNewAr
 use log::info;
 use rand::thread_rng;
 use rand_distr::{Binomial, Distribution, Normal, Uniform};
+use rs_bann::group::{external::ExternalGrouping, grouping::MarkerGrouping};
 use rs_bann::net::{
     architectures::BlockNetCfg,
     branch::{
         ard_branch::ArdBranch, base_branch::BaseBranch, branch::Branch,
         std_normal_branch::StdNormalBranch,
     },
-    data::{Data, DataBuilder, PhenStats},
+    data::{Data, Genotypes, GenotypesBuilder, PhenStats, Phenotypes},
     mcmc_cfg::MCMCCfg,
     net::{ModelType, Net},
     train_stats::ReportCfg,
@@ -38,6 +39,7 @@ fn main() {
         },
         SubCmd::TrainNew(args) => train_new(args),
         SubCmd::Train(args) => train(args),
+        SubCmd::GroupCentered(_args) => unimplemented!("GroupCentered cmd is not implemented yet."),
     }
 }
 
@@ -51,11 +53,12 @@ where
         panic!("Heritability must be within [0, 1].");
     }
 
-    let bed_path = Path::new(&args.bed);
+    let train_bed_path = Path::new(&args.train_bed);
+    let test_bed_path = Path::new(&args.test_bed);
 
     let mut path = Path::new(&args.outdir).join(format!(
         "{}_{}_d{}_h{}_v{}",
-        bed_path.file_stem().unwrap().to_string_lossy(),
+        train_bed_path.file_stem().unwrap().to_string_lossy(),
         args.model_type,
         args.branch_depth,
         args.heritability,
@@ -65,7 +68,7 @@ where
     if let (Some(k), Some(s)) = (args.init_gamma_shape, args.init_gamma_scale) {
         path = Path::new(&args.outdir).join(format!(
             "{}_{}_d{}_h{}_k{}_s{}",
-            bed_path.file_stem().unwrap().to_string_lossy(),
+            train_bed_path.file_stem().unwrap().to_string_lossy(),
             args.model_type,
             args.branch_depth,
             args.heritability,
@@ -98,11 +101,13 @@ where
             .with_init_param_variance(args.init_param_variance)
     };
 
-    // from here on Ill need the group data at least
+    // load groups
+    let grouping_path = Path::new(&args.groups);
+    let grouping = ExternalGrouping::from_file(&grouping_path);
 
-    // use 0.5 num markers in branch?
-    for _ in 0..args.num_branches {
-        net_cfg.add_branch(args.num_markers_per_branch, args.hidden_layer_width);
+    // width is fixed to half the number of input nodes
+    for size in grouping.group_sizes() {
+        net_cfg.add_branch(size, size / 2);
     }
     let net = net_cfg.build_net();
 
@@ -115,44 +120,25 @@ where
     to_writer(&mut net_params_file, net.branch_cfgs()).unwrap();
     net_params_file.write_all(b"\n").unwrap();
 
-    let mut rng = thread_rng();
-
-    info!("Generating random marker data");
-    let gt_per_branch = args.num_markers_per_branch * args.num_individuals;
-    let mut x_train: Vec<Vec<f32>> = vec![vec![0.0; gt_per_branch]; args.num_branches];
-    let mut x_test: Vec<Vec<f32>> = vec![vec![0.0; gt_per_branch]; args.num_branches];
-    let mut x_means: Vec<Vec<f32>> =
-        vec![vec![0.0; args.num_markers_per_branch]; args.num_branches];
-    let mut x_stds: Vec<Vec<f32>> = vec![vec![0.0; args.num_markers_per_branch]; args.num_branches];
-    for branch_ix in 0..args.num_branches {
-        for marker_ix in 0..args.num_markers_per_branch {
-            let maf = Uniform::from(0.0..0.5).sample(&mut rng);
-            x_means[branch_ix][marker_ix] = 2. * maf;
-            x_stds[branch_ix][marker_ix] = (2. * maf * (1. - maf)).sqrt();
-
-            let binom = Binomial::new(2, maf as f64).unwrap();
-            (0..args.num_individuals).for_each(|i| {
-                x_train[branch_ix][marker_ix * args.num_individuals + i] =
-                    binom.sample(&mut rng) as f32
-            });
-
-            let maf = Uniform::from(0.0..0.5).sample(&mut rng);
-            let binom = Binomial::new(2, maf).unwrap();
-            (0..args.num_individuals).for_each(|i| {
-                x_test[branch_ix][marker_ix * args.num_individuals + i] =
-                    binom.sample(&mut rng) as f32
-            });
-        }
-    }
+    // load marker data from .bed
+    let gen_train = GenotypesBuilder::new()
+        .with_x_from_bed(&train_bed_path, &grouping)
+        .build()
+        .unwrap();
+    let gen_test = GenotypesBuilder::new()
+        .with_x_from_bed(&test_bed_path, &grouping)
+        .build()
+        .unwrap();
 
     info!("Making phenotype data");
-    let mut y_train = net.predict(&x_train, args.num_individuals);
-    let mut y_test = net.predict(&x_test, args.num_individuals);
+    let mut y_train = net.predict(&gen_train);
+    let mut y_test = net.predict(&gen_test);
 
     let mut train_residual_variance: f64 = 0.0;
     let mut test_residual_variance: f64 = 0.0;
 
     if args.heritability != 1. {
+        let mut rng = thread_rng();
         let s2_train = (&y_train.iter().map(|e| *e as f64).collect::<Vec<f64>>()).variance();
         train_residual_variance = s2_train * (1. / args.heritability as f64 - 1.);
         let rv_train_dist = Normal::new(0.0, train_residual_variance.sqrt()).unwrap();
@@ -167,27 +153,8 @@ where
             .for_each(|e| *e += rv_test_dist.sample(&mut rng) as f32);
     }
 
-    let train_data = Data::new(
-        x_train,
-        y_train.clone(),
-        x_means.clone(),
-        x_stds.clone(),
-        args.num_markers_per_branch,
-        args.num_individuals,
-        args.num_branches,
-        false,
-    );
-
-    let test_data = Data::new(
-        x_test,
-        y_test.clone(),
-        x_means,
-        x_stds,
-        args.num_markers_per_branch,
-        args.num_individuals,
-        args.num_branches,
-        false,
-    );
+    let train_data = Data::new(gen_train, Phenotypes::new(y_train.clone()));
+    let test_data = Data::new(gen_test, Phenotypes::new(y_test.clone()));
 
     PhenStats::new(
         (&y_test.iter().map(|e| *e as f64).collect::<Vec<f64>>()).mean() as f32,
@@ -317,9 +284,26 @@ where
         }
     }
 
+    let gen_train = GenotypesBuilder::new()
+        .with_x(
+            x_train,
+            vec![args.num_markers_per_branch; args.num_branches],
+            args.num_individuals,
+        )
+        .build()
+        .unwrap();
+    let gen_test = GenotypesBuilder::new()
+        .with_x(
+            x_test,
+            vec![args.num_markers_per_branch; args.num_branches],
+            args.num_individuals,
+        )
+        .build()
+        .unwrap();
+
     info!("Making phenotype data");
-    let mut y_train = net.predict(&x_train, args.num_individuals);
-    let mut y_test = net.predict(&x_test, args.num_individuals);
+    let mut y_train = net.predict(&gen_train);
+    let mut y_test = net.predict(&gen_test);
 
     let mut train_residual_variance: f64 = 0.0;
     let mut test_residual_variance: f64 = 0.0;
@@ -339,27 +323,8 @@ where
             .for_each(|e| *e += rv_test_dist.sample(&mut rng) as f32);
     }
 
-    let train_data = DataBuilder::new()
-        .with_x(
-            x_train,
-            vec![args.num_markers_per_branch; args.num_branches],
-            args.num_individuals,
-        )
-        .with_x_means(x_means.clone())
-        .with_x_stds(x_stds.clone())
-        .build()
-        .unwrap();
-
-    let test_data = DataBuilder::new()
-        .with_x(
-            x_test,
-            vec![args.num_markers_per_branch; args.num_branches],
-            args.num_individuals,
-        )
-        .with_x_means(x_means.clone())
-        .with_x_stds(x_stds.clone())
-        .build()
-        .unwrap();
+    let train_data = Data::new(gen_train, Phenotypes::new(y_train.clone()));
+    let test_data = Data::new(gen_test, Phenotypes::new(y_test.clone()));
 
     PhenStats::new(
         (&y_test.iter().map(|e| *e as f64).collect::<Vec<f64>>()).mean() as f32,
@@ -401,8 +366,8 @@ fn train_new(args: TrainNewArgs) {
 
     if args.standardize {
         info!("Standardizing data");
-        train_data.standardize();
-        test_data.standardize();
+        train_data.standardize_x();
+        test_data.standardize_x();
     }
 
     let outdir = format!(
@@ -511,8 +476,8 @@ fn train(args: TrainArgs) {
 
     if args.standardize {
         info!("Standardizing data");
-        train_data.standardize();
-        test_data.standardize();
+        train_data.standardize_x();
+        test_data.standardize_x();
     }
 
     let model_path = Path::new(&args.model_file);

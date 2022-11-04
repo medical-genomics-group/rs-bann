@@ -1,4 +1,5 @@
 use crate::error::Error;
+use crate::group::grouping::MarkerGrouping;
 use bed_reader::{Bed, ReadOptions};
 use bincode::{deserialize_from, serialize_into};
 use serde::{Deserialize, Serialize};
@@ -8,8 +9,6 @@ use std::{
     io::{BufReader, BufWriter},
     path::Path,
 };
-
-use crate::group::grouping::MarkerGrouping;
 
 #[derive(Serialize, Deserialize)]
 pub struct PhenStats {
@@ -34,43 +33,36 @@ impl PhenStats {
     }
 }
 
-pub struct DataBuilder {
+pub struct GenotypesBuilder {
     x: Option<Vec<Vec<f32>>>,
-    y: Option<Vec<f32>>,
-    x_means: Option<Vec<Vec<f32>>>,
-    x_stds: Option<Vec<Vec<f32>>>,
-    num_markers_per_branch: Option<Vec<usize>>,
     num_individuals: Option<usize>,
+    num_markers_per_branch: Option<Vec<usize>>,
     num_branches: Option<usize>,
+    means: Option<Vec<Vec<f32>>>,
+    stds: Option<Vec<Vec<f32>>>,
     standardized: Option<bool>,
 }
 
-impl DataBuilder {
+impl GenotypesBuilder {
     pub fn new() -> Self {
-        DataBuilder {
+        Self {
             x: None,
-            y: None,
-            x_means: None,
-            x_stds: None,
-            num_markers_per_branch: None,
             num_individuals: None,
+            num_markers_per_branch: None,
             num_branches: None,
+            means: None,
+            stds: None,
             standardized: None,
         }
     }
 
-    pub fn with_y(mut self, y: Vec<f32>) -> Self {
-        self.y = Some(y);
+    pub fn with_means(mut self, means: Vec<Vec<f32>>) -> Self {
+        self.means = Some(means);
         self
     }
 
-    pub fn with_x_means(mut self, x_means: Vec<Vec<f32>>) -> Self {
-        self.x_means = Some(x_means);
-        self
-    }
-
-    pub fn with_x_stds(mut self, x_stds: Vec<Vec<f32>>) -> Self {
-        self.x_stds = Some(x_stds);
+    pub fn with_stds(mut self, stds: Vec<Vec<f32>>) -> Self {
+        self.stds = Some(stds);
         self
     }
 
@@ -118,8 +110,8 @@ impl DataBuilder {
             num_markers_per_branch.push(grouping.group_size(gix).unwrap());
         }
         self.x = Some(x);
-        self.x_means = Some(x_means);
-        self.x_stds = Some(x_stds);
+        self.means = Some(x_means);
+        self.stds = Some(x_stds);
         self.num_markers_per_branch = Some(num_markers_per_branch);
         self.num_individuals = Some(num_individuals);
         self.num_branches = Some(num_branches);
@@ -127,42 +119,97 @@ impl DataBuilder {
         self
     }
 
-    pub fn build(mut self) -> Result<Data, Error> {
+    pub fn build(mut self) -> Result<Genotypes, Error> {
         if self.x.is_none() {
             return Err(Error::MissingX);
         }
-        if self.y.is_none() {
-            self.y = Some(vec![0f32; self.num_individuals.unwrap()]);
-        }
         if self.standardized.is_none() {
-            self.standardized = Some(true);
+            self.standardized = Some(false);
         }
-        Ok(Data {
+        Ok(Genotypes {
             x: self.x.unwrap(),
-            y: self.y.unwrap(),
             num_markers_per_branch: self.num_markers_per_branch.unwrap(),
             num_individuals: self.num_individuals.unwrap(),
             num_branches: self.num_branches.unwrap(),
-            x_means: self.x_means,
-            x_stds: self.x_stds,
+            means: self.means,
+            stds: self.stds,
             standardized: self.standardized.unwrap(),
         })
     }
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
-pub struct Data {
-    pub x: Vec<Vec<f32>>,
-    pub y: Vec<f32>,
-    num_markers_per_branch: Vec<usize>,
+pub struct Genotypes {
+    x: Vec<Vec<f32>>,
     num_individuals: usize,
+    num_markers_per_branch: Vec<usize>,
     num_branches: usize,
-    pub x_means: Option<Vec<Vec<f32>>>,
-    pub x_stds: Option<Vec<Vec<f32>>>,
+    means: Option<Vec<Vec<f32>>>,
+    stds: Option<Vec<Vec<f32>>>,
     standardized: bool,
 }
 
+impl Genotypes {
+    pub fn x(&self) -> &Vec<Vec<f32>> {
+        &self.x
+    }
+
+    pub fn num_individuals(&self) -> usize {
+        self.num_individuals
+    }
+
+    fn standardize(&mut self) {
+        if !self.standardized {
+            if self.means.is_some() && self.stds.is_some() {
+                let means = self.means.as_ref().unwrap();
+                let stds = self.stds.as_ref().unwrap();
+                for branch_ix in 0..self.num_branches {
+                    for marker_ix in 0..self.num_markers_per_branch[branch_ix] {
+                        (0..self.num_individuals).for_each(|i| {
+                            let val = self.x[branch_ix][self.num_individuals * marker_ix + i];
+                            self.x[branch_ix][self.num_individuals * marker_ix + i] =
+                                (val - means[branch_ix][marker_ix]) / stds[branch_ix][marker_ix];
+                        })
+                    }
+                }
+            } else {
+                unimplemented!(
+                    "Standardization without precomputed means and stds is not implemented yet."
+                );
+            }
+            self.standardized = true;
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Debug)]
+pub struct Phenotypes {
+    y: Vec<f32>,
+}
+
+impl Phenotypes {
+    pub fn new(y: Vec<f32>) -> Self {
+        Self { y }
+    }
+
+    pub fn zeros(num_individuals: usize) -> Self {
+        Self {
+            y: vec![0f32; num_individuals],
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Debug)]
+pub struct Data {
+    pub gen: Genotypes,
+    pub phen: Phenotypes,
+}
+
 impl Data {
+    pub fn new(gen: Genotypes, phen: Phenotypes) -> Self {
+        Self { gen, phen }
+    }
+
     pub fn from_file(path: &Path) -> Self {
         let mut r = BufReader::new(File::open(path).unwrap());
         deserialize_from(&mut r).unwrap()
@@ -178,43 +225,31 @@ impl Data {
     }
 
     pub fn num_branches(&self) -> usize {
-        self.x.len()
+        self.gen.x.len()
     }
 
     pub fn num_markers_per_branch(&self) -> &Vec<usize> {
-        &self.num_markers_per_branch
+        &self.gen.num_markers_per_branch
     }
 
     pub fn num_markers_in_branch(&self, ix: usize) -> usize {
-        self.num_markers_per_branch[ix]
+        self.gen.num_markers_per_branch[ix]
     }
 
     pub fn num_individuals(&self) -> usize {
-        self.num_individuals
+        self.gen.num_individuals
     }
 
-    pub fn standardize(&mut self) {
-        if !self.standardized {
-            if self.x_means.is_some() && self.x_stds.is_some() {
-                let x_means = self.x_means.as_ref().unwrap();
-                let x_stds = self.x_stds.as_ref().unwrap();
-                for branch_ix in 0..self.num_branches() {
-                    for marker_ix in 0..self.num_markers_in_branch(branch_ix) {
-                        (0..self.num_individuals).for_each(|i| {
-                            let val = self.x[branch_ix][self.num_individuals * marker_ix + i];
-                            self.x[branch_ix][self.num_individuals * marker_ix + i] = (val
-                                - x_means[branch_ix][marker_ix])
-                                / x_stds[branch_ix][marker_ix];
-                        })
-                    }
-                }
-            } else {
-                unimplemented!(
-                    "Standardization without precomputed means and stds is not implemented yet."
-                );
-            }
-            self.standardized = true;
-        }
+    pub fn standardize_x(&mut self) {
+        self.gen.standardize();
+    }
+
+    pub fn x(&self) -> &Vec<Vec<f32>> {
+        &self.gen.x
+    }
+
+    pub fn y(&self) -> &Vec<f32> {
+        &self.phen.y
     }
 }
 
