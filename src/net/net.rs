@@ -113,6 +113,10 @@ impl<B: Branch> Net<B> {
         res
     }
 
+    pub fn num_branches(&self) -> usize {
+        self.num_branches
+    }
+
     pub fn num_branch_params(&self, branch_ix: usize) -> usize {
         self.branch_cfgs[branch_ix].num_params
     }

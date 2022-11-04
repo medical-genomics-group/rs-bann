@@ -4,7 +4,7 @@ use clap::Parser;
 use cli::cli::{
     Cli, GroupCenteredArgs, SimulateXYArgs, SimulateYArgs, SubCmd, TrainArgs, TrainNewArgs,
 };
-use log::info;
+use log::{info, warn};
 use rand::thread_rng;
 use rand_distr::{Binomial, Distribution, Normal, Uniform};
 use rs_bann::group::{centered::CorrGraph, external::ExternalGrouping, grouping::MarkerGrouping};
@@ -428,10 +428,14 @@ fn train_new(args: TrainNewArgs) {
                 );
             }
             let mut net = net_cfg.build_net();
-            info!(
-                "Built net with {:} params per branch.",
-                net.num_branch_params(0)
-            );
+
+            for bix in 0..net.num_branches() {
+                if net.num_branch_params(bix) > train_data.num_individuals() {
+                    warn!(
+                        "Num params > num individuals in branch {} (with {} params, {} individuals)",
+                        bix, net.num_branch_params(bix), train_data.num_individuals());
+                }
+            }
             net.write_meta(&mcmc_cfg);
             info!("Training net");
             net.train(&train_data, &mcmc_cfg, true, Some(report_cfg));
