@@ -49,8 +49,7 @@ fn group_centered(args: GroupCenteredArgs) {
     let mut bim_path = PathBuf::from(&args.inpath);
     bim_path.set_extension("bim");
     let mut corr_path = PathBuf::from(&args.inpath);
-    // or ld?
-    corr_path.set_extension("corr");
+    corr_path.set_extension("ld");
     let mut outpath = Path::new(&args.outdir).join(bim_path.file_stem().unwrap());
     outpath.set_extension("centered_grouping");
     CorrGraph::from_plink_ld(&corr_path, &bim_path)

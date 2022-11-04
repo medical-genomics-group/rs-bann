@@ -31,7 +31,7 @@ pub(crate) enum SubCmd {
 
 #[derive(Args, Debug, Serialize, Deserialize)]
 pub(crate) struct GroupCenteredArgs {
-    /// path to input (just the file stem without .bim and .corr suffixes)
+    /// path to input (just the file stem without .bim and .ld suffixes)
     pub inpath: String,
 
     /// path to output directory

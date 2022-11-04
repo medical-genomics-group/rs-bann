@@ -55,7 +55,7 @@ impl CorrGraph {
         let id2ix = SNPId2Ix::from_bim(bim_file);
         let mut res = CorrGraph { g: HashMap::new() };
 
-        let file = File::open(ld_file).unwrap();
+        let file = File::open(ld_file).expect("Failed to open ld file");
         let mut reader = BufReader::new(file);
         let mut buffer = String::new();
 
