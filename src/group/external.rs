@@ -10,7 +10,7 @@ pub struct ExternalGrouping {
 }
 
 impl ExternalGrouping {
-    /// This assumes a two column file with columns: marker_id, group_id
+    /// This assumes a two column file with columns: marker_ix, group_ix
     pub fn from_file(file: &Path) -> Self {
         let mut res = ExternalGrouping {
             groups: HashMap::new(),

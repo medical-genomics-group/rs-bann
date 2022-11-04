@@ -1,18 +1,20 @@
 mod cli;
 
 use clap::Parser;
-use cli::cli::{Cli, SimulateXYArgs, SimulateYArgs, SubCmd, TrainArgs, TrainNewArgs};
+use cli::cli::{
+    Cli, GroupCenteredArgs, SimulateXYArgs, SimulateYArgs, SubCmd, TrainArgs, TrainNewArgs,
+};
 use log::info;
 use rand::thread_rng;
 use rand_distr::{Binomial, Distribution, Normal, Uniform};
-use rs_bann::group::{external::ExternalGrouping, grouping::MarkerGrouping};
+use rs_bann::group::{centered::CorrGraph, external::ExternalGrouping, grouping::MarkerGrouping};
 use rs_bann::net::{
     architectures::BlockNetCfg,
     branch::{
         ard_branch::ArdBranch, base_branch::BaseBranch, branch::Branch,
         std_normal_branch::StdNormalBranch,
     },
-    data::{Data, Genotypes, GenotypesBuilder, PhenStats, Phenotypes},
+    data::{Data, GenotypesBuilder, PhenStats, Phenotypes},
     mcmc_cfg::MCMCCfg,
     net::{ModelType, Net},
     train_stats::ReportCfg,
@@ -22,7 +24,7 @@ use statrs::statistics::Statistics;
 use std::{
     fs::File,
     io::{BufWriter, Write},
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 fn main() {
@@ -39,8 +41,21 @@ fn main() {
         },
         SubCmd::TrainNew(args) => train_new(args),
         SubCmd::Train(args) => train(args),
-        SubCmd::GroupCentered(_args) => unimplemented!("GroupCentered cmd is not implemented yet."),
+        SubCmd::GroupCentered(args) => group_centered(args),
     }
+}
+
+fn group_centered(args: GroupCenteredArgs) {
+    let mut bim_path = PathBuf::from(&args.inpath);
+    bim_path.set_extension("bim");
+    let mut corr_path = PathBuf::from(&args.inpath);
+    // or ld?
+    corr_path.set_extension("corr");
+    let mut outpath = Path::new(&args.outdir).join(bim_path.file_stem().unwrap());
+    outpath.set_extension("centered_grouping");
+    CorrGraph::from_plink_ld(&corr_path, &bim_path)
+        .centered_grouping()
+        .to_file(&outpath);
 }
 
 fn simulate_y<B>(args: SimulateYArgs)
