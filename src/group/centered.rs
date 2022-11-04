@@ -129,7 +129,7 @@ impl CorrGraph {
 /// Grouping of SNPs.
 /// Group centers are selected as uncorrelated SNPs with largest
 /// remaining degree. All SNPs correlated with a center SNP are
-/// part of the same
+/// part of the same group.
 pub struct CenteredGrouping {
     pub groups: HashMap<usize, Vec<isize>>,
 }
