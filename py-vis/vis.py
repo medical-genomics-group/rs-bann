@@ -284,19 +284,21 @@ class Data:
         return Data.__from_json(data)
 
     def __from_json(data):
+        gen = data['gen']
+        phen = data['phen']
         x = []
-        for branch_data in data["x"]:
+        for bix, branch_data in enumerate(gen["x"]):
             x.append(np.array(branch_data, order="F").reshape(
-                (data["num_individuals"], data["num_markers_per_branch"])))
+                (gen["num_individuals"], gen["num_markers_per_branch"][bix])))
         return Data(
             x,
-            np.array(data['y']),
-            np.array(data['x_means']),
-            np.array(data['x_stds']),
-            data['num_markers_per_branch'],
-            data['num_individuals'],
-            data['num_branches'],
-            data['standardized'])
+            np.array(phen['y']),
+            np.array(gen['means']),
+            np.array(gen['stds']),
+            gen['num_markers_per_branch'],
+            gen['num_individuals'],
+            gen['num_branches'],
+            gen['standardized'])
 
 
 def load_true_params(wdir: str):
@@ -424,7 +426,7 @@ def plot_single_branch_posterior_means(wdir: str, burn_in, branch_ix=0):
     plt.tight_layout()
 
 
-def plot_single_branch_perf(wdir: str, burn_in, branch_ix=0):
+def plot_perf(wdir: str, burn_in):
     ddir = data_dir(wdir)
     train_data = Data.load_train(ddir)
     test_data = Data.load_test(ddir)
@@ -433,7 +435,7 @@ def plot_single_branch_perf(wdir: str, burn_in, branch_ix=0):
 
     phen_stats = load_phen_stats(ddir)
     training_stats = load_json_training_stats(wdir)
-    trace = load_json_trace(wdir, branch_ix)
+    trace = load_json_trace(wdir, 0)
     fig, axes = plt.subplots(1, 2, sharex=True, figsize=(10, 3))
 
     fig.suptitle(wdir)
@@ -457,6 +459,7 @@ def plot_single_branch_perf(wdir: str, burn_in, branch_ix=0):
         label="true"
     )
     axes[0].legend()
+    axes[0].set_yscale("log")
 
     axes[1].set_title("MSE")
     axes[1].plot(training_stats["mse_train"], label="nn train")
