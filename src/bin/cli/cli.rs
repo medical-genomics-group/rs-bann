@@ -201,6 +201,11 @@ pub(crate) struct TrainArgs {
     /// CAUTION: this is extremely expensive, do not run this in production.
     #[clap(long)]
     pub num_grad_traj: bool,
+
+    /// Use numerical gradients instead of analytical for integration.
+    /// CAUTION: this is extremely expensive, do not run this in production.
+    #[clap(long)]
+    pub num_grad: bool,
 }
 
 impl TrainArgs {
@@ -280,6 +285,11 @@ pub(crate) struct TrainNewArgs {
     /// CAUTION: this is extremely expensive, do not run this in production.
     #[clap(long)]
     pub num_grad_traj: bool,
+
+    /// Use numerical gradients instead of analytical for integration.
+    /// CAUTION: this is extremely expensive, do not run this in production.
+    #[clap(long)]
+    pub num_grad: bool,
 }
 
 impl TrainNewArgs {

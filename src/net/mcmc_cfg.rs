@@ -16,6 +16,7 @@ pub struct MCMCCfg {
     pub trace: bool,
     pub trajectories: bool,
     pub num_grad_traj: bool,
+    pub num_grad: bool,
 }
 
 impl MCMCCfg {

@@ -21,7 +21,7 @@ use std::{
     io::{BufWriter, Write},
 };
 
-const NUMERICAL_DELTA: f32 = 0.0000001;
+const NUMERICAL_DELTA: f32 = 0.001;
 
 pub trait Branch {
     fn model_type() -> ModelType;
@@ -65,7 +65,22 @@ pub trait Branch {
     // This should be -U(q), e.g. log P(D | Theta)P(Theta)
     fn log_density(&self, params: &BranchParams, hyperparams: &BranchHyperparams, rss: f32) -> f32;
 
-    // DO NOT run this in production code, this is very slow.
+    // DO NOT run this in production code, this is extremely slow.
+    //
+    // This is a drop in replacement for the analytical `log_density_gradient` method.
+    fn numerical_log_density_gradient(
+        &mut self,
+        x_train: &Array<f32>,
+        y_train: &Array<f32>,
+    ) -> BranchLogDensityGradient {
+        BranchLogDensityGradient::from_param_vec(
+            &self.numerical_ldg(x_train, y_train),
+            self.layer_widths(),
+            self.num_markers(),
+        )
+    }
+
+    // DO NOT run this in production code, this is extremely slow.
     fn numerical_ldg(&mut self, x_train: &Array<f32>, y_train: &Array<f32>) -> Vec<f32> {
         let mut res = Vec::new();
         let mut next_pv = self.params().param_vec();
@@ -373,13 +388,22 @@ pub trait Branch {
 
         debug!("Starting hmc step");
         debug!("initial hamiltonian: {:?}", init_neg_hamiltonian);
-        let mut ldg = self.log_density_gradient(x_train, y_train);
+        let mut ldg = if mcmc_cfg.num_grad {
+            self.numerical_log_density_gradient(x_train, y_train)
+        } else {
+            self.log_density_gradient(x_train, y_train)
+        };
 
         // leapfrog
         for _step in 0..(mcmc_cfg.hmc_integration_length) {
             momenta.half_step(&step_sizes, &ldg);
             self.params_mut().full_step(&step_sizes, &momenta);
-            ldg = self.log_density_gradient(x_train, y_train);
+
+            ldg = if mcmc_cfg.num_grad {
+                self.numerical_log_density_gradient(x_train, y_train)
+            } else {
+                self.log_density_gradient(x_train, y_train)
+            };
 
             momenta.half_step(&step_sizes, &ldg);
 
@@ -467,6 +491,38 @@ pub struct BranchLogDensityGradient {
 }
 
 impl BranchLogDensityGradient {
+    pub fn from_param_vec(
+        param_vec: &[f32],
+        layer_widths: &Vec<usize>,
+        num_markers: usize,
+    ) -> Self {
+        let mut wrt_weights: Vec<Array<f32>> = vec![];
+        let mut wrt_biases: Vec<Array<f32>> = vec![];
+        let mut prev_width = num_markers;
+        let mut read_ix: usize = 0;
+        for width in layer_widths {
+            let num_weights = prev_width * width;
+            wrt_weights.push(Array::new(
+                &param_vec[read_ix..read_ix + num_weights],
+                dim4!(prev_width as u64, *width as u64, 1, 1),
+            ));
+            prev_width = *width;
+            read_ix += num_weights;
+        }
+        for width in &layer_widths[..layer_widths.len() - 1] {
+            let num_biases = width;
+            wrt_biases.push(Array::new(
+                &param_vec[read_ix..read_ix + num_biases],
+                dim4!(1, *width as u64, 1, 1),
+            ));
+            read_ix += num_biases;
+        }
+        Self {
+            wrt_weights,
+            wrt_biases,
+        }
+    }
+
     fn num_params(&self) -> usize {
         let mut res: usize = 0;
         for i in 0..self.wrt_weights.len() {
