@@ -362,8 +362,13 @@ def load_json_training_stats(wdir: str):
         return json.load(fin)
 
 
-def load_phen_stats(wdir: str):
+def load_train_phen_stats(wdir: str):
     with open(wdir + "/train_phen_stats.json", "r") as fin:
+        return json.load(fin)
+
+
+def load_test_phen_stats(wdir: str):
+    with open(wdir + "/test_phen_stats.json", "r") as fin:
         return json.load(fin)
 
 
@@ -426,14 +431,16 @@ def plot_single_branch_posterior_means(wdir: str, burn_in, branch_ix=0):
     plt.tight_layout()
 
 
-def plot_perf(wdir: str, burn_in):
+def plot_perf_r2(wdir: str, burn_in):
     ddir = data_dir(wdir)
     train_data = Data.load_train(ddir)
     test_data = Data.load_test(ddir)
 
-    ridge_mse_train, ridge_mse_test = mse_ridge(train_data, test_data)
+    ridge_r2_train, ridge_r2_test = r2_ridge(train_data, test_data)
 
-    phen_stats = load_phen_stats(ddir)
+    train_phen_stats = load_train_phen_stats(ddir)
+    test_phen_stats = load_test_phen_stats(ddir)
+
     training_stats = load_json_training_stats(wdir)
     trace = load_json_trace(wdir, 0)
     fig, axes = plt.subplots(1, 2, sharex=True, figsize=(10, 3))
@@ -450,14 +457,81 @@ def plot_perf(wdir: str, burn_in):
         linestyle="dashed",
         label="nn posterior mean"
     )
-    axes[0].hlines(
-        1 / phen_stats["env_variance"],
+    if train_phen_stats["env_variance"] > 0:
+        axes[0].hlines(
+            1 / train_phen_stats["env_variance"],
+            0,
+            len(trace.error_precision),
+            color="k",
+            linestyle="dotted",
+            label="true"
+        )
+    axes[0].legend()
+    axes[0].set_yscale("log")
+
+    r2_train = 1 - \
+        (np.array(training_stats["mse_train"]) / train_phen_stats["variance"])
+    r2_test = 1 - \
+        (np.array(training_stats["mse_test"]) / test_phen_stats["variance"])
+
+    axes[1].set_title(r"$R^2$")
+    axes[1].plot(r2_train, label="nn train")
+    axes[1].plot(r2_test, label="nn test")
+    axes[1].hlines(
+        ridge_r2_train,
         0,
         len(trace.error_precision),
-        color="k",
-        linestyle="dotted",
-        label="true"
+        color="gray",
+        linestyle="dashed",
+        label="ridge train"
     )
+    axes[1].hlines(
+        ridge_r2_test,
+        0,
+        len(trace.error_precision),
+        color="gray",
+        linestyle="dotted",
+        label="ridge test"
+    )
+    axes[1].legend()
+    # axes[1].set_yscale("log")
+
+    plt.tight_layout()
+
+
+def plot_perf(wdir: str, burn_in):
+    ddir = data_dir(wdir)
+    train_data = Data.load_train(ddir)
+    test_data = Data.load_test(ddir)
+
+    ridge_mse_train, ridge_mse_test = mse_ridge(train_data, test_data)
+
+    phen_stats = load_train_phen_stats(ddir)
+    training_stats = load_json_training_stats(wdir)
+    trace = load_json_trace(wdir, 0)
+    fig, axes = plt.subplots(1, 2, sharex=True, figsize=(10, 3))
+
+    fig.suptitle(wdir)
+
+    axes[0].set_title("ERROR PRECISION")
+    axes[0].plot(trace.error_precision)
+    axes[0].hlines(
+        np.mean(trace.error_precision[burn_in:]),
+        0,
+        len(trace.error_precision),
+        color="r",
+        linestyle="dashed",
+        label="nn posterior mean"
+    )
+    if phen_stats["env_variance"] > 0:
+        axes[0].hlines(
+            1 / phen_stats["env_variance"],
+            0,
+            len(trace.error_precision),
+            color="k",
+            linestyle="dotted",
+            label="true"
+        )
     axes[0].legend()
     axes[0].set_yscale("log")
 
@@ -547,3 +621,18 @@ def mse_linreg(train_data, test_data):
 
 def mse(y_pred, y_true):
     return ((y_pred - y_true) ** 2).mean()
+
+
+def r2_ridge(train_data, test_data, alpha=1.0):
+    x_train = np.hstack(train_data.x)
+    y_train = train_data.y
+    x_test = np.hstack(test_data.x)
+    y_test = test_data.y
+    reg = Ridge(alpha).fit(x_train, y_train)
+    r2_train = r2(reg.predict(x_train), y_train)
+    r2_test = r2(reg.predict(x_test), y_test)
+    return r2_train, r2_test
+
+
+def r2(y_pred, y_true):
+    return 1 - np.sum((y_true - y_pred) ** 2) / np.sum((y_true - y_true.mean()) ** 2)
