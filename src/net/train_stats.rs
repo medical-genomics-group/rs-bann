@@ -27,6 +27,7 @@ pub(crate) struct TrainingStats {
     pub(crate) num_early_rejected: usize,
     pub(crate) mse_train: Vec<f32>,
     pub(crate) mse_test: Option<Vec<f32>>,
+    // Vector of vectors of branch log densities.
 }
 
 impl TrainingStats {
@@ -40,10 +41,10 @@ impl TrainingStats {
         }
     }
 
-    pub(crate) fn add_hmc_step_result(&mut self, res: HMCStepResult) {
+    pub(crate) fn add_hmc_step_result(&mut self, res: &HMCStepResult) {
         self.num_samples += 1;
         match res {
-            HMCStepResult::Accepted => self.num_accepted += 1,
+            HMCStepResult::Accepted(_) => self.num_accepted += 1,
             HMCStepResult::RejectedEarly => self.num_early_rejected += 1,
             HMCStepResult::Rejected => {}
         }

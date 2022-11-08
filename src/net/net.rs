@@ -1,8 +1,5 @@
 use super::{
-    branch::{
-        base_branch::BaseBranch,
-        branch::{Branch, BranchCfg, BranchMeta, HMCStepResult},
-    },
+    branch::branch::{Branch, BranchCfg, BranchMeta, HMCStepResult},
     data::{Data, Genotypes},
     gibbs_steps::{multi_param_precision_posterior, single_param_precision_posterior},
     mcmc_cfg::MCMCCfg,
@@ -13,7 +10,7 @@ use arrayfire::{dim4, sum_all, Array};
 use bincode::{deserialize_from, serialize_into};
 use log::{debug, info};
 use rand::{prelude::SliceRandom, rngs::ThreadRng, thread_rng};
-use rand_distr::{Distribution, Normal, StandardNormal};
+use rand_distr::{Distribution, Normal};
 use serde::{Deserialize, Serialize};
 use serde_json::to_writer;
 use std::path::Path;
@@ -209,11 +206,18 @@ impl<B: Branch> Net<B> {
                 // tell branch about global error precision
                 branch.set_error_precision(self.error_precision);
                 // TODO: save last prediction contribution for each branch to reduce compute
-                residual += branch.predict(&x);
-                self.note_hmc_step_result(branch.hmc_step(&x, &residual, mcmc_cfg));
+                let prev_pred = branch.predict(&x);
+                residual = &residual + &prev_pred;
+                let step_res = branch.hmc_step(&x, &residual, mcmc_cfg);
+                self.note_hmc_step_result(&step_res);
+                match step_res {
+                    // update residual
+                    HMCStepResult::Accepted(state) => residual -= state.y_pred,
+                    // not accepted, just remove previous prediction
+                    _ => residual -= prev_pred,
+                }
                 branch.sample_precisions(self.precision_prior_shape, self.precision_prior_scale);
-                // update residual
-                residual -= branch.predict(&x);
+
                 // dump branch cfg
                 self.branch_cfgs[branch_ix] = branch.to_cfg();
             }
@@ -337,13 +341,13 @@ impl<B: Branch> Net<B> {
         }
     }
 
-    fn note_hmc_step_result(&mut self, res: HMCStepResult) {
+    fn note_hmc_step_result(&mut self, res: &HMCStepResult) {
         self.training_stats.add_hmc_step_result(res);
     }
 
-    fn reset_training_stats(&mut self) {
-        self.training_stats = TrainingStats::new();
-    }
+    // fn reset_training_stats(&mut self) {
+    //     self.training_stats = TrainingStats::new();
+    // }
 }
 
 #[cfg(test)]

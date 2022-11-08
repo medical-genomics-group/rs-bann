@@ -350,6 +350,47 @@ pub trait Branch {
         self.forward_feed(x).last().unwrap().copy()
     }
 
+    fn prediction_and_density(&self, x: &Array<f32>, y: &Array<f32>) -> (Array<f32>, f32) {
+        let y_pred = self.predict(x);
+        let r = &y_pred - y;
+        let rss = arrayfire::sum_all(&(&r * &r)).0;
+        let log_density = self.log_density(self.params(), self.hyperparams(), rss);
+        (y_pred, log_density)
+    }
+
+    fn accept_or_reject_hmc_state(
+        &mut self,
+        momenta: &BranchMomenta,
+        x_train: &Array<f32>,
+        y_train: &Array<f32>,
+        init_neg_hamiltonian: f32,
+    ) -> HMCStepResult {
+        // this is self.neg_hamiltonian unpacked. Doing this in order to save
+        // one forward pass.
+        let y_pred = self.predict(x_train);
+        let r = &y_pred - y_train;
+        let rss = arrayfire::sum_all(&(&r * &r)).0;
+        let log_density = self.log_density(self.params(), self.hyperparams(), rss);
+        debug!("branch log density: {:.4}", log_density);
+        let state_data = HMCStepResultData {
+            y_pred,
+            log_density,
+        };
+
+        let final_neg_hamiltonian = log_density - momenta.log_density();
+        let log_acc_probability = final_neg_hamiltonian - init_neg_hamiltonian;
+        let acc_probability = if log_acc_probability >= 0. {
+            1.
+        } else {
+            log_acc_probability.exp()
+        };
+        if self.is_accepted(acc_probability) {
+            HMCStepResult::Accepted(state_data)
+        } else {
+            HMCStepResult::Rejected
+        }
+    }
+
     /// Takes a single parameter sample using HMC.
     /// Returns `false` if final state is rejected, `true` if accepted.
     fn hmc_step(
@@ -378,7 +419,7 @@ pub trait Branch {
             StepSizeMode::Uniform => self.uniform_step_sizes(mcmc_cfg.hmc_step_size_factor),
             StepSizeMode::Izmailov => self.izmailov_step_sizes(mcmc_cfg.hmc_integration_length),
         };
-        debug!("Using step sizes: {:?}", step_sizes);
+        // debug!("Using step sizes: {:?}", step_sizes);
         let mut momenta = self.sample_momenta();
         let init_neg_hamiltonian = self.neg_hamiltonian(&momenta, x_train, y_train);
 
@@ -464,21 +505,12 @@ pub trait Branch {
         //     );
         // }
 
-        // accept or reject
-        let final_neg_hamiltonian = self.neg_hamiltonian(&momenta, x_train, y_train);
-        let log_acc_probability = final_neg_hamiltonian - init_neg_hamiltonian;
-        let acc_probability = if log_acc_probability >= 0. {
-            1.
-        } else {
-            log_acc_probability.exp()
-        };
-        if self.is_accepted(acc_probability) {
-            debug!("accepted state with acc prob: {:?}", acc_probability);
-            HMCStepResult::Accepted
-        } else {
-            debug!("rejected state with acc prob: {:?}", acc_probability);
-            self.set_params(&init_params);
-            HMCStepResult::Rejected
+        match self.accept_or_reject_hmc_state(&momenta, &x_train, &y_train, init_neg_hamiltonian) {
+            res @ HMCStepResult::Rejected => {
+                self.set_params(&init_params);
+                res
+            }
+            res @ _ => res,
         }
     }
 }
@@ -571,10 +603,18 @@ impl BranchCfg {
     }
 }
 
+/// Performance statistics of branch on train data.
+pub struct HMCStepResultData {
+    /// Mean squared error
+    pub y_pred: Array<f32>,
+    /// Log density
+    pub log_density: f32,
+}
+
 pub enum HMCStepResult {
     RejectedEarly,
     Rejected,
-    Accepted,
+    Accepted(HMCStepResultData),
 }
 
 // TODO: this should be used within BranchCfg,
