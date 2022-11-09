@@ -288,9 +288,6 @@ where
                 x_train[branch_ix][marker_ix * args.num_individuals + i] =
                     binom.sample(&mut rng) as f32
             });
-
-            let maf = Uniform::from(0.0..0.5).sample(&mut rng);
-            let binom = Binomial::new(2, maf).unwrap();
             (0..args.num_individuals).for_each(|i| {
                 x_test[branch_ix][marker_ix * args.num_individuals + i] =
                     binom.sample(&mut rng) as f32

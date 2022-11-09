@@ -22,6 +22,7 @@ use std::{
 };
 
 const NUMERICAL_DELTA: f32 = 0.001;
+const GD_STEP_SIZE: f32 = 0.00001;
 
 pub trait Branch {
     fn model_type() -> ModelType;
@@ -399,7 +400,7 @@ pub trait Branch {
     ) -> HMCStepResult {
         let mut ldg = self.log_density_gradient(x_train, y_train);
         for _step in 0..(mcmc_cfg.hmc_integration_length) {
-            self.params_mut().descent_gradient(NUMERICAL_DELTA, &ldg);
+            self.params_mut().descent_gradient(GD_STEP_SIZE, &ldg);
             ldg = self.log_density_gradient(x_train, y_train);
         }
         let y_pred = self.predict(x_train);

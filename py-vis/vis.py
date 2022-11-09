@@ -431,6 +431,61 @@ def plot_single_branch_posterior_means(wdir: str, burn_in, branch_ix=0):
     plt.tight_layout()
 
 
+def plot_single_branch_state(wdir: str, state_ix: int, branch_ix=0):
+    ddir = data_dir(wdir)
+    trace = load_json_trace(wdir, branch_ix)
+    truth = load_true_params(ddir)[branch_ix]
+
+    fig, axes = plt.subplots(4, trace.depth(), figsize=(15, 10))
+
+    axes[0, 0].set_ylabel(r"$W | D$")
+    axes[1, 0].set_ylabel(r"$\lambda_W | D$")
+    axes[2, 0].set_ylabel(r"$b | D$")
+    axes[3, 0].set_ylabel(r"$\lambda_b | D$")
+
+    for lix in range(trace.depth()):
+        w_pm = trace.layer_weights(lix)[state_ix]
+        w_t = truth.layer_weights(lix)
+        try:
+            w_pm.sort()
+            w_t.sort()
+        except:
+            pass
+        axes[0, lix].plot(w_t, w_pm, 'k.')
+        axes[0, lix].plot(w_t, w_t, 'k:')
+        axes[0, lix].set_xlabel(r"$W$")
+
+        wp_pm = trace.layer_weight_precisions(lix)[state_ix]
+        wp_t = truth.layer_weight_precisions(lix)
+        try:
+            wp_pm.sort()
+            wp_t.sort()
+        except:
+            pass
+        axes[1, lix].plot(wp_t, wp_pm, 'k.')
+        axes[1, lix].plot(wp_t, wp_t, 'k:')
+        axes[1, lix].set_xlabel(r"$\lambda_W$")
+
+        if lix < (trace.depth() - 1):
+            b_pm = trace.layer_biases(lix)[state_ix]
+            b_t = truth.layer_biases(lix)
+            try:
+                b_pm.sort()
+                b_t.sort()
+            except:
+                pass
+            axes[2, lix].plot(b_t, b_pm, 'k.')
+            axes[2, lix].plot(b_t, b_t, 'k:')
+            axes[2, lix].set_xlabel(r"$b$")
+
+            bp_pm = trace.layer_bias_precision(lix)[state_ix]
+            bp_t = truth.layer_bias_precision(lix)
+            axes[3, lix].plot(bp_t, bp_pm, 'k.')
+            axes[3, lix].set_xlabel(r"$\lambda_b$")
+
+    plt.tight_layout()
+
+
 def plot_perf_r2(wdir: str, burn_in):
     ddir = data_dir(wdir)
     train_data = Data.load_train(ddir)

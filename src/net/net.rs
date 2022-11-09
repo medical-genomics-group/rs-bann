@@ -230,6 +230,7 @@ impl<B: Branch> Net<B> {
                 // tell branch about global error precision
                 branch.set_error_precision(self.error_precision);
                 // TODO: save last prediction contribution for each branch to reduce compute
+                // ... this might need substantial amount of memory though, probably not worth it.
                 let prev_pred = branch.predict(&x);
                 residual = &residual + &prev_pred;
                 let step_res = if mcmc_cfg.gradient_descent {
