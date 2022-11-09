@@ -207,6 +207,11 @@ pub(crate) struct TrainArgs {
     #[clap(long)]
     pub num_grad: bool,
 
+    /// Use gradient descent instead of HMC.
+    /// CAUTION: this does only lead to point estimates for all parameters
+    #[clap(long)]
+    pub gradient_descent: bool,
+
     /// Set error precision of model before training.
     #[clap(long)]
     pub error_precision: Option<f32>,
@@ -285,7 +290,7 @@ pub(crate) struct TrainNewArgs {
     #[clap(long)]
     pub trajectories: bool,
 
-    /// Output numerical gradients
+    /// Output numerical gradients.
     /// CAUTION: this is extremely expensive, do not run this in production.
     #[clap(long)]
     pub num_grad_traj: bool,
@@ -294,6 +299,11 @@ pub(crate) struct TrainNewArgs {
     /// CAUTION: this is extremely expensive, do not run this in production.
     #[clap(long)]
     pub num_grad: bool,
+
+    /// Use gradient descent instead of HMC.
+    /// CAUTION: this does only lead to point estimates for all parameters
+    #[clap(long)]
+    pub gradient_descent: bool,
 
     /// Set error precision of model before training.
     #[clap(long)]

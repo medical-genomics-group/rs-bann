@@ -407,6 +407,7 @@ fn train_new(args: TrainNewArgs) {
         trajectories: args.trajectories.clone(),
         num_grad_traj: args.num_grad_traj.clone(),
         num_grad: args.num_grad,
+        gradient_descent: args.gradient_descent,
     };
     mcmc_cfg.create_out();
 
@@ -538,6 +539,7 @@ fn train(args: TrainArgs) {
         trajectories: args.trajectories.clone(),
         num_grad_traj: args.num_grad_traj.clone(),
         num_grad: args.num_grad,
+        gradient_descent: args.gradient_descent,
     };
     mcmc_cfg.create_out();
 

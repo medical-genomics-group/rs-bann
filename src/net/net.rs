@@ -232,7 +232,11 @@ impl<B: Branch> Net<B> {
                 // TODO: save last prediction contribution for each branch to reduce compute
                 let prev_pred = branch.predict(&x);
                 residual = &residual + &prev_pred;
-                let step_res = branch.hmc_step(&x, &residual, mcmc_cfg);
+                let step_res = if mcmc_cfg.gradient_descent {
+                    branch.gradient_descent(&x, &residual, mcmc_cfg)
+                } else {
+                    branch.hmc_step(&x, &residual, mcmc_cfg)
+                };
                 self.note_hmc_step_result(&step_res);
                 match step_res {
                     // update residual

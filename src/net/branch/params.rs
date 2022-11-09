@@ -1,5 +1,5 @@
-use super::momenta::BranchMomenta;
 use super::step_sizes::StepSizes;
+use super::{branch::BranchLogDensityGradient, momenta::BranchMomenta};
 use arrayfire::{dim4, Array};
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -115,6 +115,15 @@ impl BranchParams {
         }
         for i in 0..self.biases.len() {
             self.biases[i] += &step_sizes.wrt_biases[i] * &mom.wrt_biases[i];
+        }
+    }
+
+    pub fn descent_gradient(&mut self, step_size: f32, gradient: &BranchLogDensityGradient) {
+        for i in 0..self.weights.len() {
+            self.weights[i] += step_size * &gradient.wrt_weights[i];
+        }
+        for i in 0..self.biases.len() {
+            self.biases[i] += step_size * &gradient.wrt_biases[i];
         }
     }
 

@@ -391,6 +391,28 @@ pub trait Branch {
         }
     }
 
+    fn gradient_descent(
+        &mut self,
+        x_train: &Array<f32>,
+        y_train: &Array<f32>,
+        mcmc_cfg: &MCMCCfg,
+    ) -> HMCStepResult {
+        let mut ldg = self.log_density_gradient(x_train, y_train);
+        for _step in 0..(mcmc_cfg.hmc_integration_length) {
+            self.params_mut().descent_gradient(NUMERICAL_DELTA, &ldg);
+            ldg = self.log_density_gradient(x_train, y_train);
+        }
+        let y_pred = self.predict(x_train);
+        let r = &y_pred - y_train;
+        let rss = arrayfire::sum_all(&(&r * &r)).0;
+        let log_density = self.log_density(self.params(), self.hyperparams(), rss);
+        debug!("branch log density after step: {:.4}", log_density);
+        HMCStepResult::Accepted(HMCStepResultData {
+            y_pred,
+            log_density,
+        })
+    }
+
     /// Takes a single parameter sample using HMC.
     /// Returns `false` if final state is rejected, `true` if accepted.
     fn hmc_step(

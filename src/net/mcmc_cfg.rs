@@ -17,6 +17,8 @@ pub struct MCMCCfg {
     pub trajectories: bool,
     pub num_grad_traj: bool,
     pub num_grad: bool,
+    // use gradient descent instead of hmc
+    pub gradient_descent: bool,
 }
 
 impl MCMCCfg {
