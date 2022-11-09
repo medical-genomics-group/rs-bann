@@ -371,7 +371,7 @@ pub trait Branch {
         let r = &y_pred - y_train;
         let rss = arrayfire::sum_all(&(&r * &r)).0;
         let log_density = self.log_density(self.params(), self.hyperparams(), rss);
-        debug!("branch log density: {:.4}", log_density);
+        debug!("branch log density after step: {:.4}", log_density);
         let state_data = HMCStepResultData {
             y_pred,
             log_density,
@@ -421,6 +421,14 @@ pub trait Branch {
         };
         // debug!("Using step sizes: {:?}", step_sizes);
         let mut momenta = self.sample_momenta();
+        debug!(
+            "branch log density before step: {:.4}",
+            self.log_density(
+                self.params(),
+                self.hyperparams(),
+                self.rss(x_train, y_train)
+            )
+        );
         let init_neg_hamiltonian = self.neg_hamiltonian(&momenta, x_train, y_train);
 
         if mcmc_cfg.trajectories {
