@@ -429,6 +429,9 @@ fn train_new(args: TrainNewArgs) {
                 );
             }
             let mut net = net_cfg.build_net();
+            if let Some(p) = args.error_precision {
+                net.set_error_precision(p);
+            }
 
             for bix in 0..net.num_branches() {
                 if net.num_branch_params(bix) > train_data.num_individuals() {
@@ -438,6 +441,7 @@ fn train_new(args: TrainNewArgs) {
                 }
             }
             net.write_meta(&mcmc_cfg);
+
             info!("Training net");
             net.train(&train_data, &mcmc_cfg, true, Some(report_cfg));
         }
@@ -453,10 +457,17 @@ fn train_new(args: TrainNewArgs) {
                 );
             }
             let mut net = net_cfg.build_net();
-            info!(
-                "Built net with {:} params per branch.",
-                net.num_branch_params(0)
-            );
+            if let Some(p) = args.error_precision {
+                net.set_error_precision(p);
+            }
+
+            for bix in 0..net.num_branches() {
+                if net.num_branch_params(bix) > train_data.num_individuals() {
+                    warn!(
+                        "Num params > num individuals in branch {} (with {} params, {} individuals)",
+                        bix, net.num_branch_params(bix), train_data.num_individuals());
+                }
+            }
             net.write_meta(&mcmc_cfg);
             info!("Training net");
             net.train(&train_data, &mcmc_cfg, true, Some(report_cfg));
@@ -471,10 +482,17 @@ fn train_new(args: TrainNewArgs) {
                 );
             }
             let mut net = net_cfg.build_net();
-            info!(
-                "Built net with {:} params per branch.",
-                net.num_branch_params(0)
-            );
+            if let Some(p) = args.error_precision {
+                net.set_error_precision(p);
+            }
+
+            for bix in 0..net.num_branches() {
+                if net.num_branch_params(bix) > train_data.num_individuals() {
+                    warn!(
+                        "Num params > num individuals in branch {} (with {} params, {} individuals)",
+                        bix, net.num_branch_params(bix), train_data.num_individuals());
+                }
+            }
             net.write_meta(&mcmc_cfg);
             info!("Training net");
             net.train(&train_data, &mcmc_cfg, true, Some(report_cfg));
@@ -532,18 +550,27 @@ fn train(args: TrainArgs) {
     match args.model_type {
         ModelType::Base => {
             let mut net = Net::<BaseBranch>::from_file(&model_path);
+            if let Some(p) = args.error_precision {
+                net.set_error_precision(p);
+            }
             net.write_meta(&mcmc_cfg);
             info!("Training net");
             net.train(&train_data, &mcmc_cfg, true, Some(report_cfg));
         }
         ModelType::ARD => {
             let mut net = Net::<ArdBranch>::from_file(&model_path);
+            if let Some(p) = args.error_precision {
+                net.set_error_precision(p);
+            }
             net.write_meta(&mcmc_cfg);
             info!("Training net");
             net.train(&train_data, &mcmc_cfg, true, Some(report_cfg));
         }
         ModelType::StdNormal => {
             let mut net = Net::<StdNormalBranch>::from_file(&model_path);
+            if let Some(p) = args.error_precision {
+                net.set_error_precision(p);
+            }
             net.write_meta(&mcmc_cfg);
             info!("Training net");
             net.train(&train_data, &mcmc_cfg, true, Some(report_cfg));

@@ -69,17 +69,37 @@ impl OutputBias {
 #[derive(Serialize, Deserialize)]
 /// The full network model
 pub struct Net<B: Branch> {
-    pub(crate) precision_prior_shape: f32,
-    pub(crate) precision_prior_scale: f32,
-    pub(crate) num_branches: usize,
-    pub(crate) branch_cfgs: Vec<BranchCfg>,
-    pub(crate) output_bias: OutputBias,
-    pub(crate) error_precision: f32,
-    pub(crate) training_stats: TrainingStats,
-    pub(crate) branch_type: PhantomData<B>,
+    precision_prior_shape: f32,
+    precision_prior_scale: f32,
+    num_branches: usize,
+    branch_cfgs: Vec<BranchCfg>,
+    output_bias: OutputBias,
+    error_precision: f32,
+    training_stats: TrainingStats,
+    branch_type: PhantomData<B>,
 }
 
 impl<B: Branch> Net<B> {
+    pub fn new(
+        precision_prior_shape: f32,
+        precision_prior_scale: f32,
+        num_branches: usize,
+        branch_cfgs: Vec<BranchCfg>,
+        output_bias: OutputBias,
+        error_precision: f32,
+    ) -> Self {
+        Self {
+            precision_prior_shape,
+            precision_prior_scale,
+            num_branches,
+            branch_cfgs,
+            output_bias,
+            error_precision,
+            training_stats: TrainingStats::new(),
+            branch_type: PhantomData,
+        }
+    }
+
     pub fn from_file(path: &Path) -> Self {
         let mut r = BufReader::new(File::open(path).unwrap());
         deserialize_from(&mut r).unwrap()
@@ -108,6 +128,10 @@ impl<B: Branch> Net<B> {
             res += cfg.num_params
         }
         res
+    }
+
+    pub fn set_error_precision(&mut self, precision: f32) {
+        self.error_precision = precision;
     }
 
     pub fn num_branches(&self) -> usize {

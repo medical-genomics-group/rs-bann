@@ -85,19 +85,17 @@ impl<B: Branch> BlockNetCfg<B> {
             }
             branch_cfgs.push(B::build_cfg(cfg_bld));
         }
-        Net {
-            precision_prior_shape: self.precision_prior_shape,
-            precision_prior_scale: self.precision_prior_scale,
+        Net::new(
+            self.precision_prior_shape,
+            self.precision_prior_scale,
             num_branches,
             branch_cfgs,
-            output_bias: OutputBias {
+            OutputBias {
                 precision: 1.0,
                 bias: 0.0,
             },
-            error_precision: 1.0,
-            training_stats: TrainingStats::new(),
-            branch_type: PhantomData,
-        }
+            1.0,
+        )
     }
 }
 
@@ -112,7 +110,7 @@ mod tests {
         cfg.add_branch(3, 3);
         cfg.add_branch(3, 3);
         let net = cfg.build_net();
-        assert_eq!(net.branch_cfgs[0].num_params, 17);
-        assert_eq!(net.branch_cfgs[1].num_params, 17);
+        assert_eq!(net.branch_cfg(0).num_params, 17);
+        assert_eq!(net.branch_cfg(1).num_params, 17);
     }
 }
