@@ -168,7 +168,7 @@ impl Genotypes {
         self.num_individuals
     }
 
-    fn standardize(&mut self) {
+    pub fn standardize(&mut self) {
         if !self.standardized {
             if self.means.is_some() && self.stds.is_some() {
                 let means = self.means.as_ref().unwrap();
