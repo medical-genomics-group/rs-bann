@@ -150,6 +150,16 @@ pub struct Genotypes {
 }
 
 impl Genotypes {
+    pub fn from_file(path: &Path) -> Self {
+        let mut r = BufReader::new(File::open(path).unwrap());
+        deserialize_from(&mut r).unwrap()
+    }
+
+    pub fn to_file(&self, path: &Path) {
+        let mut f = BufWriter::new(File::create(path).unwrap());
+        serialize_into(&mut f, self).unwrap();
+    }
+
     pub fn x(&self) -> &Vec<Vec<f32>> {
         &self.x
     }
