@@ -350,10 +350,6 @@ pub(crate) struct PredictArgs {
     #[clap(short, long, default_value = "./models")]
     pub model_path: String,
 
-    #[clap(short, long, default_value = "./")]
-    /// Output path. Outdir will be created there.
-    pub outpath: String,
-
     /// standardize input data
     #[clap(short, long)]
     pub standardize: bool,
