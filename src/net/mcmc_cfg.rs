@@ -12,6 +12,7 @@ pub struct MCMCCfg {
     pub hmc_integration_length: usize,
     pub hmc_step_size_mode: StepSizeMode,
     pub chain_length: usize,
+    pub burn_in: usize,
     pub outpath: String,
     pub trace: bool,
     pub trajectories: bool,
@@ -42,6 +43,10 @@ impl MCMCCfg {
 
     pub fn args_path(&self) -> PathBuf {
         Path::new(&self.outpath).join("args.json")
+    }
+
+    pub fn models_path(&self) -> PathBuf {
+        Path::new(&self.outpath).join("models")
     }
 }
 

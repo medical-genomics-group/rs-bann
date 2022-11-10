@@ -16,7 +16,7 @@ use serde_json::to_writer;
 use std::path::Path;
 use std::{
     fmt::{Display, Formatter},
-    fs::File,
+    fs::{create_dir_all, File},
     io::{BufReader, BufWriter, Write},
     marker::PhantomData,
 };
@@ -166,6 +166,10 @@ impl<B: Branch> Net<B> {
         verbose: bool,
         report_cfg: Option<ReportCfg>,
     ) {
+        if mcmc_cfg.chain_length > mcmc_cfg.burn_in {
+            self.create_model_dir(mcmc_cfg);
+        }
+
         let mut trace_file = None;
         if mcmc_cfg.trace {
             trace_file = Some(BufWriter::new(File::create(mcmc_cfg.trace_path()).unwrap()));
@@ -265,6 +269,12 @@ impl<B: Branch> Net<B> {
                 &mut rng,
             );
 
+            // save current model if done with burn in
+            if chain_ix > mcmc_cfg.burn_in {
+                let model_ix = chain_ix - mcmc_cfg.burn_in;
+                self.save_model(model_ix, mcmc_cfg);
+            }
+
             // report
             if verbose && chain_ix % report_interval == 0 {
                 self.report_training_state(chain_ix);
@@ -281,7 +291,6 @@ impl<B: Branch> Net<B> {
         self.training_stats.to_file(&mcmc_cfg.outpath);
     }
 
-    // TODO: predict using posterior predictive distribution instead of point estimate
     pub fn predict(&self, gen: &Genotypes) -> Vec<f32> {
         // I expect X to be column major
         let mut y_hat = Array::new(
@@ -304,6 +313,16 @@ impl<B: Branch> Net<B> {
 
     pub fn predict_f64(&self, gen: &Genotypes) -> Vec<f64> {
         self.predict(gen).iter().map(|e| *e as f64).collect()
+    }
+
+    fn save_model(&self, model_ix: usize, mcmc_cfg: &MCMCCfg) {
+        let mut model_path = mcmc_cfg.models_path().join(model_ix.to_string());
+        model_path.set_extension("bin");
+        self.to_file(&model_path);
+    }
+
+    fn create_model_dir(&self, mcmc_cfg: &MCMCCfg) {
+        create_dir_all(mcmc_cfg.models_path()).expect("Failed to create models outdir");
     }
 
     fn record_mse(&mut self, train_data: &Data, test_data: Option<&Data>) {

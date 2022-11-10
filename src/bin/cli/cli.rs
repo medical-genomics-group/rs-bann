@@ -215,6 +215,10 @@ pub(crate) struct TrainArgs {
     /// Set error precision of model before training.
     #[clap(long)]
     pub error_precision: Option<f32>,
+
+    /// Number of burn-in samples that will be discarded.
+    #[clap(default_value_t = 0, long)]
+    pub burn_in: usize,
 }
 
 impl TrainArgs {
@@ -308,6 +312,10 @@ pub(crate) struct TrainNewArgs {
     /// Set error precision of model before training.
     #[clap(long)]
     pub error_precision: Option<f32>,
+
+    /// Number of burn-in samples that will be discarded.
+    #[clap(default_value_t = 0, long)]
+    pub burn_in: usize,
 }
 
 impl TrainNewArgs {
