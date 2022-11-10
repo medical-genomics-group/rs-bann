@@ -132,8 +132,8 @@ where
     if !path.exists() {
         std::fs::create_dir_all(&path).expect("Could not create output directory!");
     }
-    let train_path = path.join("train.bin");
-    let test_path = path.join("test.bin");
+    let mut train_path = path.join("train");
+    let mut test_path = path.join("test");
     let args_path = path.join("args.json");
     let params_path = path.join("model.params");
     let model_path = path.join("model.bin");
@@ -172,15 +172,20 @@ where
     to_writer(&mut net_params_file, net.branch_cfgs()).unwrap();
     net_params_file.write_all(b"\n").unwrap();
 
-    // load marker data from .bed
+    // load marker data from .bed, group, save
     let gen_train = GenotypesBuilder::new()
         .with_x_from_bed(&train_bed_path, &grouping)
         .build()
         .unwrap();
+    train_path.set_extension("gen");
+    gen_train.to_file(&train_path);
+
     let gen_test = GenotypesBuilder::new()
         .with_x_from_bed(&test_bed_path, &grouping)
         .build()
         .unwrap();
+    test_path.set_extension("gen");
+    gen_test.to_file(&test_path);
 
     info!("Making phenotype data");
     let mut y_train = net.predict(&gen_train);
@@ -205,14 +210,10 @@ where
             .for_each(|e| *e += rv_test_dist.sample(&mut rng) as f32);
     }
 
-    let train_data = Data::new(gen_train, Phenotypes::new(y_train.clone()));
-    let test_data = Data::new(gen_test, Phenotypes::new(y_test.clone()));
-
     PhenStats::new(
         (&y_test.iter().map(|e| *e as f64).collect::<Vec<f64>>()).mean() as f32,
         (&y_test.iter().map(|e| *e as f64).collect::<Vec<f64>>()).variance() as f32,
         test_residual_variance as f32,
-        net.mse(&test_data),
     )
     .to_file(&path.join("test_phen_stats.json"));
 
@@ -220,16 +221,22 @@ where
         (&y_train.iter().map(|e| *e as f64).collect::<Vec<f64>>()).mean() as f32,
         (&y_train.iter().map(|e| *e as f64).collect::<Vec<f64>>()).variance() as f32,
         train_residual_variance as f32,
-        net.mse(&train_data),
     )
     .to_file(&path.join("train_phen_stats.json"));
 
-    train_data.to_file(&train_path);
-    test_data.to_file(&test_path);
+    train_path.set_extension("phen");
+    let phen_train = Phenotypes::new(y_train);
+    phen_train.to_file(&train_path);
+
+    test_path.set_extension("phen");
+    let phen_test = Phenotypes::new(y_test);
+    phen_test.to_file(&test_path);
 
     if args.json_data {
-        train_data.to_json(&path.join("train.json"));
-        test_data.to_json(&path.join("test.json"));
+        phen_train.to_json(&path.join("phen_train.json"));
+        phen_test.to_json(&path.join("phen_test.json"));
+        gen_train.to_json(&path.join("gen_train.json"));
+        gen_test.to_json(&path.join("gen_test.json"));
     }
 
     args.to_file(&args_path);
@@ -275,8 +282,8 @@ where
     if !path.exists() {
         std::fs::create_dir_all(&path).expect("Could not create output directory!");
     }
-    let train_path = path.join("train.bin");
-    let test_path = path.join("test.bin");
+    let mut train_path = path.join("train");
+    let mut test_path = path.join("test");
     let args_path = path.join("args.json");
     let params_path = path.join("model.params");
     let model_path = path.join("model.bin");
@@ -341,6 +348,9 @@ where
         )
         .build()
         .unwrap();
+    train_path.set_extension("gen");
+    gen_train.to_file(&train_path);
+
     let gen_test = GenotypesBuilder::new()
         .with_x(
             x_test,
@@ -349,6 +359,8 @@ where
         )
         .build()
         .unwrap();
+    test_path.set_extension("gen");
+    gen_test.to_file(&test_path);
 
     info!("Making phenotype data");
     let mut y_train = net.predict(&gen_train);
@@ -372,14 +384,10 @@ where
             .for_each(|e| *e += rv_test_dist.sample(&mut rng) as f32);
     }
 
-    let train_data = Data::new(gen_train, Phenotypes::new(y_train.clone()));
-    let test_data = Data::new(gen_test, Phenotypes::new(y_test.clone()));
-
     PhenStats::new(
         (&y_test.iter().map(|e| *e as f64).collect::<Vec<f64>>()).mean() as f32,
         (&y_test.iter().map(|e| *e as f64).collect::<Vec<f64>>()).variance() as f32,
         test_residual_variance as f32,
-        net.mse(&test_data),
     )
     .to_file(&path.join("test_phen_stats.json"));
 
@@ -387,16 +395,22 @@ where
         (&y_train.iter().map(|e| *e as f64).collect::<Vec<f64>>()).mean() as f32,
         (&y_train.iter().map(|e| *e as f64).collect::<Vec<f64>>()).variance() as f32,
         train_residual_variance as f32,
-        net.mse(&train_data),
     )
     .to_file(&path.join("train_phen_stats.json"));
 
-    train_data.to_file(&train_path);
-    test_data.to_file(&test_path);
+    train_path.set_extension("phen");
+    let phen_train = Phenotypes::new(y_train);
+    phen_train.to_file(&train_path);
+
+    test_path.set_extension("phen");
+    let phen_test = Phenotypes::new(y_test);
+    phen_test.to_file(&test_path);
 
     if args.json_data {
-        train_data.to_json(&path.join("train.json"));
-        test_data.to_json(&path.join("test.json"));
+        phen_train.to_json(&path.join("phen_train.json"));
+        phen_test.to_json(&path.join("phen_test.json"));
+        gen_train.to_json(&path.join("gen_train.json"));
+        gen_test.to_json(&path.join("gen_test.json"));
     }
 
     args.to_file(&args_path);
@@ -410,8 +424,11 @@ fn train_new(args: TrainNewArgs) {
     }
 
     info!("Loading data");
-    let mut train_data = Data::from_file(&Path::new(&args.indir).join("train.bin"));
-    let mut test_data = Data::from_file(&Path::new(&args.indir).join("test.bin"));
+    let train_gen = Genotypes::from_file(&Path::new(&args.indir).join("train.gen"));
+    let train_phen = Phenotypes::from_file(&Path::new(&args.indir).join("train.phen"));
+    let train_data = Data::new(train_gen, train_phen);
+    // let mut train_data = Data::from_file(&Path::new(&args.indir).join("train.bin"));
+    // let mut test_data = Data::from_file(&Path::new(&args.indir).join("test.bin"));
 
     if args.standardize {
         info!("Standardizing data");

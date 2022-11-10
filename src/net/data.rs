@@ -15,16 +15,14 @@ pub struct PhenStats {
     mean: f32,
     variance: f32,
     env_variance: f32,
-    mse: f32,
 }
 
 impl PhenStats {
-    pub fn new(mean: f32, variance: f32, env_variance: f32, mse: f32) -> Self {
+    pub fn new(mean: f32, variance: f32, env_variance: f32) -> Self {
         Self {
             mean,
             variance,
             env_variance,
-            mse,
         }
     }
 
@@ -150,14 +148,18 @@ pub struct Genotypes {
 }
 
 impl Genotypes {
-    pub fn from_file(path: &Path) -> Self {
-        let mut r = BufReader::new(File::open(path).unwrap());
-        deserialize_from(&mut r).unwrap()
+    pub fn from_file(path: &Path) -> Result<Self, Error> {
+        let mut r = BufReader::new(File::open(path)?);
+        deserialize_from(&mut r)?
     }
 
     pub fn to_file(&self, path: &Path) {
         let mut f = BufWriter::new(File::create(path).unwrap());
         serialize_into(&mut f, self).unwrap();
+    }
+
+    pub fn to_json(&self, path: &Path) {
+        to_writer(File::create(path).unwrap(), self).unwrap();
     }
 
     pub fn x(&self) -> &Vec<Vec<f32>> {
@@ -206,6 +208,20 @@ impl Phenotypes {
         Self {
             y: vec![0f32; num_individuals],
         }
+    }
+
+    pub fn from_file(path: &Path) -> Self {
+        let mut r = BufReader::new(File::open(path).unwrap());
+        deserialize_from(&mut r).unwrap()
+    }
+
+    pub fn to_file(&self, path: &Path) {
+        let mut f = BufWriter::new(File::create(path).unwrap());
+        serialize_into(&mut f, self).unwrap();
+    }
+
+    pub fn to_json(&self, path: &Path) {
+        to_writer(File::create(path).unwrap(), self).unwrap();
     }
 }
 

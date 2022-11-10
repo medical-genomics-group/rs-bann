@@ -153,7 +153,7 @@ pub(crate) struct TrainArgs {
     /// model file
     pub model_file: String,
 
-    /// input directory with train.bin and test.bin files
+    /// input directory with train.gen, train.phen, and optionally test.gen, test.phen
     #[clap(short, long, default_value = "./")]
     pub indir: String,
 
