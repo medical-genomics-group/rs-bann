@@ -3,7 +3,6 @@ use super::{
     branch::branch::BranchCfg,
     branch::branch_cfg_builder::BranchCfgBuilder,
     net::{Net, OutputBias},
-    train_stats::TrainingStats,
 };
 use std::marker::PhantomData;
 

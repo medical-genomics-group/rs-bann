@@ -259,7 +259,7 @@ impl BranchCfgBuilder {
 
 #[cfg(test)]
 mod tests {
-    use arrayfire::constant;
+    // use arrayfire::constant;
 
     use super::BranchCfgBuilder;
 
@@ -272,7 +272,7 @@ mod tests {
         assert_eq!(cfg.num_params, 17);
     }
 
-    fn test_af_constant_dims() {
-        assert_eq!(constant!(1.0; 5).dims()[0], 5);
-    }
+    // fn test_af_constant_dims() {
+    //     assert_eq!(constant!(1.0; 5).dims()[0], 5);
+    // }
 }

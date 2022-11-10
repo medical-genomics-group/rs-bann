@@ -102,9 +102,9 @@ impl Branch for ArdBranch {
     }
 
     // TODO: actually make some step sizes here
-    fn std_scaled_step_sizes(&self, const_factor: f32) -> StepSizes {
-        let mut wrt_weights = Vec::with_capacity(self.num_layers());
-        let mut wrt_biases = Vec::with_capacity(self.num_layers() - 1);
+    fn std_scaled_step_sizes(&self, _const_factor: f32) -> StepSizes {
+        let wrt_weights = Vec::with_capacity(self.num_layers());
+        let wrt_biases = Vec::with_capacity(self.num_layers() - 1);
 
         StepSizes {
             wrt_weights,
