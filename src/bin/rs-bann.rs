@@ -2,7 +2,8 @@ mod cli;
 
 use clap::Parser;
 use cli::cli::{
-    Cli, GroupCenteredArgs, SimulateXYArgs, SimulateYArgs, SubCmd, TrainArgs, TrainNewArgs,
+    Cli, GroupCenteredArgs, PredictArgs, SimulateXYArgs, SimulateYArgs, SubCmd, TrainArgs,
+    TrainNewArgs,
 };
 use log::{info, warn};
 use rand::thread_rng;
@@ -14,7 +15,7 @@ use rs_bann::net::{
         ard_branch::ArdBranch, base_branch::BaseBranch, branch::Branch,
         std_normal_branch::StdNormalBranch,
     },
-    data::{Data, GenotypesBuilder, PhenStats, Phenotypes},
+    data::{Data, Genotypes, GenotypesBuilder, PhenStats, Phenotypes},
     mcmc_cfg::MCMCCfg,
     net::{ModelType, Net},
     train_stats::ReportCfg,
@@ -22,7 +23,7 @@ use rs_bann::net::{
 use serde_json::to_writer;
 use statrs::statistics::Statistics;
 use std::{
-    fs::File,
+    fs::{read_dir, File},
     io::{BufWriter, Write},
     path::{Path, PathBuf},
 };
@@ -42,7 +43,44 @@ fn main() {
         SubCmd::TrainNew(args) => train_new(args),
         SubCmd::Train(args) => train(args),
         SubCmd::GroupCentered(args) => group_centered(args),
+        SubCmd::Predict(args) => predict(args),
     }
+}
+
+fn predict(args: PredictArgs) {
+    let mut genotypes = Genotypes::from_file(&Path::new(&args.input_data));
+    if args.standardize {
+        genotypes.standardize();
+    }
+    // get model type
+    let parent_path = Path::new(&args.model_path)
+        .parent()
+        .unwrap()
+        .join("args.json");
+    let train_args = TrainNewArgs::from_file(&parent_path);
+    let model_type = train_args.model_type;
+    // stdout writer in csv format
+    let mut wtr = csv::Writer::from_writer(std::io::stdout());
+
+    // load models and predict
+    let mut model_files = read_dir(Path::new(&args.model_path))
+        .expect("Failed to parse model dir")
+        .map(|res| res.map(|e| e.path()))
+        .filter_map(|e| e.ok())
+        .filter(|e| e.is_file())
+        .collect::<Vec<PathBuf>>();
+    model_files.sort();
+
+    for path in model_files {
+        let prediction = match model_type {
+            ModelType::ARD => Net::<ArdBranch>::from_file(&path).predict(&genotypes),
+            ModelType::Base => Net::<BaseBranch>::from_file(&path).predict(&genotypes),
+            ModelType::StdNormal => Net::<StdNormalBranch>::from_file(&path).predict(&genotypes),
+        };
+        wtr.write_record(prediction.iter().map(|e| e.to_string()))
+            .unwrap();
+    }
+    wtr.flush().expect("Failed to flush csv writer");
 }
 
 fn group_centered(args: GroupCenteredArgs) {

@@ -20,8 +20,9 @@ use std::{
     io::{BufReader, BufWriter, Write},
     marker::PhantomData,
 };
+use strum_macros::EnumString;
 
-#[derive(clap::ValueEnum, Clone, Debug, Serialize, Deserialize)]
+#[derive(clap::ValueEnum, Clone, Debug, Serialize, Deserialize, EnumString)]
 pub enum ModelType {
     ARD,
     Base,

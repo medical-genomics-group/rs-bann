@@ -3,7 +3,7 @@ use log::info;
 use rs_bann::net::{mcmc_cfg::StepSizeMode, net::ModelType};
 use serde::{Deserialize, Serialize};
 use serde_json::to_writer_pretty;
-use std::{fs::File, path::Path};
+use std::{fs::File, io::BufReader, path::Path};
 
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
@@ -230,7 +230,7 @@ impl TrainArgs {
     }
 }
 
-#[derive(Args, Debug, Serialize)]
+#[derive(Args, Debug, Serialize, Deserialize)]
 pub(crate) struct TrainNewArgs {
     /// Prior structure of model.
     #[clap(value_enum)]
@@ -321,18 +321,29 @@ pub(crate) struct TrainNewArgs {
 }
 
 impl TrainNewArgs {
+    pub fn from_file(path: &Path) -> Self {
+        let file = File::open(path).expect("Failed to open args.json");
+        let reader = BufReader::new(file);
+        serde_json::from_reader(reader).unwrap()
+    }
+
     pub fn to_file(&self, path: &Path) {
         info!("Creating: {:?}", path);
         to_writer_pretty(File::create(path).unwrap(), self).unwrap();
     }
 }
 
+/// Use trained model to predict phenotype values.
+///
+/// This returns one prediction for each sampled model
+/// stored in the .models dir generated in a `rs-bann train-new` run.
+/// The results are sent to stdout in csv format, where each row holds
+/// the predictions generated with one sampled model for all input samples.
 #[derive(Args, Debug, Serialize)]
 pub(crate) struct PredictArgs {
     // TODO: this should accept a bed file.
     /// Path to input data file.
     /// Should contain a rs-bann Genotypes instance.
-    #[clap(short, long, default_value = "./")]
     pub input_data: String,
 
     /// Path to models generated with `train-new` or `train` command
@@ -348,9 +359,9 @@ pub(crate) struct PredictArgs {
     pub standardize: bool,
 }
 
-impl PredictArgs {
-    pub fn to_file(&self, path: &Path) {
-        info!("Creating: {:?}", path);
-        to_writer_pretty(File::create(path).unwrap(), self).unwrap();
-    }
-}
+// impl PredictArgs {
+//     pub fn to_file(&self, path: &Path) {
+//         info!("Creating: {:?}", path);
+//         to_writer_pretty(File::create(path).unwrap(), self).unwrap();
+//     }
+// }

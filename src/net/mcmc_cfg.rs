@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use std::{
     fmt::{Display, Formatter},
@@ -50,7 +50,7 @@ impl MCMCCfg {
     }
 }
 
-#[derive(clap::ValueEnum, Clone, Debug, Serialize)]
+#[derive(clap::ValueEnum, Clone, Debug, Serialize, Deserialize)]
 pub enum StepSizeMode {
     Uniform,
     Random,
