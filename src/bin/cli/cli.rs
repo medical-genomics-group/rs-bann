@@ -27,6 +27,8 @@ pub(crate) enum SubCmd {
     TrainNew(TrainNewArgs),
     /// Train prespecified model
     Train(TrainArgs),
+    /// Use trained model to predict phenotypes
+    Predict(PredictArgs),
 }
 
 #[derive(Args, Debug, Serialize, Deserialize)]
@@ -319,6 +321,34 @@ pub(crate) struct TrainNewArgs {
 }
 
 impl TrainNewArgs {
+    pub fn to_file(&self, path: &Path) {
+        info!("Creating: {:?}", path);
+        to_writer_pretty(File::create(path).unwrap(), self).unwrap();
+    }
+}
+
+#[derive(Args, Debug, Serialize)]
+pub(crate) struct PredictArgs {
+    // TODO: this should accept a bed file.
+    /// Path to input data file.
+    /// Should contain a rs-bann Genotypes instance.
+    #[clap(short, long, default_value = "./")]
+    pub input_data: String,
+
+    /// Path to models generated with `train-new` or `train` command
+    #[clap(short, long, default_value = "./models")]
+    pub model_path: String,
+
+    #[clap(short, long, default_value = "./")]
+    /// Output path. Outdir will be created there.
+    pub outpath: String,
+
+    /// standardize input data
+    #[clap(short, long)]
+    pub standardize: bool,
+}
+
+impl PredictArgs {
     pub fn to_file(&self, path: &Path) {
         info!("Creating: {:?}", path);
         to_writer_pretty(File::create(path).unwrap(), self).unwrap();
