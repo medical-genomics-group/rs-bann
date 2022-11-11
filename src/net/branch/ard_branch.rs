@@ -207,7 +207,7 @@ impl Branch for ArdBranch {
     /// Samples precision values from their posterior distribution in a Gibbs step.
     fn sample_precisions(&mut self, prior_shape: f32, prior_scale: f32) {
         // this iterates over layers
-        for i in 0..self.params.weights.len() {
+        for i in 0..self.num_layers() {
             let param_group_size = self.layer_width(i) as f32;
             let posterior_shape = param_group_size / 2. + prior_shape;
             // compute sums of squares of all rows
@@ -228,7 +228,7 @@ impl Branch for ArdBranch {
             );
         }
 
-        for i in 0..self.params.biases.len() {
+        for i in 0..self.num_layers() - 1 {
             self.hyperparams.bias_precisions[i] = multi_param_precision_posterior(
                 prior_shape,
                 prior_scale,
