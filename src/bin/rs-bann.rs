@@ -2,8 +2,8 @@ mod cli;
 
 use clap::Parser;
 use cli::cli::{
-    Cli, GroupCenteredArgs, PredictArgs, SimulateXYArgs, SimulateYArgs, SubCmd, TrainArgs,
-    TrainNewArgs,
+    BranchR2Args, Cli, GroupCenteredArgs, PredictArgs, SimulateXYArgs, SimulateYArgs, SubCmd,
+    TrainArgs, TrainNewArgs,
 };
 use log::{info, warn};
 use rand::thread_rng;
@@ -44,7 +44,47 @@ fn main() {
         SubCmd::Train(args) => train(args),
         SubCmd::GroupCentered(args) => group_centered(args),
         SubCmd::Predict(args) => predict(args),
+        SubCmd::BranchR2(args) => branch_r2(args),
     }
+}
+
+fn branch_r2(args: BranchR2Args) {
+    let mut genotypes =
+        Genotypes::from_file(&Path::new(&args.gen)).expect("Failed to load genotype input data");
+    let phenotypes =
+        Phenotypes::from_file(&Path::new(&args.phen)).expect("Failed to load phenotype input data");
+    if args.standardize {
+        genotypes.standardize();
+    }
+    let data = Data::new(genotypes, phenotypes);
+    // get model type
+    let parent_path = Path::new(&args.model_path)
+        .parent()
+        .unwrap()
+        .join("args.json");
+    let train_args = TrainNewArgs::from_file(&parent_path);
+    let model_type = train_args.model_type;
+    // stdout writer in csv format
+    let mut wtr = csv::Writer::from_writer(std::io::stdout());
+
+    // load models and compute r2
+    let mut model_files = read_dir(Path::new(&args.model_path))
+        .expect("Failed to parse model dir")
+        .map(|res| res.map(|e| e.path()))
+        .filter_map(|e| e.ok())
+        .filter(|e| e.is_file())
+        .collect::<Vec<PathBuf>>();
+    model_files.sort();
+
+    for path in model_files {
+        let r2s = match model_type {
+            ModelType::ARD => Net::<ArdBranch>::from_file(&path).branch_r2s(&data),
+            ModelType::Base => Net::<BaseBranch>::from_file(&path).branch_r2s(&data),
+            ModelType::StdNormal => Net::<StdNormalBranch>::from_file(&path).branch_r2s(&data),
+        };
+        wtr.write_record(r2s.iter().map(|e| e.to_string())).unwrap();
+    }
+    wtr.flush().expect("Failed to flush csv writer");
 }
 
 fn predict(args: PredictArgs) {

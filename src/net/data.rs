@@ -1,5 +1,6 @@
 use crate::error::Error;
 use crate::group::grouping::MarkerGrouping;
+use arrayfire::{dim4, Array};
 use bed_reader::{Bed, ReadOptions};
 use bincode::{deserialize_from, serialize_into};
 use serde::{Deserialize, Serialize};
@@ -192,6 +193,16 @@ impl Genotypes {
             self.standardized = true;
         }
     }
+
+    pub fn x_branch_af(&self, branch_ix: usize) -> Array<f32> {
+        Array::new(
+            &self.x[branch_ix],
+            dim4!(
+                self.num_individuals as u64,
+                self.num_markers_per_branch[branch_ix] as u64
+            ),
+        )
+    }
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
@@ -222,6 +233,10 @@ impl Phenotypes {
 
     pub fn to_json(&self, path: &Path) {
         to_writer(File::create(path).unwrap(), self).unwrap();
+    }
+
+    pub fn y_af(&self) -> Array<f32> {
+        Array::new(&self.y, dim4!(self.y.len() as u64))
     }
 }
 
@@ -276,6 +291,14 @@ impl Data {
 
     pub fn y(&self) -> &Vec<f32> {
         &self.phen.y
+    }
+
+    pub fn x_branch_af(&self, branch_ix: usize) -> Array<f32> {
+        self.gen.x_branch_af(branch_ix)
+    }
+
+    pub fn y_af(&self) -> Array<f32> {
+        self.phen.y_af()
     }
 }
 

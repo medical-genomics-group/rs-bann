@@ -15,20 +15,22 @@ pub(crate) struct Cli {
 
 #[derive(Subcommand)]
 pub(crate) enum SubCmd {
-    /// Group markers by LD
+    /// Group markers by LD.
     GroupCentered(GroupCenteredArgs),
-    /// Simulate phenotype data given marker data
+    /// Simulate phenotype data given marker data.
     ///
     /// Branch width is fixed to 1/2 the number of input nodes in a branch.
     SimulateY(SimulateYArgs),
     /// Simulate marker and phenotype data under a network model.
     SimulateXY(SimulateXYArgs),
-    /// Train new Model
+    /// Train new model.
     TrainNew(TrainNewArgs),
-    /// Train prespecified model
+    /// Train prespecified model.
     Train(TrainArgs),
-    /// Use trained model to predict phenotypes
+    /// Use trained model to predict phenotypes.
     Predict(PredictArgs),
+    /// Use trained model to compute r2 values for each model branch.
+    BranchR2(BranchR2Args),
 }
 
 #[derive(Args, Debug, Serialize, Deserialize)]
@@ -334,7 +336,6 @@ impl TrainNewArgs {
 }
 
 /// Use trained model to predict phenotype values.
-///
 /// This returns one prediction for each sampled model
 /// stored in the .models dir generated in a `rs-bann train-new` run.
 /// The results are sent to stdout in csv format, where each row holds
@@ -361,3 +362,26 @@ pub(crate) struct PredictArgs {
 //         to_writer_pretty(File::create(path).unwrap(), self).unwrap();
 //     }
 // }
+
+/// Use trained model to compute r2 values for each model branch separately.
+/// This returns one r2 for each branch and sampled model in a .models dir
+/// generated in a `rs-bann train-new` run.
+#[derive(Args, Debug, Serialize)]
+pub(crate) struct BranchR2Args {
+    // TODO: this should accept a bed file.
+    /// Path to input .gen file.
+    /// Should contain a rs-bann Genotypes instance.
+    pub gen: String,
+
+    /// Path to input .phen file.
+    /// Should contain a rs-bann Phenotypes instance.
+    pub phen: String,
+
+    /// Path to models generated with `train-new` or `train` command
+    #[clap(short, long, default_value = "./models")]
+    pub model_path: String,
+
+    /// standardize input data
+    #[clap(short, long)]
+    pub standardize: bool,
+}

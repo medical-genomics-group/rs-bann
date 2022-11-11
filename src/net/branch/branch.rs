@@ -347,6 +347,10 @@ pub trait Branch {
         arrayfire::sum_all(&(&r * &r)).0
     }
 
+    fn r2(&self, x: &Array<f32>, y: &Array<f32>) -> f32 {
+        1. - self.rss(x, y) / arrayfire::sum_all(&(y * y)).0
+    }
+
     fn predict(&self, x: &Array<f32>) -> Array<f32> {
         self.forward_feed(x).last().unwrap().copy()
     }

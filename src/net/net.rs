@@ -369,6 +369,16 @@ impl<B: Branch> Net<B> {
         self.rss(data) / data.num_individuals() as f32
     }
 
+    pub fn branch_r2s(&self, data: &Data) -> Vec<f32> {
+        let mut res = vec![0.0; self.num_branches];
+        let y = data.y_af();
+        for branch_ix in 0..self.num_branches {
+            let cfg = &self.branch_cfgs[branch_ix];
+            res[branch_ix] = B::from_cfg(&cfg).r2(&data.x_branch_af(branch_ix), &y);
+        }
+        res
+    }
+
     fn report_training_state(&self, iteration: usize) {
         if let Some(tst_mse) = &self.training_stats.mse_test {
             info!(
