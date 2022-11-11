@@ -240,7 +240,7 @@ impl Branch for ArdBranch {
                 &self.params.weights[summary_layer_index],
                 &mut self.rng,
             )],
-            dim4!(1),
+            self.hyperparams.weight_precisions[summary_layer_index].dims(),
         );
 
         // output precision is sampled jointly for all branches, not here
