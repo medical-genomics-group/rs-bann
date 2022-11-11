@@ -227,8 +227,7 @@ impl Branch for ArdBranch {
                 self.hyperparams.weight_precisions[i].dims(),
             );
         }
-        // TODO: do I want those per node or per layer?
-        // At the moment this is per layer
+
         for i in 0..self.params.biases.len() {
             self.hyperparams.bias_precisions[i] = multi_param_precision_posterior(
                 prior_shape,
