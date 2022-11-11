@@ -1,7 +1,10 @@
 use super::{
     branch::branch::{Branch, BranchCfg, BranchMeta, HMCStepResult},
     data::{Data, Genotypes},
-    gibbs_steps::{multi_param_precision_posterior, single_param_precision_posterior},
+    gibbs_steps::{
+        multi_param_precision_posterior, multi_param_precision_posterior_host,
+        single_param_precision_posterior,
+    },
     mcmc_cfg::MCMCCfg,
     train_stats::{ReportCfg, TrainingStats},
 };
@@ -256,6 +259,9 @@ impl<B: Branch> Net<B> {
                 self.branch_cfgs[branch_ix] = branch.to_cfg();
             }
 
+            // TODO: sample output weight precisions using all output weights
+            self.sample_output_layer_precision(&mut rng);
+
             // TODO:
             // this can be easily done without predicting again,
             // just by saving the last predictions of each branch
@@ -290,6 +296,24 @@ impl<B: Branch> Net<B> {
         info!("Completed training");
         // save training stats
         self.training_stats.to_file(&mcmc_cfg.outpath);
+    }
+
+    fn sample_output_layer_precision(&mut self, rng: &mut ThreadRng) {
+        // collect all output layer weights
+        let output_layer_weights = self
+            .branch_cfgs
+            .iter()
+            .map(|cfg| cfg.output_layer_weight())
+            .collect::<Vec<f32>>();
+        let precision = multi_param_precision_posterior_host(
+            self.precision_prior_shape,
+            self.precision_prior_scale,
+            &output_layer_weights,
+            rng,
+        );
+        for cfg in &mut self.branch_cfgs {
+            cfg.set_output_layer_precision(precision);
+        }
     }
 
     pub fn predict(&self, gen: &Genotypes) -> Vec<f32> {

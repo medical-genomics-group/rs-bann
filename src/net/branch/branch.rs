@@ -633,8 +633,16 @@ impl BranchCfg {
         &self.params
     }
 
+    pub fn output_layer_weight(&self) -> f32 {
+        *self.params.last().expect("Branch params are empty!")
+    }
+
     pub fn hyperparams(&self) -> &BranchHyperparams {
         &self.hyperparams
+    }
+
+    pub fn set_output_layer_precision(&mut self, precision: f32) {
+        self.hyperparams.set_output_layer_precision(precision);
     }
 }
 

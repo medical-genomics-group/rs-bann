@@ -45,3 +45,20 @@ pub(crate) fn multi_param_precision_posterior(
         .unwrap()
         .sample(rng)
 }
+
+pub(crate) fn multi_param_precision_posterior_host(
+    // k
+    prior_shape: f32,
+    // s or theta
+    prior_scale: f32,
+    param_vals: &Vec<f32>,
+    rng: &mut ThreadRng,
+) -> f32 {
+    let num_params = param_vals.len();
+    let sum_of_squares: f32 = param_vals.iter().map(|e| e * e).sum();
+    let posterior_shape = prior_shape + num_params as f32 / 2.;
+    let posterior_scale = 2. * prior_scale / (2. + prior_scale * sum_of_squares);
+    Gamma::new(posterior_shape, posterior_scale)
+        .unwrap()
+        .sample(rng)
+}

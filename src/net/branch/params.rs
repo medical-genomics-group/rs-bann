@@ -11,6 +11,15 @@ pub struct BranchHyperparams {
     pub error_precision: f32,
 }
 
+impl BranchHyperparams {
+    pub fn set_output_layer_precision(&mut self, precision: f32) {
+        *self
+            .weight_precisions
+            .last_mut()
+            .expect("Branch weight precisions is empty!") = Array::new(&[precision], dim4!(1));
+    }
+}
+
 /// Weights and biases
 #[derive(Clone)]
 pub struct BranchParams {

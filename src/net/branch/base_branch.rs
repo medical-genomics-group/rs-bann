@@ -205,7 +205,8 @@ impl Branch for BaseBranch {
 
     /// Samples precision values from their posterior distribution in a Gibbs step.
     fn sample_precisions(&mut self, prior_shape: f32, prior_scale: f32) {
-        for i in 0..self.params.weights.len() {
+        // output precision is sampled jointly for all branches
+        for i in 0..self.num_layers() - 1 {
             self.hyperparams.weight_precisions[i] = Array::new(
                 &[multi_param_precision_posterior(
                     prior_shape,
@@ -216,7 +217,7 @@ impl Branch for BaseBranch {
                 dim4!(1, 1, 1, 1),
             );
         }
-        for i in 0..self.params.biases.len() {
+        for i in 0..self.num_layers() - 1 {
             self.hyperparams.bias_precisions[i] = multi_param_precision_posterior(
                 prior_shape,
                 prior_scale,
