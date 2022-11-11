@@ -150,7 +150,7 @@ pub struct Genotypes {
 impl Genotypes {
     pub fn from_file(path: &Path) -> Result<Self, Error> {
         let mut r = BufReader::new(File::open(path)?);
-        deserialize_from(&mut r)?
+        Ok(deserialize_from(&mut r)?)
     }
 
     pub fn to_file(&self, path: &Path) {
@@ -210,9 +210,9 @@ impl Phenotypes {
         }
     }
 
-    pub fn from_file(path: &Path) -> Self {
-        let mut r = BufReader::new(File::open(path).unwrap());
-        deserialize_from(&mut r).unwrap()
+    pub fn from_file(path: &Path) -> Result<Self, Error> {
+        let mut r = BufReader::new(File::open(path)?);
+        Ok(deserialize_from(&mut r)?)
     }
 
     pub fn to_file(&self, path: &Path) {

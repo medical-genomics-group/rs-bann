@@ -48,7 +48,8 @@ fn main() {
 }
 
 fn predict(args: PredictArgs) {
-    let mut genotypes = Genotypes::from_file(&Path::new(&args.input_data));
+    let mut genotypes = Genotypes::from_file(&Path::new(&args.input_data))
+        .expect("Failed to load genotype input data");
     if args.standardize {
         genotypes.standardize();
     }
@@ -416,6 +417,24 @@ where
     args.to_file(&args_path);
 }
 
+fn load_data(indir: &str) -> (Data, Option<Data>) {
+    let train_gen = Genotypes::from_file(&Path::new(indir).join("train.gen"))
+        .expect("Failed to load train.gen training genotypes");
+    let train_phen = Phenotypes::from_file(&Path::new(indir).join("train.phen"))
+        .expect("Failed to load train.phen training phenotypes");
+    let train_data = Data::new(train_gen, train_phen);
+    let test_gen = Genotypes::from_file(&Path::new(indir).join("test.gen"));
+    let test_phen = Phenotypes::from_file(&Path::new(indir).join("test.phen"));
+    let test_data = if test_gen.is_ok() && test_phen.is_ok() {
+        // just checked that they are Ok()
+        Some(Data::new(test_gen.unwrap(), test_phen.unwrap()))
+    } else {
+        info!("No complete test data provided, proceeding without");
+        None
+    };
+    (train_data, test_data)
+}
+
 fn train_new(args: TrainNewArgs) {
     if args.debug_prints {
         simple_logger::init_with_level(log::Level::Debug).unwrap();
@@ -424,16 +443,14 @@ fn train_new(args: TrainNewArgs) {
     }
 
     info!("Loading data");
-    let train_gen = Genotypes::from_file(&Path::new(&args.indir).join("train.gen"));
-    let train_phen = Phenotypes::from_file(&Path::new(&args.indir).join("train.phen"));
-    let train_data = Data::new(train_gen, train_phen);
-    // let mut train_data = Data::from_file(&Path::new(&args.indir).join("train.bin"));
-    // let mut test_data = Data::from_file(&Path::new(&args.indir).join("test.bin"));
+    let (mut train_data, mut test_data) = load_data(&args.indir);
 
     if args.standardize {
         info!("Standardizing data");
         train_data.standardize_x();
-        test_data.standardize_x();
+        if let Some(ref mut data) = test_data {
+            data.standardize_x();
+        }
     }
 
     let outdir = format!(
@@ -466,7 +483,7 @@ fn train_new(args: TrainNewArgs) {
 
     args.to_file(&mcmc_cfg.args_path());
 
-    let report_cfg = ReportCfg::new(args.report_interval, Some(&test_data));
+    let report_cfg = ReportCfg::new(args.report_interval, test_data.as_ref());
 
     info!("Building net");
 
@@ -562,13 +579,14 @@ fn train(args: TrainArgs) {
     }
 
     info!("Loading data");
-    let mut train_data = Data::from_file(&Path::new(&args.indir).join("train.bin"));
-    let mut test_data = Data::from_file(&Path::new(&args.indir).join("test.bin"));
+    let (mut train_data, mut test_data) = load_data(&args.indir);
 
     if args.standardize {
         info!("Standardizing data");
         train_data.standardize_x();
-        test_data.standardize_x();
+        if let Some(ref mut data) = test_data {
+            data.standardize_x();
+        }
     }
 
     let model_path = Path::new(&args.model_file);
@@ -599,7 +617,7 @@ fn train(args: TrainArgs) {
 
     args.to_file(&mcmc_cfg.args_path());
 
-    let report_cfg = ReportCfg::new(args.report_interval, Some(&test_data));
+    let report_cfg = ReportCfg::new(args.report_interval, test_data.as_ref());
 
     info!("Loading net");
 
