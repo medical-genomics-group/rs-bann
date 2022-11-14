@@ -259,7 +259,6 @@ impl<B: Branch> Net<B> {
                 self.branch_cfgs[branch_ix] = branch.to_cfg();
             }
 
-            // TODO: sample output weight precisions using all output weights
             self.sample_output_layer_precision(&mut rng);
 
             // TODO:
