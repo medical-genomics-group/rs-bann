@@ -57,6 +57,14 @@ pub trait Branch {
 
     fn layer_widths(&self) -> &Vec<usize>;
 
+    fn summary_layer_index(&self) -> usize {
+        self.num_layers() - 2
+    }
+
+    fn output_layer_index(&self) -> usize {
+        self.num_layers() - 1
+    }
+
     fn log_density_gradient(
         &self,
         x_train: &Array<f32>,
