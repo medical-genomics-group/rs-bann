@@ -15,6 +15,7 @@ pub struct BranchCfgBuilder {
     num_markers: usize,
     layer_widths: Vec<usize>,
     num_layers: usize,
+    output_param_variance: f32,
     initial_weight_value: Option<f32>,
     initial_bias_value: Option<f32>,
     init_param_variance: Option<f32>,
@@ -30,11 +31,17 @@ impl BranchCfgBuilder {
             layer_widths: vec![],
             // we always have a summary and an output node, so at least 2 layers.
             num_layers: 2,
+            output_param_variance: 1.0,
             initial_weight_value: None,
             initial_bias_value: None,
             init_param_variance: None,
             init_gamma_params: None,
         }
+    }
+
+    pub fn with_output_param_variance(mut self, variance: f32) -> Self {
+        self.output_param_variance = variance;
+        self
     }
 
     pub fn with_num_markers(mut self, num_markers: usize) -> Self {
@@ -101,7 +108,7 @@ impl BranchCfgBuilder {
             let precision_prior = Gamma::new(gamma_params.shape, gamma_params.scale).unwrap();
             let mut prev_width = self.num_markers;
             let mut insert_ix: usize = 0;
-            for (lix, width) in self.layer_widths.iter().enumerate() {
+            for (lix, width) in self.layer_widths[..self.num_layers].iter().enumerate() {
                 let layer_precision = precision_prior.sample(&mut rng);
                 weight_precisions[lix] = Array::new(&[layer_precision], dim4!(1, 1, 1, 1));
                 let layer_std = (1.0 / layer_precision).sqrt();
@@ -114,6 +121,13 @@ impl BranchCfgBuilder {
                 prev_width = *width;
             }
         }
+        // overwrite output layer settings
+        // sample output layer weight
+        *params.last_mut().unwrap() = Normal::new(0.0, self.output_param_variance.sqrt())
+            .unwrap()
+            .sample(&mut rng);
+        // set output layer precision
+        *weight_precisions.last_mut().unwrap() = constant!(1. / self.output_param_variance; 1);
 
         let mut bias_precisions = vec![1.0; self.num_layers - 1];
 
@@ -148,7 +162,6 @@ impl BranchCfgBuilder {
             num_markers: self.num_markers,
             layer_widths: self.layer_widths.clone(),
             params,
-            // TODO: impl build method for setting precisions
             hyperparams: BranchHyperparams {
                 weight_precisions,
                 bias_precisions,
@@ -157,7 +170,10 @@ impl BranchCfgBuilder {
         }
     }
 
+    // TODO: refactor this beast
     pub fn build_ard(mut self) -> BranchCfg {
+        // summary and output and not ARD
+        let num_ard_layers = self.num_layers - 2;
         let mut widths: Vec<usize> = vec![self.num_markers];
         // summary and output node
         self.layer_widths.push(1);
@@ -177,9 +193,14 @@ impl BranchCfgBuilder {
         let mut params: Vec<f32> = vec![0.0; self.num_params];
         let mut weight_precisions: Vec<Array<f32>> = widths
             .iter()
-            .take(widths.len() - 1)
+            .take(num_ard_layers)
             .map(|w| constant!(1.0; *w as u64))
             .collect();
+        // add non-ard precisions
+        weight_precisions.append(&mut vec![
+            constant!(1.; 1),
+            constant!(1. / self.output_param_variance; 1),
+        ]);
 
         if let Some(v) = self.initial_weight_value {
             params[0..num_weights].iter_mut().for_each(|x| *x = v);
@@ -190,14 +211,20 @@ impl BranchCfgBuilder {
                 .for_each(|x| *x = d.sample(&mut rng));
             weight_precisions = widths
                 .iter()
-                .take(widths.len() - 1)
-                .map(|w| constant!(1.0 / v; *w as u64))
+                .take(num_ard_layers)
+                .map(|w| constant!(1. / v; *w as u64))
                 .collect();
+            // add non-ard precisions
+            weight_precisions.append(&mut vec![
+                constant!(1. / v; 1),
+                constant!(1. / self.output_param_variance; 1),
+            ]);
         } else if let Some(gamma_params) = &self.init_gamma_params {
             let precision_prior = Gamma::new(gamma_params.shape, gamma_params.scale).unwrap();
             let mut prev_width = self.num_markers;
             let mut insert_ix: usize = 0;
-            for (lix, width) in self.layer_widths.iter().enumerate() {
+            // ard layers
+            for (lix, width) in self.layer_widths[..num_ard_layers].iter().enumerate() {
                 let num_weights = prev_width * width;
                 let mut layer_precisions = vec![0.0; prev_width];
                 for ard_group_ix in 0..prev_width {
@@ -214,6 +241,23 @@ impl BranchCfgBuilder {
                 insert_ix += num_weights;
                 prev_width = *width;
             }
+            // non-ard layers
+            // summary layer
+            let mut lix = num_ard_layers;
+            let num_weights = prev_width;
+            let layer_precision = precision_prior.sample(&mut rng);
+            let group_prior = Normal::new(0.0, (1. / layer_precision).sqrt()).unwrap();
+            (0..num_weights).for_each(|ix| params[insert_ix + ix] = group_prior.sample(&mut rng));
+            weight_precisions[lix] = constant!(layer_precision; 1);
+
+            insert_ix += num_weights;
+            lix += 1;
+
+            // output layer
+            let layer_precision = 1. / self.output_param_variance;
+            let group_prior = Normal::new(0.0, self.output_param_variance.sqrt()).unwrap();
+            params[insert_ix] = group_prior.sample(&mut rng);
+            weight_precisions[lix] = constant!(layer_precision; 1);
         }
 
         let mut bias_precisions = vec![1.0; self.num_layers - 1];
@@ -227,7 +271,7 @@ impl BranchCfgBuilder {
                 .for_each(|x| *x = d.sample(&mut rng));
             bias_precisions = vec![1.0 / v; self.num_layers - 1];
         } else if let Some(gamma_params) = &self.init_gamma_params {
-            // here we still have one precision per layer
+            // here we have one precision per layer
             let precision_prior = Gamma::new(gamma_params.shape, gamma_params.scale).unwrap();
             let mut insert_ix: usize = num_weights;
             for (lix, width) in self.layer_widths[..self.num_layers - 1].iter().enumerate() {
@@ -248,7 +292,6 @@ impl BranchCfgBuilder {
             num_markers: self.num_markers,
             layer_widths: self.layer_widths.clone(),
             params,
-            // TODO: impl build method for setting precisions
             hyperparams: BranchHyperparams {
                 weight_precisions,
                 bias_precisions,
