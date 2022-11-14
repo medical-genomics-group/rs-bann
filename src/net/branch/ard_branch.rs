@@ -8,6 +8,7 @@ use super::{
 };
 use crate::to_host;
 use arrayfire::{dim4, matmul, sqrt, sum, sum_all, tile, Array, MatProp};
+use log::info;
 use rand::prelude::ThreadRng;
 use rand::thread_rng;
 use rand_distr::{Distribution, Gamma};
@@ -151,7 +152,7 @@ impl Branch for ArdBranch {
     fn log_density(&self, params: &BranchParams, hyperparams: &BranchHyperparams, rss: f32) -> f32 {
         let mut log_density: f32 = -0.5 * hyperparams.error_precision * rss;
 
-        for i in 0..self.num_layers() {
+        for i in 0..self.summary_layer_index() {
             log_density -= 0.5
                 * sum_all(&matmul(
                     &(params.weights(i) * params.weights(i)),
@@ -161,6 +162,24 @@ impl Branch for ArdBranch {
                 ))
                 .0;
         }
+        // summary layer
+        log_density -= 0.5
+            * arrayfire::sum_all(
+                &(self.weight_precisions(self.summary_layer_index())
+                    * &(params.weights(self.summary_layer_index())
+                        * params.weights(self.summary_layer_index()))),
+            )
+            .0;
+
+        // output layer
+        log_density -= 0.5
+            * arrayfire::sum_all(
+                &(self.weight_precisions(self.output_layer_index())
+                    * &(params.weights(self.output_layer_index())
+                        * params.weights(self.output_layer_index()))),
+            )
+            .0;
+
         for i in 0..self.num_layers() - 1 {
             log_density -= hyperparams.bias_precisions[i]
                 * 0.5
@@ -169,7 +188,6 @@ impl Branch for ArdBranch {
         log_density
     }
 
-    // TODO: test with non-uniform precisions
     fn log_density_gradient(
         &self,
         x_train: &Array<f32>,
