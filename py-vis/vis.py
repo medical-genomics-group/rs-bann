@@ -274,18 +274,20 @@ class Data:
     standardized: bool
 
     def load_train(wdir: str):
-        with open(wdir + "/train.json", "r") as fin:
-            data = json.load(fin)
-        return Data.__from_json(data)
+        with open(wdir + "/gen_train.json", "r") as fin:
+            gen = json.load(fin)
+        with open(wdir + "/phen_train.json", "r") as fin:
+            phen = json.load(fin)
+        return Data.__from_json(gen, phen)
 
     def load_test(wdir: str):
-        with open(wdir + "/test.json", "r") as fin:
-            data = json.load(fin)
-        return Data.__from_json(data)
+        with open(wdir + "/gen_test.json", "r") as fin:
+            gen = json.load(fin)
+        with open(wdir + "/phen_test.json", "r") as fin:
+            phen = json.load(fin)
+        return Data.__from_json(gen, phen)
 
-    def __from_json(data):
-        gen = data['gen']
-        phen = data['phen']
+    def __from_json(gen, phen):
         x = []
         for bix, branch_data in enumerate(gen["x"]):
             x.append(np.array(branch_data, order="F").reshape(
