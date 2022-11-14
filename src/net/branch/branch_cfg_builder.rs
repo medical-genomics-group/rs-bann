@@ -26,6 +26,7 @@ impl BranchCfgBuilder {
         Self {
             num_params: 0,
             num_markers: 0,
+            // this does not contain the input layer width
             layer_widths: vec![],
             // we always have a summary and an output node, so at least 2 layers.
             num_layers: 2,
