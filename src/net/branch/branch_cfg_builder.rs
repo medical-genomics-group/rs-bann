@@ -20,6 +20,7 @@ pub struct BranchCfgBuilder {
     initial_bias_value: Option<f32>,
     init_param_variance: Option<f32>,
     init_gamma_params: Option<GammaParams>,
+    sample_precisions: bool,
 }
 
 impl BranchCfgBuilder {
@@ -36,7 +37,16 @@ impl BranchCfgBuilder {
             initial_bias_value: None,
             init_param_variance: None,
             init_gamma_params: None,
+            sample_precisions: false,
         }
+    }
+
+    // TODO: allow this through cli
+    /// Sample precisions from prior defined by hyperparams instead
+    /// of setting them to the prior means.
+    pub fn with_sampled_precisions(mut self) -> Self {
+        self.sample_precisions = true;
+        self
     }
 
     pub fn with_output_param_variance(mut self, variance: f32) -> Self {
@@ -109,7 +119,12 @@ impl BranchCfgBuilder {
             let mut prev_width = self.num_markers;
             let mut insert_ix: usize = 0;
             for (lix, width) in self.layer_widths[..self.num_layers].iter().enumerate() {
-                let layer_precision = precision_prior.sample(&mut rng);
+                let layer_precision = if self.sample_precisions {
+                    precision_prior.sample(&mut rng)
+                } else {
+                    // set to mean of gamma
+                    gamma_params.shape * gamma_params.scale
+                };
                 weight_precisions[lix] = Array::new(&[layer_precision], dim4!(1, 1, 1, 1));
                 let layer_std = (1.0 / layer_precision).sqrt();
                 let layer_weight_prior = Normal::new(0.0, layer_std).unwrap();
@@ -146,7 +161,11 @@ impl BranchCfgBuilder {
             let mut insert_ix = num_weights;
             for (lix, width) in self.layer_widths[..self.num_layers - 1].iter().enumerate() {
                 let num_biases = width;
-                let layer_bias_precision = precision_prior.sample(&mut rng);
+                let layer_bias_precision = if self.sample_precisions {
+                    precision_prior.sample(&mut rng)
+                } else {
+                    gamma_params.shape * gamma_params.scale
+                };
                 let layer_bias_std = (1.0 / layer_bias_precision).sqrt();
                 bias_precisions[lix] = layer_bias_precision;
                 let layer_bias_prior = Normal::new(0.0, layer_bias_std).unwrap();
@@ -228,7 +247,12 @@ impl BranchCfgBuilder {
                 let num_weights = prev_width * width;
                 let mut layer_precisions = vec![0.0; prev_width];
                 for ard_group_ix in 0..prev_width {
-                    let ard_group_precision = precision_prior.sample(&mut rng);
+                    let ard_group_precision = if self.sample_precisions {
+                        precision_prior.sample(&mut rng)
+                    } else {
+                        // set to mean of gamma
+                        gamma_params.shape * gamma_params.scale
+                    };
                     layer_precisions[ard_group_ix] = ard_group_precision;
                     let ard_group_std = (1.0 / ard_group_precision).sqrt();
                     let ard_group_prior = Normal::new(0.0, ard_group_std).unwrap();
@@ -245,7 +269,12 @@ impl BranchCfgBuilder {
             // summary layer
             let mut lix = num_ard_layers;
             let num_weights = prev_width;
-            let layer_precision = precision_prior.sample(&mut rng);
+            let layer_precision = if self.sample_precisions {
+                precision_prior.sample(&mut rng)
+            } else {
+                // set to mean of gamma
+                gamma_params.shape * gamma_params.scale
+            };
             let group_prior = Normal::new(0.0, (1. / layer_precision).sqrt()).unwrap();
             (0..num_weights).for_each(|ix| params[insert_ix + ix] = group_prior.sample(&mut rng));
             weight_precisions[lix] = constant!(layer_precision; 1);
@@ -276,7 +305,12 @@ impl BranchCfgBuilder {
             let mut insert_ix: usize = num_weights;
             for (lix, width) in self.layer_widths[..self.num_layers - 1].iter().enumerate() {
                 let num_biases = width;
-                let layer_bias_precision = precision_prior.sample(&mut rng);
+                let layer_bias_precision = if self.sample_precisions {
+                    precision_prior.sample(&mut rng)
+                } else {
+                    // set to mean of gamma
+                    gamma_params.shape * gamma_params.scale
+                };
                 let layer_bias_std = (1.0 / layer_bias_precision).sqrt();
                 bias_precisions[lix] = layer_bias_precision;
                 let layer_bias_prior = Normal::new(0.0, layer_bias_std).unwrap();
