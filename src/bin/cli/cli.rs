@@ -267,12 +267,28 @@ pub(crate) struct TrainNewArgs {
     pub report_interval: usize,
 
     #[clap(default_value_t = 1., long)]
-    /// prior shape
-    pub prior_shape: f32,
+    /// shape hyperparam of prior distribution of precision of dense layer params
+    pub dpk: f32,
 
     #[clap(default_value_t = 1., long)]
-    /// prior scale
-    pub prior_scale: f32,
+    /// scale hyperparam of prior distribution of precision of dense layer params
+    pub dps: f32,
+
+    #[clap(default_value_t = 1., long)]
+    /// shape hyperparam of prior distribution of precision of summary layer params
+    pub spk: f32,
+
+    #[clap(default_value_t = 1., long)]
+    /// scale hyperparam of prior distribution of precision of summary layer params
+    pub sps: f32,
+
+    #[clap(default_value_t = 1., long)]
+    /// shape hyperparam of prior distribution of precision of ouput layer params
+    pub opk: f32,
+
+    #[clap(default_value_t = 1., long)]
+    /// scale hyperparam of prior distribution of precision of output layer params
+    pub ops: f32,
 
     #[clap(short, long, default_value = "./")]
     /// Output path. Outdir will be created there.

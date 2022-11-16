@@ -2,15 +2,15 @@ use super::{
     super::{
         mcmc_cfg::{MCMCCfg, StepSizeMode},
         net::ModelType,
+        params::BranchParams,
+        params::BranchPrecisions,
     },
     branch_cfg_builder::BranchCfgBuilder,
     momenta::BranchMomenta,
-    params::BranchParams,
-    params::BranchPrecisions,
     step_sizes::StepSizes,
     trajectory::Trajectory,
 };
-use crate::scalar_to_host;
+use crate::{net::params::NetworkPrecisionHyperparameters, scalar_to_host};
 use arrayfire::{diag_extract, dim4, dot, matmul, randu, sum, tanh, Array, MatProp};
 use log::{debug, warn};
 use rand::{prelude::ThreadRng, Rng};
@@ -51,7 +51,7 @@ pub trait Branch {
 
     fn rng(&mut self) -> &mut ThreadRng;
 
-    fn sample_precisions(&mut self, prior_shape: f32, prior_scale: f32);
+    fn sample_precisions(&mut self, precision_prior_hyperparams: &NetworkPrecisionHyperparameters);
 
     fn num_markers(&self) -> usize;
 
@@ -72,7 +72,7 @@ pub trait Branch {
     ) -> BranchLogDensityGradient;
 
     // This should be -U(q), e.g. log P(D | Theta)P(Theta)
-    fn log_density(&self, params: &BranchParams, hyperparams: &BranchPrecisions, rss: f32) -> f32;
+    fn log_density(&self, params: &BranchParams, precisions: &BranchPrecisions, rss: f32) -> f32;
 
     // DO NOT run this in production code, this is extremely slow.
     //
@@ -656,27 +656,4 @@ pub enum HMCStepResult {
     RejectedEarly,
     Rejected,
     Accepted(HMCStepResultData),
-}
-
-// TODO: this should be used within BranchCfg,
-// for now I just need this for convenient output
-#[derive(Clone, Serialize)]
-pub struct BranchMeta {
-    pub(crate) num_params: usize,
-    pub(crate) num_markers: usize,
-    pub(crate) layer_widths: Vec<usize>,
-    pub(crate) prior_shape: f32,
-    pub(crate) prior_scale: f32,
-}
-
-impl BranchMeta {
-    pub fn from_cfg(cfg: &BranchCfg, prior_shape: f32, prior_scale: f32) -> Self {
-        Self {
-            num_params: cfg.num_params,
-            num_markers: cfg.num_markers,
-            layer_widths: cfg.layer_widths.clone(),
-            prior_shape,
-            prior_scale,
-        }
-    }
 }

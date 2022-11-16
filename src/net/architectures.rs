@@ -3,6 +3,7 @@ use super::{
     branch::branch::BranchCfg,
     branch::branch_cfg_builder::BranchCfgBuilder,
     net::{Net, OutputBias},
+    params::{NetworkPrecisionHyperparameters, PrecisionHyperparameters},
 };
 use std::marker::PhantomData;
 
@@ -13,8 +14,9 @@ pub struct BlockNetCfg<B: Branch> {
     num_markers: Vec<usize>,
     depth: usize,
     widths: Vec<usize>,
-    precision_prior_shape: f32,
-    precision_prior_scale: f32,
+    dense_precision_prior_hyperparams: PrecisionHyperparameters,
+    summary_precision_prior_hyperparams: PrecisionHyperparameters,
+    output_precision_prior_hyperparams: PrecisionHyperparameters,
     init_param_variance: f32,
     init_gamma_shape: Option<f32>,
     init_gamma_scale: Option<f32>,
@@ -29,8 +31,9 @@ impl<B: Branch> BlockNetCfg<B> {
             // of hidden layers in a single branch, i.e. depth -2
             depth: 0,
             widths: vec![],
-            precision_prior_shape: 1.,
-            precision_prior_scale: 1.,
+            dense_precision_prior_hyperparams: PrecisionHyperparameters::default(),
+            summary_precision_prior_hyperparams: PrecisionHyperparameters::default(),
+            output_precision_prior_hyperparams: PrecisionHyperparameters::default(),
             init_param_variance: 0.05,
             init_gamma_shape: None,
             init_gamma_scale: None,
@@ -48,9 +51,18 @@ impl<B: Branch> BlockNetCfg<B> {
         self
     }
 
-    pub fn with_precision_prior(mut self, shape: f32, scale: f32) -> Self {
-        self.precision_prior_shape = shape;
-        self.precision_prior_scale = scale;
+    pub fn with_dense_precision_prior(mut self, shape: f32, scale: f32) -> Self {
+        self.dense_precision_prior_hyperparams = PrecisionHyperparameters::new(shape, scale);
+        self
+    }
+
+    pub fn with_summary_precision_prior(mut self, shape: f32, scale: f32) -> Self {
+        self.summary_precision_prior_hyperparams = PrecisionHyperparameters::new(shape, scale);
+        self
+    }
+
+    pub fn with_output_precision_prior(mut self, shape: f32, scale: f32) -> Self {
+        self.output_precision_prior_hyperparams = PrecisionHyperparameters::new(shape, scale);
         self
     }
 
@@ -85,8 +97,11 @@ impl<B: Branch> BlockNetCfg<B> {
             branch_cfgs.push(B::build_cfg(cfg_bld));
         }
         Net::new(
-            self.precision_prior_shape,
-            self.precision_prior_scale,
+            NetworkPrecisionHyperparameters {
+                dense: self.dense_precision_prior_hyperparams.clone(),
+                summary: self.summary_precision_prior_hyperparams.clone(),
+                output: self.output_precision_prior_hyperparams.clone(),
+            },
             num_branches,
             branch_cfgs,
             OutputBias {

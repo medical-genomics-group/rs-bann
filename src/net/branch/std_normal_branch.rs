@@ -1,11 +1,11 @@
 use super::{
     super::net::ModelType,
+    super::params::{BranchParams, BranchPrecisions},
     branch::{Branch, BranchCfg, BranchLogDensityGradient},
     branch_cfg_builder::BranchCfgBuilder,
-    params::{BranchParams, BranchPrecisions},
     step_sizes::StepSizes,
 };
-use crate::scalar_to_host;
+use crate::{net::params::NetworkPrecisionHyperparameters, scalar_to_host};
 use arrayfire::{sqrt, Array};
 use rand::prelude::ThreadRng;
 use rand::thread_rng;
@@ -14,7 +14,7 @@ pub struct StdNormalBranch {
     pub(crate) num_params: usize,
     pub(crate) params: BranchParams,
     pub(crate) num_markers: usize,
-    pub(crate) hyperparams: BranchPrecisions,
+    pub(crate) precisions: BranchPrecisions,
     pub(crate) layer_widths: Vec<usize>,
     pub(crate) num_layers: usize,
     pub(crate) rng: ThreadRng,
@@ -36,7 +36,7 @@ impl Branch for StdNormalBranch {
             num_markers: cfg.num_markers,
             num_layers: cfg.layer_widths.len(),
             layer_widths: cfg.layer_widths.clone(),
-            hyperparams: cfg.precisions.clone(),
+            precisions: cfg.precisions.clone(),
             params: BranchParams::from_param_vec(&cfg.params, &cfg.layer_widths, cfg.num_markers),
             rng: thread_rng(),
         }
@@ -49,12 +49,12 @@ impl Branch for StdNormalBranch {
             num_markers: self.num_markers,
             layer_widths: self.layer_widths.clone(),
             params: self.params.param_vec(),
-            precisions: self.hyperparams.clone(),
+            precisions: self.precisions.clone(),
         }
     }
 
     fn precisions(&self) -> &BranchPrecisions {
-        &self.hyperparams
+        &self.precisions
     }
 
     fn num_layers(&self) -> usize {
@@ -94,7 +94,7 @@ impl Branch for StdNormalBranch {
     }
 
     fn set_error_precision(&mut self, val: f32) {
-        self.hyperparams.error_precision = val;
+        self.precisions.error_precision = val;
     }
 
     fn std_scaled_step_sizes(&self, const_factor: f32) -> StepSizes {
@@ -158,8 +158,8 @@ impl Branch for StdNormalBranch {
         }
     }
 
-    fn log_density(&self, params: &BranchParams, hyperparams: &BranchPrecisions, rss: f32) -> f32 {
-        let mut log_density: f32 = -0.5 * hyperparams.error_precision * rss;
+    fn log_density(&self, params: &BranchParams, precisions: &BranchPrecisions, rss: f32) -> f32 {
+        let mut log_density: f32 = -0.5 * precisions.error_precision * rss;
         for i in 0..self.num_layers() {
             log_density -= 0.5 * arrayfire::sum_all(&(params.weights(i) * params.weights(i))).0;
         }
@@ -197,5 +197,5 @@ impl Branch for StdNormalBranch {
     }
 
     /// Samples precision values from their posterior distribution in a Gibbs step.
-    fn sample_precisions(&mut self, _prior_shape: f32, _prior_scale: f32) {}
+    fn sample_precisions(&mut self, __hyperparams: &NetworkPrecisionHyperparameters) {}
 }

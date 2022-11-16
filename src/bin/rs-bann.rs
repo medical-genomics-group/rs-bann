@@ -187,7 +187,11 @@ where
         BlockNetCfg::<B>::new()
             .with_depth(args.branch_depth)
             .with_init_gamma_params(k, s)
-            .with_precision_prior(k, s)
+            .with_dense_precision_prior(k, s)
+            .with_summary_precision_prior(k, s)
+            // this is Gamma(1, 1) because at the moment the output variance
+            // is hardcoded to 1. TODO: this should be configurable.
+            .with_output_precision_prior(1., 1.)
     } else {
         BlockNetCfg::<B>::new()
             .with_depth(args.branch_depth)
@@ -334,7 +338,9 @@ where
         BlockNetCfg::<B>::new()
             .with_depth(args.branch_depth)
             .with_init_gamma_params(k, s)
-            .with_precision_prior(k, s)
+            .with_dense_precision_prior(k, s)
+            .with_summary_precision_prior(k, s)
+            .with_output_precision_prior(1., 1.)
     } else {
         BlockNetCfg::<B>::new()
             .with_depth(args.branch_depth)
@@ -494,15 +500,19 @@ fn train_new(args: TrainNewArgs) {
     }
 
     let outdir = format!(
-        "{}_w{}_d{}_cl{}_il{}_{}_k{}_s{}",
+        "{}_w{}_d{}_cl{}_il{}_{}_dpk{}_dps{}_spk{}_sps{}_opk{}_ops{}",
         args.model_type,
         args.hidden_layer_width,
         args.branch_depth,
         args.chain_length,
         args.integration_length,
         args.step_size_mode,
-        args.prior_shape,
-        args.prior_scale,
+        args.dpk,
+        args.dps,
+        args.spk,
+        args.sps,
+        args.opk,
+        args.ops,
     );
 
     let mcmc_cfg = MCMCCfg {
@@ -531,7 +541,9 @@ fn train_new(args: TrainNewArgs) {
         ModelType::Base => {
             let mut net_cfg = BlockNetCfg::<BaseBranch>::new()
                 .with_depth(args.branch_depth)
-                .with_precision_prior(args.prior_shape, args.prior_scale);
+                .with_dense_precision_prior(args.dpk, args.dps)
+                .with_summary_precision_prior(args.spk, args.sps)
+                .with_output_precision_prior(args.opk, args.ops);
 
             for bix in 0..train_data.num_branches() {
                 net_cfg.add_branch(
@@ -551,7 +563,7 @@ fn train_new(args: TrainNewArgs) {
                         bix, net.num_branch_params(bix), train_data.num_individuals());
                 }
             }
-            net.write_meta(&mcmc_cfg);
+            net.write_hyperparams(&mcmc_cfg);
 
             info!("Training net");
             net.train(&train_data, &mcmc_cfg, true, Some(report_cfg));
@@ -559,7 +571,9 @@ fn train_new(args: TrainNewArgs) {
         ModelType::ARD => {
             let mut net_cfg = BlockNetCfg::<ArdBranch>::new()
                 .with_depth(args.branch_depth)
-                .with_precision_prior(args.prior_shape, args.prior_scale);
+                .with_dense_precision_prior(args.dpk, args.dps)
+                .with_summary_precision_prior(args.spk, args.sps)
+                .with_output_precision_prior(args.opk, args.ops);
 
             for bix in 0..train_data.num_branches() {
                 net_cfg.add_branch(
@@ -579,7 +593,7 @@ fn train_new(args: TrainNewArgs) {
                         bix, net.num_branch_params(bix), train_data.num_individuals());
                 }
             }
-            net.write_meta(&mcmc_cfg);
+            net.write_hyperparams(&mcmc_cfg);
             info!("Training net");
             net.train(&train_data, &mcmc_cfg, true, Some(report_cfg));
         }
@@ -604,7 +618,7 @@ fn train_new(args: TrainNewArgs) {
                         bix, net.num_branch_params(bix), train_data.num_individuals());
                 }
             }
-            net.write_meta(&mcmc_cfg);
+            net.write_hyperparams(&mcmc_cfg);
             info!("Training net");
             net.train(&train_data, &mcmc_cfg, true, Some(report_cfg));
         }
@@ -667,7 +681,7 @@ fn train(args: TrainArgs) {
             if let Some(p) = args.error_precision {
                 net.set_error_precision(p);
             }
-            net.write_meta(&mcmc_cfg);
+            net.write_hyperparams(&mcmc_cfg);
             info!("Training net");
             net.train(&train_data, &mcmc_cfg, true, Some(report_cfg));
         }
@@ -676,7 +690,7 @@ fn train(args: TrainArgs) {
             if let Some(p) = args.error_precision {
                 net.set_error_precision(p);
             }
-            net.write_meta(&mcmc_cfg);
+            net.write_hyperparams(&mcmc_cfg);
             info!("Training net");
             net.train(&train_data, &mcmc_cfg, true, Some(report_cfg));
         }
@@ -685,7 +699,7 @@ fn train(args: TrainArgs) {
             if let Some(p) = args.error_precision {
                 net.set_error_precision(p);
             }
-            net.write_meta(&mcmc_cfg);
+            net.write_hyperparams(&mcmc_cfg);
             info!("Training net");
             net.train(&train_data, &mcmc_cfg, true, Some(report_cfg));
         }

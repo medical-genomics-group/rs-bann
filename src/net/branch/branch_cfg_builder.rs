@@ -1,5 +1,5 @@
+use super::super::params::BranchPrecisions;
 use super::branch::BranchCfg;
-use super::params::BranchPrecisions;
 use arrayfire::{constant, dim4, Array};
 use rand::distributions::Distribution;
 use rand::thread_rng;

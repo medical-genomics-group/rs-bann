@@ -1,11 +1,12 @@
 use super::{
-    branch::branch::{Branch, BranchCfg, BranchMeta, HMCStepResult},
+    branch::branch::{Branch, BranchCfg, HMCStepResult},
     data::{Data, Genotypes},
     gibbs_steps::{
         multi_param_precision_posterior, multi_param_precision_posterior_host,
         single_param_precision_posterior,
     },
     mcmc_cfg::MCMCCfg,
+    params::{ModelHyperparameters, NetworkPrecisionHyperparameters},
     train_stats::{ReportCfg, TrainingStats},
 };
 use crate::to_host;
@@ -73,8 +74,7 @@ impl OutputBias {
 #[derive(Serialize, Deserialize)]
 /// The full network model
 pub struct Net<B: Branch> {
-    precision_prior_shape: f32,
-    precision_prior_scale: f32,
+    hyperparams: NetworkPrecisionHyperparameters,
     num_branches: usize,
     branch_cfgs: Vec<BranchCfg>,
     output_bias: OutputBias,
@@ -85,16 +85,14 @@ pub struct Net<B: Branch> {
 
 impl<B: Branch> Net<B> {
     pub fn new(
-        precision_prior_shape: f32,
-        precision_prior_scale: f32,
+        hyperparams: NetworkPrecisionHyperparameters,
         num_branches: usize,
         branch_cfgs: Vec<BranchCfg>,
         output_bias: OutputBias,
         error_precision: f32,
     ) -> Self {
         Self {
-            precision_prior_shape,
-            precision_prior_scale,
+            hyperparams,
             num_branches,
             branch_cfgs,
             output_bias,
@@ -146,16 +144,11 @@ impl<B: Branch> Net<B> {
         self.branch_cfgs[branch_ix].num_params
     }
 
-    // TODO: do not assume that all branches are the same!
-    pub fn write_meta(&self, mcmc_cfg: &MCMCCfg) {
-        let w = BufWriter::new(File::create(mcmc_cfg.meta_path()).unwrap());
+    pub fn write_hyperparams(&self, mcmc_cfg: &MCMCCfg) {
+        let w = BufWriter::new(File::create(mcmc_cfg.hyperparam_path()).unwrap());
         to_writer(
             w,
-            &BranchMeta::from_cfg(
-                &self.branch_cfgs[0],
-                self.precision_prior_shape,
-                self.precision_prior_scale,
-            ),
+            &ModelHyperparameters::new(&self.hyperparams, &self.branch_cfgs),
         )
         .unwrap();
     }
@@ -218,8 +211,8 @@ impl<B: Branch> Net<B> {
                 &mut rng,
             );
             self.output_bias.sample_precision(
-                self.precision_prior_shape,
-                self.precision_prior_scale,
+                self.hyperparams.output_layer_prior_shape(),
+                self.hyperparams.output_layer_prior_scale(),
                 &mut rng,
             );
             residual -= self.output_bias.af_bias();
@@ -253,7 +246,7 @@ impl<B: Branch> Net<B> {
                     // not accepted, just remove previous prediction
                     _ => residual -= prev_pred,
                 }
-                branch.sample_precisions(self.precision_prior_shape, self.precision_prior_scale);
+                branch.sample_precisions(&self.hyperparams);
 
                 // dump branch cfg
                 self.branch_cfgs[branch_ix] = branch.to_cfg();
@@ -269,8 +262,8 @@ impl<B: Branch> Net<B> {
 
             // update error precision
             self.error_precision = multi_param_precision_posterior(
-                self.precision_prior_shape,
-                self.precision_prior_scale,
+                self.hyperparams.output_layer_prior_shape(),
+                self.hyperparams.output_layer_prior_scale(),
                 &residual,
                 &mut rng,
             );
@@ -305,8 +298,8 @@ impl<B: Branch> Net<B> {
             .map(|cfg| cfg.output_layer_weight())
             .collect::<Vec<f32>>();
         let precision = multi_param_precision_posterior_host(
-            self.precision_prior_shape,
-            self.precision_prior_scale,
+            self.hyperparams.output_layer_prior_shape(),
+            self.hyperparams.output_layer_prior_scale(),
             &output_layer_weights,
             rng,
         );

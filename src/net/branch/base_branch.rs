@@ -1,12 +1,12 @@
 use super::{
     super::gibbs_steps::multi_param_precision_posterior,
     super::net::ModelType,
+    super::params::{BranchParams, BranchPrecisions},
     branch::{Branch, BranchCfg, BranchLogDensityGradient},
     branch_cfg_builder::BranchCfgBuilder,
-    params::{BranchParams, BranchPrecisions},
     step_sizes::StepSizes,
 };
-use crate::scalar_to_host;
+use crate::{net::params::NetworkPrecisionHyperparameters, scalar_to_host};
 use arrayfire::{dim4, sqrt, Array};
 use rand::prelude::ThreadRng;
 use rand::thread_rng;
@@ -159,17 +159,17 @@ impl Branch for BaseBranch {
         }
     }
 
-    fn log_density(&self, params: &BranchParams, hyperparams: &BranchPrecisions, rss: f32) -> f32 {
-        let mut log_density: f32 = -0.5 * hyperparams.error_precision * rss;
+    fn log_density(&self, params: &BranchParams, precisions: &BranchPrecisions, rss: f32) -> f32 {
+        let mut log_density: f32 = -0.5 * precisions.error_precision * rss;
         for i in 0..self.num_layers() {
             log_density -= 0.5
                 * arrayfire::sum_all(
-                    &(&hyperparams.weight_precisions[i] * &(params.weights(i) * params.weights(i))),
+                    &(&precisions.weight_precisions[i] * &(params.weights(i) * params.weights(i))),
                 )
                 .0;
         }
         for i in 0..self.num_layers() - 1 {
-            log_density -= hyperparams.bias_precisions[i]
+            log_density -= precisions.bias_precisions[i]
                 * 0.5
                 * arrayfire::sum_all(&(params.biases(i) * params.biases(i))).0;
         }
@@ -204,27 +204,47 @@ impl Branch for BaseBranch {
     }
 
     /// Samples precision values from their posterior distribution in a Gibbs step.
-    fn sample_precisions(&mut self, prior_shape: f32, prior_scale: f32) {
+    fn sample_precisions(&mut self, hyperparams: &NetworkPrecisionHyperparameters) {
         // output precision is sampled jointly for all branches
-        for i in 0..self.num_layers() - 1 {
+        for i in 0..self.num_layers() - 2 {
             self.precisions.weight_precisions[i] = Array::new(
                 &[multi_param_precision_posterior(
-                    prior_shape,
-                    prior_scale,
+                    hyperparams.dense_layer_prior_shape(),
+                    hyperparams.dense_layer_prior_scale(),
                     &self.params.weights[i],
                     &mut self.rng,
                 )],
                 dim4!(1, 1, 1, 1),
             );
         }
-        for i in 0..self.num_layers() - 1 {
+        for i in 0..self.num_layers() - 2 {
             self.precisions.bias_precisions[i] = multi_param_precision_posterior(
-                prior_shape,
-                prior_scale,
+                hyperparams.dense_layer_prior_shape(),
+                hyperparams.dense_layer_prior_scale(),
                 &self.params.biases[i],
                 &mut self.rng,
             );
         }
+
+        // sample summary layer weights in base manner
+        let summary_layer_index = self.summary_layer_index();
+        self.precisions.weight_precisions[summary_layer_index] = Array::new(
+            &[multi_param_precision_posterior(
+                hyperparams.summary_layer_prior_shape(),
+                hyperparams.summary_layer_prior_scale(),
+                &self.params.weights[summary_layer_index],
+                &mut self.rng,
+            )],
+            self.precisions.weight_precisions[summary_layer_index].dims(),
+        );
+
+        // sample summary layer biases with summary layer hyperparams
+        self.precisions.bias_precisions[summary_layer_index] = multi_param_precision_posterior(
+            hyperparams.summary_layer_prior_shape(),
+            hyperparams.summary_layer_prior_scale(),
+            &self.params.biases[summary_layer_index],
+            &mut self.rng,
+        );
     }
 }
 
@@ -237,7 +257,7 @@ mod tests {
     use super::BaseBranch;
 
     use crate::net::branch::momenta::BranchMomenta;
-    use crate::net::branch::params::BranchParams;
+    use crate::net::params::BranchParams;
     use crate::to_host;
 
     // #[test]

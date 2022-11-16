@@ -1,12 +1,12 @@
 use super::{
     super::gibbs_steps::multi_param_precision_posterior,
     super::net::ModelType,
+    super::params::{BranchParams, BranchPrecisions},
     branch::{Branch, BranchCfg, BranchLogDensityGradient},
     branch_cfg_builder::BranchCfgBuilder,
-    params::{BranchParams, BranchPrecisions},
     step_sizes::StepSizes,
 };
-use crate::to_host;
+use crate::{net::params::NetworkPrecisionHyperparameters, to_host};
 use arrayfire::{dim4, matmul, sqrt, sum, sum_all, tile, Array, MatProp};
 use rand::prelude::ThreadRng;
 use rand::thread_rng;
@@ -148,8 +148,8 @@ impl Branch for ArdBranch {
     }
 
     // TODO: write test
-    fn log_density(&self, params: &BranchParams, hyperparams: &BranchPrecisions, rss: f32) -> f32 {
-        let mut log_density: f32 = -0.5 * hyperparams.error_precision * rss;
+    fn log_density(&self, params: &BranchParams, precisions: &BranchPrecisions, rss: f32) -> f32 {
+        let mut log_density: f32 = -0.5 * precisions.error_precision * rss;
 
         for i in 0..self.summary_layer_index() {
             log_density -= 0.5
@@ -180,7 +180,7 @@ impl Branch for ArdBranch {
             .0;
 
         for i in 0..self.num_layers() - 1 {
-            log_density -= hyperparams.bias_precisions[i]
+            log_density -= precisions.bias_precisions[i]
                 * 0.5
                 * sum_all(&(params.biases(i) * params.biases(i))).0;
         }
@@ -222,14 +222,14 @@ impl Branch for ArdBranch {
     }
 
     /// Samples precision values from their posterior distribution in a Gibbs step.
-    fn sample_precisions(&mut self, prior_shape: f32, prior_scale: f32) {
+    fn sample_precisions(&mut self, hyperparams: &NetworkPrecisionHyperparameters) {
         // this iterates over layers
         // the last two layers (summary and output)
         // are sampled in the base layer way, otherwise there is overwhelming
         // influence of the hyperparameters.
         for i in 0..self.num_layers() - 2 {
             let param_group_size = self.layer_width(i) as f32;
-            let posterior_shape = param_group_size / 2. + prior_shape;
+            let posterior_shape = param_group_size / 2. + hyperparams.dense_layer_prior_shape();
             // compute sums of squares of all rows
             self.precisions.weight_precisions[i] = Array::new(
                 &to_host(&sum(
@@ -238,7 +238,8 @@ impl Branch for ArdBranch {
                 ))
                 .iter()
                 .map(|sum_squares| {
-                    let posterior_scale = 2. * prior_scale / (2. + prior_scale * sum_squares);
+                    let posterior_scale = 2. * hyperparams.dense_layer_prior_scale()
+                        / (2. + hyperparams.dense_layer_prior_scale() * sum_squares);
                     Gamma::new(posterior_shape, posterior_scale)
                         .unwrap()
                         .sample(self.rng())
@@ -248,28 +249,36 @@ impl Branch for ArdBranch {
             );
         }
 
+        // output precision is sampled jointly for all branches, not here
+
+        for i in 0..self.num_layers() - 2 {
+            self.precisions.bias_precisions[i] = multi_param_precision_posterior(
+                hyperparams.dense_layer_prior_shape(),
+                hyperparams.dense_layer_prior_scale(),
+                &self.params.biases[i],
+                &mut self.rng,
+            );
+        }
+
         // sample summary layer weights in base manner
-        let summary_layer_index = self.num_layers() - 2;
+        let summary_layer_index = self.summary_layer_index();
         self.precisions.weight_precisions[summary_layer_index] = Array::new(
             &[multi_param_precision_posterior(
-                prior_shape,
-                prior_scale,
+                hyperparams.summary_layer_prior_shape(),
+                hyperparams.summary_layer_prior_scale(),
                 &self.params.weights[summary_layer_index],
                 &mut self.rng,
             )],
             self.precisions.weight_precisions[summary_layer_index].dims(),
         );
 
-        // output precision is sampled jointly for all branches, not here
-
-        for i in 0..self.num_layers() - 1 {
-            self.precisions.bias_precisions[i] = multi_param_precision_posterior(
-                prior_shape,
-                prior_scale,
-                &self.params.biases[i],
-                &mut self.rng,
-            );
-        }
+        // sample summary layer biases with summary layer hyperparams
+        self.precisions.bias_precisions[summary_layer_index] = multi_param_precision_posterior(
+            hyperparams.summary_layer_prior_shape(),
+            hyperparams.summary_layer_prior_scale(),
+            &self.params.biases[summary_layer_index],
+            &mut self.rng,
+        );
     }
 }
 
@@ -282,7 +291,7 @@ mod tests {
     use super::ArdBranch;
 
     use crate::net::branch::momenta::BranchMomenta;
-    use crate::net::branch::params::BranchParams;
+    use crate::net::params::BranchParams;
     use crate::to_host;
 
     // #[test]

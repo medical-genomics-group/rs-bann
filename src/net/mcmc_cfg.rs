@@ -29,8 +29,8 @@ impl MCMCCfg {
         }
     }
 
-    pub fn meta_path(&self) -> PathBuf {
-        Path::new(&self.outpath).join("meta")
+    pub fn hyperparam_path(&self) -> PathBuf {
+        Path::new(&self.outpath).join("hyperparams")
     }
 
     pub fn trace_path(&self) -> PathBuf {

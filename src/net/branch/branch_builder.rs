@@ -1,6 +1,6 @@
+use super::super::params::{BranchParams, BranchPrecisions};
 use super::ard_branch::ArdBranch;
 use super::base_branch::BaseBranch;
-use super::params::{BranchParams, BranchPrecisions};
 use arrayfire::{constant, dim4, Array};
 use rand::thread_rng;
 

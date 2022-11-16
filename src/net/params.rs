@@ -1,51 +1,106 @@
-use super::step_sizes::StepSizes;
-use super::{branch::BranchLogDensityGradient, momenta::BranchMomenta};
+use super::branch::branch::BranchCfg;
+use super::branch::branch::BranchLogDensityGradient;
+use super::branch::momenta::BranchMomenta;
+use super::branch::step_sizes::StepSizes;
 use arrayfire::{dim4, Array};
 use serde::{Deserialize, Serialize};
 use std::fmt;
+
+/// Branch specific model hyperparameters
+#[derive(Clone, Serialize, Deserialize)]
+pub(crate) struct BranchHyperparameters {
+    pub(crate) num_params: usize,
+    pub(crate) num_markers: usize,
+    pub(crate) layer_widths: Vec<usize>,
+}
+
+impl BranchHyperparameters {
+    pub(crate) fn from_cfg(cfg: &BranchCfg) -> Self {
+        Self {
+            num_params: cfg.num_params,
+            num_markers: cfg.num_markers,
+            layer_widths: cfg.layer_widths.clone(),
+        }
+    }
+}
+
+/// All hyperparameters of the model
+#[derive(Clone, Serialize, Deserialize)]
+pub(crate) struct ModelHyperparameters {
+    pub(crate) branch_hyperparams: Vec<BranchHyperparameters>,
+    pub(crate) precision_hyperparams: NetworkPrecisionHyperparameters,
+}
+
+impl ModelHyperparameters {
+    pub(crate) fn new(
+        precision_hyperparams: &NetworkPrecisionHyperparameters,
+        branch_cfgs: &Vec<BranchCfg>,
+    ) -> Self {
+        Self {
+            branch_hyperparams: branch_cfgs
+                .iter()
+                .map(|cfg| BranchHyperparameters::from_cfg(cfg))
+                .collect(),
+            precision_hyperparams: precision_hyperparams.clone(),
+        }
+    }
+}
 
 /// Hyperparameters of a prior distribution of precision parameters.
 /// The precisions always have Gamma priors, which are parametrized by
 /// shape and scale hyperparameters.
 #[derive(Clone, Serialize, Deserialize)]
-pub(crate) struct PrecisionHyperparameters {
-    pub(crate) shape: f32,
-    pub(crate) scale: f32,
+pub struct PrecisionHyperparameters {
+    pub shape: f32,
+    pub scale: f32,
+}
+
+impl PrecisionHyperparameters {
+    pub fn default() -> Self {
+        Self {
+            shape: 1.0,
+            scale: 1.0,
+        }
+    }
+
+    pub fn new(shape: f32, scale: f32) -> Self {
+        Self { shape, scale }
+    }
 }
 
 /// All hyperparameters of precision prior distributions for the model.
 #[derive(Clone, Serialize, Deserialize)]
-pub(crate) struct NetworkPrecisionHyperparameters {
+pub struct NetworkPrecisionHyperparameters {
     /// Hyperparams of precisions in the dense layers
-    pub(crate) dense: PrecisionHyperparameters,
+    pub dense: PrecisionHyperparameters,
     /// Hyperparams of precisions in the summary layer
-    pub(crate) summary: PrecisionHyperparameters,
+    pub summary: PrecisionHyperparameters,
     /// Hyperparams of precisions in the output layer
-    pub(crate) output: PrecisionHyperparameters,
+    pub output: PrecisionHyperparameters,
 }
 
 impl NetworkPrecisionHyperparameters {
-    pub(crate) fn dense_layer_prior_shape(&self) -> f32 {
+    pub fn dense_layer_prior_shape(&self) -> f32 {
         self.dense.shape
     }
 
-    pub(crate) fn dense_layer_prior_scale(&self) -> f32 {
+    pub fn dense_layer_prior_scale(&self) -> f32 {
         self.dense.scale
     }
 
-    pub(crate) fn summary_layer_prior_shape(&self) -> f32 {
+    pub fn summary_layer_prior_shape(&self) -> f32 {
         self.summary.shape
     }
 
-    pub(crate) fn summary_layer_prior_scale(&self) -> f32 {
+    pub fn summary_layer_prior_scale(&self) -> f32 {
         self.summary.scale
     }
 
-    pub(crate) fn output_layer_prior_shape(&self) -> f32 {
+    pub fn output_layer_prior_shape(&self) -> f32 {
         self.output.shape
     }
 
-    pub(crate) fn output_layer_prior_scale(&self) -> f32 {
+    pub fn output_layer_prior_scale(&self) -> f32 {
         self.output.scale
     }
 }
