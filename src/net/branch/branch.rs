@@ -39,7 +39,7 @@ pub trait Branch {
 
     fn params_mut(&mut self) -> &mut BranchParams;
 
-    fn hyperparams(&self) -> &BranchPrecisions;
+    fn precisions(&self) -> &BranchPrecisions;
 
     fn num_params(&self) -> usize;
 
@@ -94,11 +94,8 @@ pub trait Branch {
         let mut res = Vec::new();
         let mut next_pv = self.params().param_vec();
         let curr_pv = self.params().param_vec();
-        let curr_ld = self.log_density(
-            self.params(),
-            self.hyperparams(),
-            self.rss(x_train, y_train),
-        );
+        let curr_ld =
+            self.log_density(self.params(), self.precisions(), self.rss(x_train, y_train));
         let lw = self.layer_widths().clone();
         let nm = self.num_markers();
 
@@ -108,11 +105,8 @@ pub trait Branch {
             // compute rss, ld
             self.params_mut().load_param_vec(&next_pv, &lw, nm);
             res.push(
-                (self.log_density(
-                    self.params(),
-                    self.hyperparams(),
-                    self.rss(x_train, y_train),
-                ) - curr_ld)
+                (self.log_density(self.params(), self.precisions(), self.rss(x_train, y_train))
+                    - curr_ld)
                     / NUMERICAL_DELTA,
             );
             // decr param
@@ -131,15 +125,15 @@ pub trait Branch {
     }
 
     fn weight_precisions(&self, index: usize) -> &Array<f32> {
-        &self.hyperparams().weight_precisions[index]
+        &self.precisions().weight_precisions[index]
     }
 
     fn bias_precision(&self, index: usize) -> f32 {
-        self.hyperparams().bias_precisions[index]
+        self.precisions().bias_precisions[index]
     }
 
     fn error_precision(&self) -> f32 {
-        self.hyperparams().error_precision
+        self.precisions().error_precision
     }
 
     fn is_accepted(&mut self, acceptance_probability: f32) -> bool {
@@ -347,7 +341,7 @@ pub trait Branch {
 
     // this is -H = (-U(q)) + (-K(p))
     fn neg_hamiltonian(&self, momenta: &BranchMomenta, x: &Array<f32>, y: &Array<f32>) -> f32 {
-        self.log_density(self.params(), self.hyperparams(), self.rss(x, y)) - momenta.log_density()
+        self.log_density(self.params(), self.precisions(), self.rss(x, y)) - momenta.log_density()
     }
 
     fn rss(&self, x: &Array<f32>, y: &Array<f32>) -> f32 {
@@ -367,7 +361,7 @@ pub trait Branch {
         let y_pred = self.predict(x);
         let r = &y_pred - y;
         let rss = arrayfire::sum_all(&(&r * &r)).0;
-        let log_density = self.log_density(self.params(), self.hyperparams(), rss);
+        let log_density = self.log_density(self.params(), self.precisions(), rss);
         (y_pred, log_density)
     }
 
@@ -383,7 +377,7 @@ pub trait Branch {
         let y_pred = self.predict(x_train);
         let r = &y_pred - y_train;
         let rss = arrayfire::sum_all(&(&r * &r)).0;
-        let log_density = self.log_density(self.params(), self.hyperparams(), rss);
+        let log_density = self.log_density(self.params(), self.precisions(), rss);
         debug!("branch log density after step: {:.4}", log_density);
         let state_data = HMCStepResultData {
             y_pred,
@@ -418,7 +412,7 @@ pub trait Branch {
         let y_pred = self.predict(x_train);
         let r = &y_pred - y_train;
         let rss = arrayfire::sum_all(&(&r * &r)).0;
-        let log_density = self.log_density(self.params(), self.hyperparams(), rss);
+        let log_density = self.log_density(self.params(), self.precisions(), rss);
         debug!("branch log density after step: {:.4}", log_density);
         HMCStepResult::Accepted(HMCStepResultData {
             y_pred,
@@ -458,11 +452,7 @@ pub trait Branch {
         let mut momenta = self.sample_momenta();
         debug!(
             "branch log density before step: {:.4}",
-            self.log_density(
-                self.params(),
-                self.hyperparams(),
-                self.rss(x_train, y_train)
-            )
+            self.log_density(self.params(), self.precisions(), self.rss(x_train, y_train))
         );
         let init_neg_hamiltonian = self.neg_hamiltonian(&momenta, x_train, y_train);
 

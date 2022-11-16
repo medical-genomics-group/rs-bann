@@ -200,7 +200,7 @@ impl BranchBuilder {
             num_markers: self.num_markers,
             params: BranchParams { weights, biases },
             // TODO: impl build method for setting precisions
-            hyperparams: BranchPrecisions {
+            precisions: BranchPrecisions {
                 weight_precisions: vec![Array::new(&[1.0], dim4!(1, 1, 1, 1)); self.num_layers],
                 bias_precisions: vec![1.0; self.num_layers - 1],
                 error_precision: 1.0,
@@ -277,7 +277,7 @@ impl BranchBuilder {
             num_markers: self.num_markers,
             params: BranchParams { weights, biases },
             // TODO: impl build method for setting precisions
-            hyperparams: BranchPrecisions {
+            precisions: BranchPrecisions {
                 weight_precisions: widths.iter().map(|w| constant!(1.0; *w as u64)).collect(),
                 bias_precisions: vec![1.0; self.num_layers - 1],
                 error_precision: 1.0,

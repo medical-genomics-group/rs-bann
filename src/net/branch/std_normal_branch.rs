@@ -53,7 +53,7 @@ impl Branch for StdNormalBranch {
         }
     }
 
-    fn hyperparams(&self) -> &BranchPrecisions {
+    fn precisions(&self) -> &BranchPrecisions {
         &self.hyperparams
     }
 
@@ -134,7 +134,7 @@ impl Branch for StdNormalBranch {
             wrt_weights.push(
                 std::f32::consts::PI
                     / (2f32
-                        * sqrt(&self.hyperparams().weight_precisions[index])
+                        * sqrt(&self.precisions().weight_precisions[index])
                         * integration_length as f32),
             );
         }
@@ -144,7 +144,7 @@ impl Branch for StdNormalBranch {
                 &vec![
                     std::f32::consts::PI
                         / (2.
-                            * &self.hyperparams().bias_precisions[index].sqrt()
+                            * &self.precisions().bias_precisions[index].sqrt()
                             * integration_length as f32);
                     self.biases(index).elements()
                 ],

@@ -8,7 +8,6 @@ use super::{
 };
 use crate::to_host;
 use arrayfire::{dim4, matmul, sqrt, sum, sum_all, tile, Array, MatProp};
-use log::info;
 use rand::prelude::ThreadRng;
 use rand::thread_rng;
 use rand_distr::{Distribution, Gamma};
@@ -17,7 +16,7 @@ pub struct ArdBranch {
     pub(crate) num_params: usize,
     pub(crate) num_markers: usize,
     pub(crate) params: BranchParams,
-    pub(crate) hyperparams: BranchPrecisions,
+    pub(crate) precisions: BranchPrecisions,
     pub(crate) layer_widths: Vec<usize>,
     pub(crate) num_layers: usize,
     pub(crate) rng: ThreadRng,
@@ -41,7 +40,7 @@ impl Branch for ArdBranch {
             num_markers: cfg.num_markers,
             num_layers: cfg.layer_widths.len(),
             layer_widths: cfg.layer_widths.clone(),
-            hyperparams: cfg.precisions.clone(),
+            precisions: cfg.precisions.clone(),
             params: BranchParams::from_param_vec(&cfg.params, &cfg.layer_widths, cfg.num_markers),
             rng: thread_rng(),
         }
@@ -54,12 +53,12 @@ impl Branch for ArdBranch {
             num_markers: self.num_markers,
             layer_widths: self.layer_widths.clone(),
             params: self.params.param_vec(),
-            precisions: self.hyperparams.clone(),
+            precisions: self.precisions.clone(),
         }
     }
 
-    fn hyperparams(&self) -> &BranchPrecisions {
-        &self.hyperparams
+    fn precisions(&self) -> &BranchPrecisions {
+        &self.precisions
     }
 
     fn num_layers(&self) -> usize {
@@ -99,7 +98,7 @@ impl Branch for ArdBranch {
     }
 
     fn set_error_precision(&mut self, val: f32) {
-        self.hyperparams.error_precision = val;
+        self.precisions.error_precision = val;
     }
 
     // TODO: actually make some step sizes here
@@ -122,7 +121,7 @@ impl Branch for ArdBranch {
             wrt_weights.push(tile(
                 &(std::f32::consts::PI
                     / (2f32
-                        * sqrt(&self.hyperparams().weight_precisions[index])
+                        * sqrt(&self.precisions().weight_precisions[index])
                         * integration_length as f32)),
                 dim4!(1, self.layer_widths[index] as u64, 1, 1),
             ));
@@ -134,7 +133,7 @@ impl Branch for ArdBranch {
                 &vec![
                     std::f32::consts::PI
                         / (2.
-                            * &self.hyperparams().bias_precisions[index].sqrt()
+                            * &self.precisions().bias_precisions[index].sqrt()
                             * integration_length as f32);
                     self.biases(index).elements()
                 ],
@@ -232,7 +231,7 @@ impl Branch for ArdBranch {
             let param_group_size = self.layer_width(i) as f32;
             let posterior_shape = param_group_size / 2. + prior_shape;
             // compute sums of squares of all rows
-            self.hyperparams.weight_precisions[i] = Array::new(
+            self.precisions.weight_precisions[i] = Array::new(
                 &to_host(&sum(
                     &(&self.params.weights[i] * &self.params.weights[i]),
                     1,
@@ -245,26 +244,26 @@ impl Branch for ArdBranch {
                         .sample(self.rng())
                 })
                 .collect::<Vec<f32>>(),
-                self.hyperparams.weight_precisions[i].dims(),
+                self.precisions.weight_precisions[i].dims(),
             );
         }
 
         // sample summary layer weights in base manner
         let summary_layer_index = self.num_layers() - 2;
-        self.hyperparams.weight_precisions[summary_layer_index] = Array::new(
+        self.precisions.weight_precisions[summary_layer_index] = Array::new(
             &[multi_param_precision_posterior(
                 prior_shape,
                 prior_scale,
                 &self.params.weights[summary_layer_index],
                 &mut self.rng,
             )],
-            self.hyperparams.weight_precisions[summary_layer_index].dims(),
+            self.precisions.weight_precisions[summary_layer_index].dims(),
         );
 
         // output precision is sampled jointly for all branches, not here
 
         for i in 0..self.num_layers() - 1 {
-            self.hyperparams.bias_precisions[i] = multi_param_precision_posterior(
+            self.precisions.bias_precisions[i] = multi_param_precision_posterior(
                 prior_shape,
                 prior_scale,
                 &self.params.biases[i],
