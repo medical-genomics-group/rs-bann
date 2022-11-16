@@ -313,8 +313,8 @@ def load_true_params(wdir: str):
             branch["num_markers"],
             branch["layer_widths"],
             np.array(branch["params"]),
-            [e['data'] for e in branch["hyperparams"]["weight_precisions"]],
-            branch["hyperparams"]["bias_precisions"]))
+            [e['data'] for e in branch["precisions"]["weight_precisions"]],
+            branch["precisions"]["bias_precisions"]))
     return res
 
 
@@ -328,12 +328,12 @@ def load_json_trace(wdir: str, branch_ix=0):
         for line in fin:
             l = json.loads(line)[branch_ix]
             params.append(l["params"])
-            for lix, p in enumerate(l["hyperparams"]["weight_precisions"]):
+            for lix, p in enumerate(l["precisions"]["weight_precisions"]):
                 if len(wp) <= lix:
                     wp.append([])
                 wp[lix].append(p["data"])
-            bp.append(l["hyperparams"]["bias_precisions"])
-            ep.append(l["hyperparams"]["error_precision"])
+            bp.append(l["precisions"]["bias_precisions"])
+            ep.append(l["precisions"]["error_precision"])
     for lix in range(len(wp)):
         wp[lix] = np.asarray(wp[lix])
     return Trace(mcfg, np.asarray(params), wp, np.asarray(bp), np.asarray(ep))
