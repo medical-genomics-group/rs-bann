@@ -20,9 +20,9 @@ plt.rc("figure", titlesize=BIGGER_SIZE)  # fontsize of the figure title
 
 
 class ModelCfg:
-    def __init__(self, file):
+    def __init__(self, file, branch_ix=0):
         with open(file, "r") as fin:
-            d = json.load(fin)
+            d = json.load(fin)["branch_hyperparams"][branch_ix]
             self.num_params = d["num_params"]
             self.num_markers = d["num_markers"]
             self.layer_widths = d["layer_widths"]
@@ -323,7 +323,7 @@ def load_json_trace(wdir: str, branch_ix=0):
     wp = []
     bp = []
     ep = []
-    mcfg = ModelCfg(wdir + "/meta")
+    mcfg = ModelCfg(wdir + "/hyperparams", branch_ix)
     with open(wdir + "/trace", "r") as fin:
         for line in fin:
             l = json.loads(line)[branch_ix]
@@ -339,9 +339,9 @@ def load_json_trace(wdir: str, branch_ix=0):
     return Trace(mcfg, np.asarray(params), wp, np.asarray(bp), np.asarray(ep))
 
 
-def load_json_traj(wdir: str):
+def load_json_traj(wdir: str, branch_ix=0):
     res = []
-    mcfg = ModelCfg(wdir + "/meta")
+    mcfg = ModelCfg(wdir + "/hyperparams", branch_ix)
     with open(wdir + "/traj", "r") as fin:
         ix = 0
         for line in fin:
