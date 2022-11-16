@@ -162,7 +162,7 @@ impl BranchCfgBuilder {
             num_markers: self.num_markers,
             layer_widths: self.layer_widths.clone(),
             params,
-            hyperparams: BranchPrecisions {
+            precisions: BranchPrecisions {
                 weight_precisions,
                 bias_precisions,
                 error_precision: 1.0,
@@ -292,7 +292,7 @@ impl BranchCfgBuilder {
             num_markers: self.num_markers,
             layer_widths: self.layer_widths.clone(),
             params,
-            hyperparams: BranchPrecisions {
+            precisions: BranchPrecisions {
                 weight_precisions,
                 bias_precisions,
                 error_precision: 1.0,

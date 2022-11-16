@@ -24,6 +24,32 @@ pub(crate) struct NetworkPrecisionHyperparameters {
     pub(crate) output: PrecisionHyperparameters,
 }
 
+impl NetworkPrecisionHyperparameters {
+    pub(crate) fn dense_layer_prior_shape(&self) -> f32 {
+        self.dense.shape
+    }
+
+    pub(crate) fn dense_layer_prior_scale(&self) -> f32 {
+        self.dense.scale
+    }
+
+    pub(crate) fn summary_layer_prior_shape(&self) -> f32 {
+        self.summary.shape
+    }
+
+    pub(crate) fn summary_layer_prior_scale(&self) -> f32 {
+        self.summary.scale
+    }
+
+    pub(crate) fn output_layer_prior_shape(&self) -> f32 {
+        self.output.shape
+    }
+
+    pub(crate) fn output_layer_prior_scale(&self) -> f32 {
+        self.output.scale
+    }
+}
+
 #[derive(Clone, Serialize, Deserialize)]
 pub struct BranchPrecisions {
     pub weight_precisions: Vec<Array<f32>>,

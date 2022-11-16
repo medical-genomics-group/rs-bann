@@ -37,7 +37,7 @@ impl Branch for BaseBranch {
             num_markers: cfg.num_markers,
             num_layers: cfg.layer_widths.len(),
             layer_widths: cfg.layer_widths.clone(),
-            hyperparams: cfg.hyperparams.clone(),
+            hyperparams: cfg.precisions.clone(),
             params: BranchParams::from_param_vec(&cfg.params, &cfg.layer_widths, cfg.num_markers),
             rng: thread_rng(),
         }
@@ -50,7 +50,7 @@ impl Branch for BaseBranch {
             num_markers: self.num_markers,
             layer_widths: self.layer_widths.clone(),
             params: self.params.param_vec(),
-            hyperparams: self.hyperparams.clone(),
+            precisions: self.hyperparams.clone(),
         }
     }
 

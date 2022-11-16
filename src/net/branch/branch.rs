@@ -633,7 +633,7 @@ pub struct BranchCfg {
     pub(crate) num_markers: usize,
     pub(crate) layer_widths: Vec<usize>,
     pub(crate) params: Vec<f32>,
-    pub(crate) hyperparams: BranchPrecisions,
+    pub(crate) precisions: BranchPrecisions,
 }
 
 impl BranchCfg {
@@ -645,12 +645,12 @@ impl BranchCfg {
         *self.params.last().expect("Branch params are empty!")
     }
 
-    pub fn hyperparams(&self) -> &BranchPrecisions {
-        &self.hyperparams
+    pub fn precisions(&self) -> &BranchPrecisions {
+        &self.precisions
     }
 
     pub fn set_output_layer_precision(&mut self, precision: f32) {
-        self.hyperparams.set_output_layer_precision(precision);
+        self.precisions.set_output_layer_precision(precision);
     }
 }
 
