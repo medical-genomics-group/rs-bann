@@ -4,14 +4,34 @@ use arrayfire::{dim4, Array};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
+/// Hyperparameters of a prior distribution of precision parameters.
+/// The precisions always have Gamma priors, which are parametrized by
+/// shape and scale hyperparameters.
 #[derive(Clone, Serialize, Deserialize)]
-pub struct BranchHyperparams {
+pub(crate) struct PrecisionHyperparameters {
+    pub(crate) shape: f32,
+    pub(crate) scale: f32,
+}
+
+/// All hyperparameters of precision prior distributions for the model.
+#[derive(Clone, Serialize, Deserialize)]
+pub(crate) struct NetworkPrecisionHyperparameters {
+    /// Hyperparams of precisions in the dense layers
+    pub(crate) dense: PrecisionHyperparameters,
+    /// Hyperparams of precisions in the summary layer
+    pub(crate) summary: PrecisionHyperparameters,
+    /// Hyperparams of precisions in the output layer
+    pub(crate) output: PrecisionHyperparameters,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct BranchPrecisions {
     pub weight_precisions: Vec<Array<f32>>,
     pub bias_precisions: Vec<f32>,
     pub error_precision: f32,
 }
 
-impl BranchHyperparams {
+impl BranchPrecisions {
     pub fn set_output_layer_precision(&mut self, precision: f32) {
         *self
             .weight_precisions

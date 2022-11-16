@@ -5,8 +5,8 @@ use super::{
     },
     branch_cfg_builder::BranchCfgBuilder,
     momenta::BranchMomenta,
-    params::BranchHyperparams,
     params::BranchParams,
+    params::BranchPrecisions,
     step_sizes::StepSizes,
     trajectory::Trajectory,
 };
@@ -39,7 +39,7 @@ pub trait Branch {
 
     fn params_mut(&mut self) -> &mut BranchParams;
 
-    fn hyperparams(&self) -> &BranchHyperparams;
+    fn hyperparams(&self) -> &BranchPrecisions;
 
     fn num_params(&self) -> usize;
 
@@ -72,7 +72,7 @@ pub trait Branch {
     ) -> BranchLogDensityGradient;
 
     // This should be -U(q), e.g. log P(D | Theta)P(Theta)
-    fn log_density(&self, params: &BranchParams, hyperparams: &BranchHyperparams, rss: f32) -> f32;
+    fn log_density(&self, params: &BranchParams, hyperparams: &BranchPrecisions, rss: f32) -> f32;
 
     // DO NOT run this in production code, this is extremely slow.
     //
@@ -633,7 +633,7 @@ pub struct BranchCfg {
     pub(crate) num_markers: usize,
     pub(crate) layer_widths: Vec<usize>,
     pub(crate) params: Vec<f32>,
-    pub(crate) hyperparams: BranchHyperparams,
+    pub(crate) hyperparams: BranchPrecisions,
 }
 
 impl BranchCfg {
@@ -645,7 +645,7 @@ impl BranchCfg {
         *self.params.last().expect("Branch params are empty!")
     }
 
-    pub fn hyperparams(&self) -> &BranchHyperparams {
+    pub fn hyperparams(&self) -> &BranchPrecisions {
         &self.hyperparams
     }
 

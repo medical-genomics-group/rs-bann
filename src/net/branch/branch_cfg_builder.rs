@@ -1,5 +1,5 @@
 use super::branch::BranchCfg;
-use super::params::BranchHyperparams;
+use super::params::BranchPrecisions;
 use arrayfire::{constant, dim4, Array};
 use rand::distributions::Distribution;
 use rand::thread_rng;
@@ -162,7 +162,7 @@ impl BranchCfgBuilder {
             num_markers: self.num_markers,
             layer_widths: self.layer_widths.clone(),
             params,
-            hyperparams: BranchHyperparams {
+            hyperparams: BranchPrecisions {
                 weight_precisions,
                 bias_precisions,
                 error_precision: 1.0,
@@ -292,7 +292,7 @@ impl BranchCfgBuilder {
             num_markers: self.num_markers,
             layer_widths: self.layer_widths.clone(),
             params,
-            hyperparams: BranchHyperparams {
+            hyperparams: BranchPrecisions {
                 weight_precisions,
                 bias_precisions,
                 error_precision: 1.0,

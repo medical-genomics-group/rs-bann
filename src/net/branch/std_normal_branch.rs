@@ -2,7 +2,7 @@ use super::{
     super::net::ModelType,
     branch::{Branch, BranchCfg, BranchLogDensityGradient},
     branch_cfg_builder::BranchCfgBuilder,
-    params::{BranchHyperparams, BranchParams},
+    params::{BranchParams, BranchPrecisions},
     step_sizes::StepSizes,
 };
 use crate::scalar_to_host;
@@ -14,7 +14,7 @@ pub struct StdNormalBranch {
     pub(crate) num_params: usize,
     pub(crate) params: BranchParams,
     pub(crate) num_markers: usize,
-    pub(crate) hyperparams: BranchHyperparams,
+    pub(crate) hyperparams: BranchPrecisions,
     pub(crate) layer_widths: Vec<usize>,
     pub(crate) num_layers: usize,
     pub(crate) rng: ThreadRng,
@@ -53,7 +53,7 @@ impl Branch for StdNormalBranch {
         }
     }
 
-    fn hyperparams(&self) -> &BranchHyperparams {
+    fn hyperparams(&self) -> &BranchPrecisions {
         &self.hyperparams
     }
 
@@ -158,7 +158,7 @@ impl Branch for StdNormalBranch {
         }
     }
 
-    fn log_density(&self, params: &BranchParams, hyperparams: &BranchHyperparams, rss: f32) -> f32 {
+    fn log_density(&self, params: &BranchParams, hyperparams: &BranchPrecisions, rss: f32) -> f32 {
         let mut log_density: f32 = -0.5 * hyperparams.error_precision * rss;
         for i in 0..self.num_layers() {
             log_density -= 0.5 * arrayfire::sum_all(&(params.weights(i) * params.weights(i))).0;
