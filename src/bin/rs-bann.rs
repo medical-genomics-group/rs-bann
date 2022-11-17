@@ -387,25 +387,31 @@ where
         }
     }
 
-    let gen_train = GenotypesBuilder::new()
+    let mut gen_train = GenotypesBuilder::new()
         .with_x(
             x_train,
             vec![args.num_markers_per_branch; args.num_branches],
             args.num_individuals,
         )
+        .with_means(x_means.clone())
+        .with_stds(x_stds.clone())
         .build()
         .unwrap();
+    gen_train.standardize();
     train_path.set_extension("gen");
     gen_train.to_file(&train_path);
 
-    let gen_test = GenotypesBuilder::new()
+    let mut gen_test = GenotypesBuilder::new()
         .with_x(
             x_test,
             vec![args.num_markers_per_branch; args.num_branches],
             args.num_individuals,
         )
+        .with_means(x_means)
+        .with_stds(x_stds)
         .build()
         .unwrap();
+    gen_test.standardize();
     test_path.set_extension("gen");
     gen_test.to_file(&test_path);
 
@@ -423,6 +429,7 @@ where
         y_train
             .iter_mut()
             .for_each(|e| *e += rv_train_dist.sample(&mut rng) as f32);
+
         let s2_test = (&y_test.iter().map(|e| *e as f64).collect::<Vec<f64>>()).variance();
         test_residual_variance = s2_test * (1. / args.heritability as f64 - 1.);
         let rv_test_dist = Normal::new(0.0, test_residual_variance.sqrt()).unwrap();
