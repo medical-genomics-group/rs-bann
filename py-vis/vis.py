@@ -551,6 +551,7 @@ def plot_perf_r2(wdir: str, burn_in):
         label="ridge test"
     )
     axes[1].legend()
+    axes[1].set_ylim(0.0, 1.0)
     # axes[1].set_yscale("log")
 
     plt.tight_layout()
