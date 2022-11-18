@@ -31,6 +31,8 @@ pub(crate) enum SubCmd {
     Predict(PredictArgs),
     /// Use trained model to compute r2 values for each model branch.
     BranchR2(BranchR2Args),
+    /// Print backends available to ArrayFire.
+    AvailableBackends,
 }
 
 #[derive(Args, Debug, Serialize, Deserialize)]

@@ -45,7 +45,12 @@ fn main() {
         SubCmd::GroupCentered(args) => group_centered(args),
         SubCmd::Predict(args) => predict(args),
         SubCmd::BranchR2(args) => branch_r2(args),
+        SubCmd::AvailableBackends => available_backends(),
     }
+}
+
+fn available_backends() {
+    println!("{:?}", arrayfire::get_available_backends());
 }
 
 fn branch_r2(args: BranchR2Args) {
