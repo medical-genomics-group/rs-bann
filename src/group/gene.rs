@@ -3,6 +3,35 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
 
+// TODO: Impl Reader trait with associated type for Entry
+// Impl Entry trait with from_str method
+struct GFFReader {
+    last_entry_ix: usize,
+    reader: BufReader<File>,
+    buffer: String,
+}
+
+impl<'a> GFFReader {
+    fn new(gff_path: &Path) -> Self {
+        Self {
+            last_entry_ix: 0,
+            reader: BufReader::new(File::open(gff_path).unwrap()),
+            buffer: String::new(),
+        }
+    }
+
+    fn next_entry(&'a mut self) -> Option<GFFEntry<'a>> {
+        if let Ok(bytes_read) = self.reader.read_line(&mut self.buffer) {
+            if bytes_read > 0 {
+                let res = Some(GFFEntry::from_str(&self.buffer, self.last_entry_ix));
+                self.last_entry_ix += 1;
+                return res;
+            }
+        }
+        None
+    }
+}
+
 struct BimEntry<'a> {
     ix: usize,
     chromosome: &'a str,
