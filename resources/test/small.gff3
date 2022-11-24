@@ -1,0 +1,47 @@
+##gff-version   3
+##sequence-region   1 1 249250621
+##sequence-region   10 1 135534747
+##sequence-region   11 1 135006516
+##sequence-region   12 1 133851895
+##sequence-region   13 1 115169878
+##sequence-region   14 1 107349540
+##sequence-region   15 1 102531392
+##sequence-region   16 1 90354753
+##sequence-region   17 1 81195210
+##sequence-region   18 1 78077248
+##sequence-region   19 1 59128983
+##sequence-region   2 1 243199373
+##sequence-region   20 1 63025520
+##sequence-region   21 1 48129895
+##sequence-region   22 1 51304566
+##sequence-region   3 1 198022430
+##sequence-region   4 1 191154276
+##sequence-region   5 1 180915260
+##sequence-region   6 1 171115067
+##sequence-region   7 1 159138663
+##sequence-region   8 1 146364022
+##sequence-region   9 1 141213431
+##sequence-region   MT 1 16569
+##sequence-region   X 1 155270560
+##sequence-region   Y 2649521 59034049
+#!genome-build  GRCh37.p13
+#!genome-version GRCh37
+#!genome-date 2009-02
+#!genome-build-accession NCBI:GCA_000001405.14
+#!genebuild-last-updated 2013-09
+1       GRCh37  chromosome      1       249250621       .       .       .       ID=chromosome:1;Alias=CM000663.1,NC_000001.10
+###
+1       cpg     biological_region       10469   11240   1.3e+03 .       .       external_name=oe %3D 0.79;logic_name=cpg
+1       Eponine biological_region       10650   10657   0.999   +       .       logic_name=eponine
+1       Eponine biological_region       10656   10658   0.999   -       .       logic_name=eponine
+1       Eponine biological_region       10678   10687   0.999   +       .       logic_name=eponine
+1       Eponine biological_region       10682   10689   0.999   -       .       logic_name=eponine
+1       Eponine biological_region       10707   10716   0.999   +       .       logic_name=eponine
+19      Eponine gene                    2       3       0.999   -       .       gene1
+19      Eponine gene                    7       10      0.999   -       .       gene1
+20       Eponine biological_region       10766   10773   0.999   +       .       logic_name=eponine
+20       Eponine biological_region       10771   10780   0.999   -       .       logic_name=eponine
+20       Eponine biological_region       10796   10801   0.999   +       .       logic_name=eponine
+X       Eponine biological_region       10811   10820   0.999   -       .       logic_name=eponine
+X       Eponine biological_region       10870   10872   0.999   +       .       logic_name=eponine
+X       Eponine biological_region       10890   10894   0.999   -       .       logic_name=eponine

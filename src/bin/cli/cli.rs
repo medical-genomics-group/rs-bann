@@ -15,8 +15,10 @@ pub(crate) struct Cli {
 
 #[derive(Subcommand)]
 pub(crate) enum SubCmd {
+    /// Group markers by genes.
+    GroupByGenes(GroupByGenesArgs),
     /// Group markers by LD.
-    GroupCentered(GroupCenteredArgs),
+    GroupByLD(GroupCenteredArgs),
     /// Simulate phenotype data given marker data.
     ///
     /// Branch width is fixed to 1/2 the number of input nodes in a branch.
@@ -33,6 +35,22 @@ pub(crate) enum SubCmd {
     BranchR2(BranchR2Args),
     /// Print backends available to ArrayFire.
     AvailableBackends,
+}
+
+#[derive(Args, Debug, Serialize, Deserialize)]
+pub(crate) struct GroupByGenesArgs {
+    /// path to input .bim file
+    pub bim: String,
+
+    /// path to intput .gff file
+    pub gff: String,
+
+    /// Distance defining the window from start and end of each gene in which SNPs will be grouped
+    pub margin: usize,
+
+    /// path to output directory
+    #[clap(short, long, default_value = "./")]
+    pub outdir: String,
 }
 
 #[derive(Args, Debug, Serialize, Deserialize)]

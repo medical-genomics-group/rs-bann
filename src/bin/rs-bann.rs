@@ -2,13 +2,15 @@ mod cli;
 
 use clap::Parser;
 use cli::cli::{
-    BranchR2Args, Cli, GroupCenteredArgs, PredictArgs, SimulateXYArgs, SimulateYArgs, SubCmd,
-    TrainArgs, TrainNewArgs,
+    BranchR2Args, Cli, GroupByGenesArgs, GroupCenteredArgs, PredictArgs, SimulateXYArgs,
+    SimulateYArgs, SubCmd, TrainArgs, TrainNewArgs,
 };
 use log::{info, warn};
 use rand::thread_rng;
 use rand_distr::{Binomial, Distribution, Normal, Uniform};
-use rs_bann::group::{centered::CorrGraph, external::ExternalGrouping, grouping::MarkerGrouping};
+use rs_bann::group::{
+    centered::CorrGraph, external::ExternalGrouping, gene::GeneGrouping, grouping::MarkerGrouping,
+};
 use rs_bann::net::{
     architectures::BlockNetCfg,
     branch::{
@@ -42,11 +44,23 @@ fn main() {
         },
         SubCmd::TrainNew(args) => train_new(args),
         SubCmd::Train(args) => train(args),
-        SubCmd::GroupCentered(args) => group_centered(args),
+        SubCmd::GroupByLD(args) => group_centered(args),
         SubCmd::Predict(args) => predict(args),
         SubCmd::BranchR2(args) => branch_r2(args),
         SubCmd::AvailableBackends => available_backends(),
+        SubCmd::GroupByGenes(args) => group_by_genes(args),
     }
+}
+
+fn group_by_genes(args: GroupByGenesArgs) {
+    let bim_path = PathBuf::from(&args.bim);
+    let gff_path = PathBuf::from(&args.gff);
+    let mut outpath = Path::new(&args.outdir).join(bim_path.file_stem().unwrap());
+    outpath.set_extension("gene_grouping");
+    let grouping = GeneGrouping::from_gff(&gff_path, &bim_path, args.margin);
+    grouping.to_file(&outpath);
+    outpath.set_extension("gene_grouping_meta");
+    grouping.meta_to_file(&outpath);
 }
 
 fn available_backends() {
