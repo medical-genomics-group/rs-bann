@@ -1,4 +1,5 @@
 //! Parsing functionality for common file types
+use flate2::read::GzDecoder;
 use serde::Serialize;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
@@ -148,6 +149,36 @@ impl FromStr for GFFEntry {
     }
 }
 
+pub struct GzGFFReader {
+    num_read: usize,
+    reader: BufReader<GzDecoder<File>>,
+    buffer: String,
+}
+
+impl GzGFFReader {
+    pub fn new(gff_path: &Path) -> Self {
+        Self {
+            num_read: 0,
+            reader: BufReader::new(GzDecoder::new(File::open(gff_path).unwrap())),
+            buffer: String::new(),
+        }
+    }
+
+    pub fn next_entry(&mut self) -> Option<GFFEntry> {
+        self.buffer.clear();
+        if let Ok(bytes_read) = self.reader.read_line(&mut self.buffer) {
+            if bytes_read > 0 {
+                if let Ok(entry) = self.buffer.parse::<GFFEntry>() {
+                    self.num_read += 1;
+                    return Some(entry);
+                }
+                return self.next_entry();
+            }
+        }
+        None
+    }
+}
+
 pub struct GFFReader {
     // number of entries that have been successfully read
     num_read: usize,
@@ -155,7 +186,7 @@ pub struct GFFReader {
     buffer: String,
 }
 
-impl<'a> GFFReader {
+impl GFFReader {
     pub fn new(gff_path: &Path) -> Self {
         Self {
             num_read: 0,
@@ -164,7 +195,7 @@ impl<'a> GFFReader {
         }
     }
 
-    pub fn next_entry(&'a mut self) -> Option<GFFEntry> {
+    pub fn next_entry(&mut self) -> Option<GFFEntry> {
         self.buffer.clear();
         if let Ok(bytes_read) = self.reader.read_line(&mut self.buffer) {
             if bytes_read > 0 {

@@ -567,6 +567,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f82b0f4c27ad9f8bfd1f3208d882da2b09c301bc1c828fd3a00d0216d2fbbff6"
 dependencies = [
  "crc32fast",
+ "libz-ng-sys",
  "miniz_oxide",
 ]
 
@@ -703,6 +704,16 @@ name = "libm"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "da83a57f3f5ba3680950aa3cbc806fc297bc0b289d42e8942ed528ace71b8145"
+
+[[package]]
+name = "libz-ng-sys"
+version = "1.1.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4399ae96a9966bf581e726de86969f803a81b7ce795fcd5480e640589457e0f2"
+dependencies = [
+ "cmake",
+ "libc",
+]
 
 [[package]]
 name = "lock_api"
@@ -1338,6 +1349,7 @@ dependencies = [
  "blas-src",
  "clap",
  "csv",
+ "flate2",
  "log",
  "ndarray",
  "openblas-src",
