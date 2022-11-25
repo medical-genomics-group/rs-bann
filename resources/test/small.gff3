@@ -37,11 +37,12 @@
 1       Eponine biological_region       10678   10687   0.999   +       .       logic_name=eponine
 1       Eponine biological_region       10682   10689   0.999   -       .       logic_name=eponine
 1       Eponine biological_region       10707   10716   0.999   +       .       logic_name=eponine
-19      Eponine gene                    2       3       0.999   -       .       gene1
+19      Eponine gene                    2       4       0.999   -       .       gene1
+19      Eponine gene                    3       5       0.999   -       .       gene1
 19      Eponine gene                    7       10      0.999   -       .       gene1
-20       Eponine biological_region       10766   10773   0.999   +       .       logic_name=eponine
-20       Eponine biological_region       10771   10780   0.999   -       .       logic_name=eponine
-20       Eponine biological_region       10796   10801   0.999   +       .       logic_name=eponine
+20      Eponine biological_region       10766   10773   0.999   +       .       logic_name=eponine
+20      Eponine biological_region       10771   10780   0.999   -       .       logic_name=eponine
+20      Eponine biological_region       10796   10801   0.999   +       .       logic_name=eponine
 X       Eponine biological_region       10811   10820   0.999   -       .       logic_name=eponine
 X       Eponine biological_region       10870   10872   0.999   +       .       logic_name=eponine
 X       Eponine biological_region       10890   10894   0.999   -       .       logic_name=eponine

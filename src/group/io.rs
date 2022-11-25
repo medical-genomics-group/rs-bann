@@ -220,6 +220,7 @@ impl GFFRead for GFFReader {
 
 #[derive(Debug)]
 pub struct BimEntry {
+    pub ix: usize,
     pub chromosome: Chromosome,
     pub id: String,
     pub centimorgan: usize,
@@ -228,13 +229,12 @@ pub struct BimEntry {
     pub allele_2: String,
 }
 
-impl FromStr for BimEntry {
-    type Err = Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+impl BimEntry {
+    fn from_str(s: &str, ix: usize) -> Self {
         let fields = s.split_whitespace().collect::<Vec<&str>>();
-        Ok(Self {
-            chromosome: fields[0].parse()?,
+        Self {
+            ix,
+            chromosome: fields[0].parse().unwrap(),
             id: fields[1].to_owned(),
             centimorgan: fields[2]
                 .parse()
@@ -244,7 +244,7 @@ impl FromStr for BimEntry {
                 .expect("Failed to convert 4th col entry in .bim to int"),
             allele_1: fields[4].to_owned(),
             allele_2: fields[5].to_owned(),
-        })
+        }
     }
 }
 
@@ -283,7 +283,7 @@ impl BimReader {
         if let Ok(bytes_read) = self.reader.read_line(&mut self.buffer) {
             if bytes_read > 0 {
                 self.num_read += 1;
-                return Some(BimEntry::from_str(&self.buffer).expect("Failed to read .bim entry"));
+                return Some(BimEntry::from_str(&self.buffer, self.last_entry_ix()));
             }
         }
         None

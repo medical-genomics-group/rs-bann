@@ -35,7 +35,7 @@ impl GeneGrouping {
         let mut gff_reader = if gff_file
             .extension()
             .expect("gff file has unknown or no extension")
-            == ".gz"
+            == "gz"
         {
             Box::new(GzGFFReader::new(gff_file)) as Box<dyn GFFRead>
         } else {
@@ -69,7 +69,7 @@ impl GeneGrouping {
                         groups
                             .entry(group_id)
                             .or_insert(Vec::new())
-                            .push(bim_reader.last_entry_ix().try_into().unwrap());
+                            .push(bim_entry.ix.try_into().unwrap());
                     }
                 }
                 // check next bim entries
@@ -85,7 +85,7 @@ impl GeneGrouping {
                             groups
                                 .entry(group_id)
                                 .or_insert(Vec::new())
-                                .push(bim_reader.last_entry_ix().try_into().unwrap());
+                                .push(bim_entry.ix.try_into().unwrap());
                             // needed for next feature
                             bim_buffer.push_back(bim_entry);
                         }
