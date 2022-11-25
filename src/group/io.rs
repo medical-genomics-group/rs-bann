@@ -149,6 +149,10 @@ impl FromStr for GFFEntry {
     }
 }
 
+pub trait GFFRead {
+    fn next_entry(&mut self) -> Option<GFFEntry>;
+}
+
 pub struct GzGFFReader {
     num_read: usize,
     reader: BufReader<GzDecoder<File>>,
@@ -163,8 +167,10 @@ impl GzGFFReader {
             buffer: String::new(),
         }
     }
+}
 
-    pub fn next_entry(&mut self) -> Option<GFFEntry> {
+impl GFFRead for GzGFFReader {
+    fn next_entry(&mut self) -> Option<GFFEntry> {
         self.buffer.clear();
         if let Ok(bytes_read) = self.reader.read_line(&mut self.buffer) {
             if bytes_read > 0 {
@@ -194,8 +200,10 @@ impl GFFReader {
             buffer: String::new(),
         }
     }
+}
 
-    pub fn next_entry(&mut self) -> Option<GFFEntry> {
+impl GFFRead for GFFReader {
+    fn next_entry(&mut self) -> Option<GFFEntry> {
         self.buffer.clear();
         if let Ok(bytes_read) = self.reader.read_line(&mut self.buffer) {
             if bytes_read > 0 {

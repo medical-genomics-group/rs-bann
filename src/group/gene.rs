@@ -1,5 +1,5 @@
 use super::grouping::MarkerGrouping;
-use super::io::{BimEntry, BimReader, Feature, GFFEntry, GFFReader};
+use super::io::{BimEntry, BimReader, Feature, GFFEntry, GFFRead, GFFReader, GzGFFReader};
 use serde_json::to_writer_pretty;
 use std::collections::HashMap;
 use std::collections::VecDeque;
@@ -31,7 +31,16 @@ impl MarkerGrouping for GeneGrouping {
 
 impl GeneGrouping {
     pub fn from_gff(gff_file: &Path, bim_file: &Path, margin: usize) -> Self {
-        let mut gff_reader = GFFReader::new(gff_file);
+        // TODO: check for correct extensions here (gff or gff3 or gff.gz or gff3.gz)
+        let mut gff_reader = if gff_file
+            .extension()
+            .expect("gff file has unknown or no extension")
+            == ".gz"
+        {
+            Box::new(GzGFFReader::new(gff_file)) as Box<dyn GFFRead>
+        } else {
+            Box::new(GFFReader::new(gff_file)) as Box<dyn GFFRead>
+        };
         let mut bim_reader = BimReader::new(bim_file);
         let mut bim_buffer: VecDeque<BimEntry> = VecDeque::new();
         let mut groups: HashMap<usize, Vec<isize>> = HashMap::new();
