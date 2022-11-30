@@ -16,6 +16,12 @@ pub struct BranchBuilder {
     weights: Vec<Option<Array<f32>>>,
 }
 
+impl Default for BranchBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl BranchBuilder {
     pub fn new() -> Self {
         Self {
@@ -429,11 +435,11 @@ mod tests {
         // param values
         // weights
         for i in 0..branch.num_layers() {
-            assert_eq!(to_host(&branch.weights(i)), to_host(&exp_weights[i]));
+            assert_eq!(to_host(branch.weights(i)), to_host(&exp_weights[i]));
         }
         // biases
         for i in 0..branch.num_layers() - 1 {
-            assert_eq!(to_host(&branch.biases(i)), to_host(&exp_biases[i]));
+            assert_eq!(to_host(branch.biases(i)), to_host(&exp_biases[i]));
         }
     }
 }

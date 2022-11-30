@@ -23,6 +23,12 @@ pub struct BlockNetCfg<B: Branch> {
     branch_type: PhantomData<B>,
 }
 
+impl<B: Branch> Default for BlockNetCfg<B> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<B: Branch> BlockNetCfg<B> {
     pub fn new() -> Self {
         BlockNetCfg {

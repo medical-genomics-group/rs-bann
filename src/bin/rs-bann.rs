@@ -69,9 +69,9 @@ fn available_backends() {
 
 fn branch_r2(args: BranchR2Args) {
     let mut genotypes =
-        Genotypes::from_file(&Path::new(&args.gen)).expect("Failed to load genotype input data");
+        Genotypes::from_file(Path::new(&args.gen)).expect("Failed to load genotype input data");
     let phenotypes =
-        Phenotypes::from_file(&Path::new(&args.phen)).expect("Failed to load phenotype input data");
+        Phenotypes::from_file(Path::new(&args.phen)).expect("Failed to load phenotype input data");
     if args.standardize {
         genotypes.standardize();
     }
@@ -107,7 +107,7 @@ fn branch_r2(args: BranchR2Args) {
 }
 
 fn predict(args: PredictArgs) {
-    let mut genotypes = Genotypes::from_file(&Path::new(&args.input_data))
+    let mut genotypes = Genotypes::from_file(Path::new(&args.input_data))
         .expect("Failed to load genotype input data");
     if args.standardize {
         genotypes.standardize();
@@ -219,7 +219,7 @@ where
 
     // load groups
     let grouping_path = Path::new(&args.groups);
-    let grouping = ExternalGrouping::from_file(&grouping_path);
+    let grouping = ExternalGrouping::from_file(grouping_path);
 
     // width is fixed to half the number of input nodes
     for size in grouping.group_sizes() {
@@ -238,14 +238,14 @@ where
 
     // load marker data from .bed, group, save
     let gen_train = GenotypesBuilder::new()
-        .with_x_from_bed(&train_bed_path, &grouping)
+        .with_x_from_bed(train_bed_path, &grouping)
         .build()
         .unwrap();
     train_path.set_extension("gen");
     gen_train.to_file(&train_path);
 
     let gen_test = GenotypesBuilder::new()
-        .with_x_from_bed(&test_bed_path, &grouping)
+        .with_x_from_bed(test_bed_path, &grouping)
         .build()
         .unwrap();
     test_path.set_extension("gen");
@@ -497,9 +497,9 @@ fn load_data(indir: &str) -> (Data, Option<Data>) {
     let train_data = Data::new(train_gen, train_phen);
     let test_gen = Genotypes::from_file(&Path::new(indir).join("test.gen"));
     let test_phen = Phenotypes::from_file(&Path::new(indir).join("test.phen"));
-    let test_data = if test_gen.is_ok() && test_phen.is_ok() {
+    let test_data = if let (Ok(tg), Ok(tp)) = (test_gen, test_phen) {
         // just checked that they are Ok()
-        Some(Data::new(test_gen.unwrap(), test_phen.unwrap()))
+        Some(Data::new(tg, tp))
     } else {
         info!("No complete test data provided, proceeding without");
         None
@@ -542,16 +542,16 @@ fn train_new(args: TrainNewArgs) {
     );
 
     let mcmc_cfg = MCMCCfg {
-        hmc_step_size_factor: args.step_size.clone(),
-        hmc_max_hamiltonian_error: args.max_hamiltonian_error.clone(),
-        hmc_integration_length: args.integration_length.clone(),
+        hmc_step_size_factor: args.step_size,
+        hmc_max_hamiltonian_error: args.max_hamiltonian_error,
+        hmc_integration_length: args.integration_length,
         hmc_step_size_mode: args.step_size_mode.clone(),
-        chain_length: args.chain_length.clone(),
+        chain_length: args.chain_length,
         burn_in: args.burn_in,
         outpath: outdir,
-        trace: args.trace.clone(),
-        trajectories: args.trajectories.clone(),
-        num_grad_traj: args.num_grad_traj.clone(),
+        trace: args.trace,
+        trajectories: args.trajectories,
+        num_grad_traj: args.num_grad_traj,
         num_grad: args.num_grad,
         gradient_descent: args.gradient_descent,
     };
@@ -680,16 +680,16 @@ fn train(args: TrainArgs) {
     );
 
     let mcmc_cfg = MCMCCfg {
-        hmc_step_size_factor: args.step_size.clone(),
-        hmc_max_hamiltonian_error: args.max_hamiltonian_error.clone(),
-        hmc_integration_length: args.integration_length.clone(),
+        hmc_step_size_factor: args.step_size,
+        hmc_max_hamiltonian_error: args.max_hamiltonian_error,
+        hmc_integration_length: args.integration_length,
         hmc_step_size_mode: args.step_size_mode.clone(),
-        chain_length: args.chain_length.clone(),
+        chain_length: args.chain_length,
         burn_in: args.burn_in,
         outpath: outdir,
-        trace: args.trace.clone(),
-        trajectories: args.trajectories.clone(),
-        num_grad_traj: args.num_grad_traj.clone(),
+        trace: args.trace,
+        trajectories: args.trajectories,
+        num_grad_traj: args.num_grad_traj,
         num_grad: args.num_grad,
         gradient_descent: args.gradient_descent,
     };
@@ -703,7 +703,7 @@ fn train(args: TrainArgs) {
 
     match args.model_type {
         ModelType::Base => {
-            let mut net = Net::<BaseBranch>::from_file(&model_path);
+            let mut net = Net::<BaseBranch>::from_file(model_path);
             if let Some(p) = args.error_precision {
                 net.set_error_precision(p);
             }
@@ -712,7 +712,7 @@ fn train(args: TrainArgs) {
             net.train(&train_data, &mcmc_cfg, true, Some(report_cfg));
         }
         ModelType::ARD => {
-            let mut net = Net::<ArdBranch>::from_file(&model_path);
+            let mut net = Net::<ArdBranch>::from_file(model_path);
             if let Some(p) = args.error_precision {
                 net.set_error_precision(p);
             }
@@ -721,7 +721,7 @@ fn train(args: TrainArgs) {
             net.train(&train_data, &mcmc_cfg, true, Some(report_cfg));
         }
         ModelType::StdNormal => {
-            let mut net = Net::<StdNormalBranch>::from_file(&model_path);
+            let mut net = Net::<StdNormalBranch>::from_file(model_path);
             if let Some(p) = args.error_precision {
                 net.set_error_precision(p);
             }

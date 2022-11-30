@@ -538,12 +538,12 @@ pub trait Branch {
         //     );
         // }
 
-        match self.accept_or_reject_hmc_state(&momenta, &x_train, &y_train, init_neg_hamiltonian) {
+        match self.accept_or_reject_hmc_state(&momenta, x_train, y_train, init_neg_hamiltonian) {
             res @ HMCStepResult::Rejected => {
                 self.set_params(&init_params);
                 res
             }
-            res @ _ => res,
+            res => res,
         }
     }
 }

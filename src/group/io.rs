@@ -131,7 +131,7 @@ impl FromStr for GFFEntry {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.starts_with("#") {
+        if s.starts_with('#') {
             return Err(Error::CommentLine);
         }
         let fields = s.split_whitespace().collect::<Vec<&str>>();

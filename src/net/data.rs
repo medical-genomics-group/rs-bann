@@ -42,6 +42,12 @@ pub struct GenotypesBuilder {
     standardized: Option<bool>,
 }
 
+impl Default for GenotypesBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl GenotypesBuilder {
     pub fn new() -> Self {
         Self {

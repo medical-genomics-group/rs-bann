@@ -34,12 +34,12 @@ pub(crate) struct ModelHyperparameters {
 impl ModelHyperparameters {
     pub(crate) fn new(
         precision_hyperparams: &NetworkPrecisionHyperparameters,
-        branch_cfgs: &Vec<BranchCfg>,
+        branch_cfgs: &[BranchCfg],
     ) -> Self {
         Self {
             branch_hyperparams: branch_cfgs
                 .iter()
-                .map(|cfg| BranchHyperparameters::from_cfg(cfg))
+                .map(BranchHyperparameters::from_cfg)
                 .collect(),
             precision_hyperparams: precision_hyperparams.clone(),
         }

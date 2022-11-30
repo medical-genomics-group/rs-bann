@@ -175,8 +175,8 @@ impl<B: Branch> Net<B> {
         let mut rng = thread_rng();
         let num_individuals = train_data.num_individuals();
         let mut residual = self.residual(
-            &train_data.x(),
-            &Array::new(&train_data.y(), dim4!(num_individuals as u64, 1, 1, 1)),
+            train_data.x(),
+            &Array::new(train_data.y(), dim4!(num_individuals as u64, 1, 1, 1)),
         );
         let mut branch_ixs = (0..self.num_branches).collect::<Vec<usize>>();
         let mut report_interval = 1;
@@ -323,7 +323,7 @@ impl<B: Branch> Net<B> {
                 &gen.x()[branch_ix],
                 dim4!(gen.num_individuals() as u64, cfg.num_markers as u64),
             );
-            y_hat += B::from_cfg(&cfg).predict(&x);
+            y_hat += B::from_cfg(cfg).predict(&x);
         }
         to_host(&y_hat)
     }
@@ -349,12 +349,12 @@ impl<B: Branch> Net<B> {
         }
     }
 
-    fn residual(&self, x: &Vec<Vec<f32>>, y: &Array<f32>) -> Array<f32> {
+    fn residual(&self, x: &[Vec<f32>], y: &Array<f32>) -> Array<f32> {
         y - self.predict_device(x, y.elements())
     }
 
     // TODO: predict using posterior predictive distribution instead of point estimate
-    fn predict_device(&self, x_test: &Vec<Vec<f32>>, num_individuals: usize) -> Array<f32> {
+    fn predict_device(&self, x_test: &[Vec<f32>], num_individuals: usize) -> Array<f32> {
         // I expect X to be column major
         let mut y_hat = Array::new(
             &vec![0.0; num_individuals],
@@ -369,14 +369,14 @@ impl<B: Branch> Net<B> {
                 &x_test[branch_ix],
                 dim4!(num_individuals as u64, cfg.num_markers as u64),
             );
-            y_hat += B::from_cfg(&cfg).predict(&x);
+            y_hat += B::from_cfg(cfg).predict(&x);
         }
         y_hat
     }
 
     pub fn rss(&self, data: &Data) -> f32 {
-        let y_test_arr = Array::new(&data.y(), dim4!(data.num_individuals() as u64, 1, 1, 1));
-        let y_hat = self.predict_device(&data.x(), data.num_individuals());
+        let y_test_arr = Array::new(data.y(), dim4!(data.num_individuals() as u64, 1, 1, 1));
+        let y_hat = self.predict_device(data.x(), data.num_individuals());
         let residual = y_test_arr - y_hat;
         super::gibbs_steps::sum_of_squares(&residual)
     }
@@ -390,7 +390,7 @@ impl<B: Branch> Net<B> {
         let y = data.y_af();
         for branch_ix in 0..self.num_branches {
             let cfg = &self.branch_cfgs[branch_ix];
-            res[branch_ix] = B::from_cfg(&cfg).r2(&data.x_branch_af(branch_ix), &y);
+            res[branch_ix] = B::from_cfg(cfg).r2(&data.x_branch_af(branch_ix), &y);
         }
         res
     }

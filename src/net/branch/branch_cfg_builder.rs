@@ -2,7 +2,7 @@ use super::super::params::BranchPrecisions;
 use super::branch::BranchCfg;
 use arrayfire::{constant, dim4, Array};
 use rand::distributions::Distribution;
-use rand::thread_rng;
+use rand::{rngs::ThreadRng, thread_rng};
 use rand_distr::{Gamma, Normal};
 
 struct GammaParams {
@@ -21,6 +21,12 @@ pub struct BranchCfgBuilder {
     init_param_variance: Option<f32>,
     init_gamma_params: Option<GammaParams>,
     sample_precisions: bool,
+}
+
+impl Default for BranchCfgBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl BranchCfgBuilder {
@@ -84,6 +90,69 @@ impl BranchCfgBuilder {
         self
     }
 
+    fn init_base_weights_with_initial_weight_value(&self, params: &mut [f32], num_weights: usize) {
+        let v = self.initial_weight_value.unwrap();
+        params[0..num_weights].iter_mut().for_each(|x| *x = v);
+    }
+
+    fn init_base_weights_with_initial_param_variance(
+        &self,
+        params: &mut [f32],
+        num_weights: usize,
+        rng: &mut ThreadRng,
+    ) {
+        let v = self.init_param_variance.unwrap();
+        let d = Normal::new(0.0, v.sqrt()).unwrap();
+        params[0..num_weights]
+            .iter_mut()
+            .for_each(|x| *x = d.sample(rng));
+    }
+
+    fn init_base_weights_with_init_gamma(&self, params: &mut [f32], rng: &mut ThreadRng) {
+        // iterate over layers
+        let gamma_params = self.init_gamma_params.as_ref().unwrap();
+        let precision_prior = Gamma::new(gamma_params.shape, gamma_params.scale).unwrap();
+        let mut prev_width = self.num_markers;
+        let mut insert_ix: usize = 0;
+        for (_lix, width) in self.layer_widths[..self.num_layers].iter().enumerate() {
+            let layer_precision = if self.sample_precisions {
+                precision_prior.sample(rng)
+            } else {
+                // set to mean of gamma
+                gamma_params.shape * gamma_params.scale
+            };
+            let layer_std = (1.0 / layer_precision).sqrt();
+            let layer_weight_prior = Normal::new(0.0, layer_std).unwrap();
+            let num_weights = prev_width * width;
+            params[insert_ix..insert_ix + num_weights]
+                .iter_mut()
+                .for_each(|x| *x = layer_weight_prior.sample(rng));
+            insert_ix += num_weights;
+            prev_width = *width;
+        }
+    }
+
+    // iterate over weight groups to find their actual variances
+    fn base_weight_precisions(&self, params: &[f32]) -> Vec<Array<f32>> {
+        let mut weight_precisions = vec![Array::new(&[1.0], dim4!(1, 1, 1, 1)); self.num_layers];
+
+        let mut prev_width = self.num_markers;
+        let mut insert_ix: usize = 0;
+        for (lix, width) in self.layer_widths[..self.num_layers].iter().enumerate() {
+            let num_weights = prev_width * width;
+            let layer_precision: f32 = 1.0f32
+                / (params[insert_ix..insert_ix + num_weights]
+                    .iter()
+                    .sum::<f32>()
+                    / num_weights as f32);
+            weight_precisions[lix] = Array::new(&[layer_precision], dim4!(1, 1, 1, 1));
+            insert_ix += num_weights;
+            prev_width = *width;
+        }
+
+        weight_precisions
+    }
+
     pub fn build_base(mut self) -> BranchCfg {
         let mut widths: Vec<usize> = vec![self.num_markers];
         // summary and output node
@@ -102,40 +171,18 @@ impl BranchCfgBuilder {
         self.num_params -= 1;
 
         let mut params: Vec<f32> = vec![0.0; self.num_params];
-        let mut weight_precisions = vec![Array::new(&[1.0], dim4!(1, 1, 1, 1)); self.num_layers];
 
         // initialize weights and biases
-        if let Some(v) = self.initial_weight_value {
-            params[0..num_weights].iter_mut().for_each(|x| *x = v);
-        } else if let Some(v) = self.init_param_variance {
-            let d = Normal::new(0.0, v.sqrt()).unwrap();
-            params[0..num_weights]
-                .iter_mut()
-                .for_each(|x| *x = d.sample(&mut rng));
-            weight_precisions = vec![Array::new(&[1.0 / v], dim4!(1, 1, 1, 1)); self.num_layers];
-        } else if let Some(gamma_params) = &self.init_gamma_params {
-            // iterate over layers
-            let precision_prior = Gamma::new(gamma_params.shape, gamma_params.scale).unwrap();
-            let mut prev_width = self.num_markers;
-            let mut insert_ix: usize = 0;
-            for (lix, width) in self.layer_widths[..self.num_layers].iter().enumerate() {
-                let layer_precision = if self.sample_precisions {
-                    precision_prior.sample(&mut rng)
-                } else {
-                    // set to mean of gamma
-                    gamma_params.shape * gamma_params.scale
-                };
-                weight_precisions[lix] = Array::new(&[layer_precision], dim4!(1, 1, 1, 1));
-                let layer_std = (1.0 / layer_precision).sqrt();
-                let layer_weight_prior = Normal::new(0.0, layer_std).unwrap();
-                let num_weights = prev_width * width;
-                params[insert_ix..insert_ix + num_weights]
-                    .iter_mut()
-                    .for_each(|x| *x = layer_weight_prior.sample(&mut rng));
-                insert_ix += num_weights;
-                prev_width = *width;
-            }
+        if self.initial_weight_value.is_some() {
+            self.init_base_weights_with_initial_weight_value(&mut params, num_weights);
+        } else if self.init_param_variance.is_some() {
+            self.init_base_weights_with_initial_param_variance(&mut params, num_weights, &mut rng);
+        } else if self.init_gamma_params.is_some() {
+            self.init_base_weights_with_init_gamma(&mut params, &mut rng);
         }
+
+        let mut weight_precisions = self.base_weight_precisions(&params);
+
         // overwrite output layer settings
         // sample output layer weight
         *params.last_mut().unwrap() = Normal::new(0.0, self.output_param_variance.sqrt())

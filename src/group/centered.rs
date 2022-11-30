@@ -171,10 +171,10 @@ mod tests {
 
         let exp_groups = vec![vec![0, 1, 2, 3], vec![3, 4, 5], vec![6, 7, 8, 9, 10]];
 
-        for gix in 0..=2 {
+        for (gix, exp_group) in exp_groups.iter().enumerate().take(2 + 1) {
             let mut group = grouping.groups.get(&gix).unwrap().clone();
             group.sort_unstable();
-            assert_eq!(group, exp_groups[gix]);
+            assert_eq!(group, *exp_group);
         }
     }
 }

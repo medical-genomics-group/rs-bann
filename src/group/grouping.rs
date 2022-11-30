@@ -27,7 +27,7 @@ pub trait MarkerGrouping {
             // cannot panic, controlled range
             for marker_index in self.group(group_index).unwrap() {
                 writer
-                    .write(format!("{}\t{}\n", marker_index, group_index).as_bytes())
+                    .write_all(format!("{}\t{}\n", marker_index, group_index).as_bytes())
                     .unwrap();
             }
         }
