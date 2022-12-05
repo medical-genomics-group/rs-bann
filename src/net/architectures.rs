@@ -87,7 +87,7 @@ impl<B: Branch> BlockNetCfg<B> {
         let output_weight_precision = 2.0f32
             / cfgs
                 .iter()
-                .map(|c| c.params[c.num_weights])
+                .map(|c| c.params[c.num_weights - 1])
                 .map(|e| e * e)
                 .sum::<f32>();
         cfgs.iter_mut().for_each(|c| {
