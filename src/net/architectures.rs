@@ -83,6 +83,19 @@ impl<B: Branch> BlockNetCfg<B> {
         self
     }
 
+    fn update_branch_cfgs_output_weight_precision(&self, cfgs: &mut Vec<BranchCfg>) {
+        let output_weight_precision = 2.0f32
+            / cfgs
+                .iter()
+                .map(|c| c.params[c.num_weights])
+                .map(|e| e * e)
+                .sum::<f32>();
+        cfgs.iter_mut().for_each(|c| {
+            *c.precisions.weight_precisions.last_mut().unwrap() =
+                arrayfire::constant!(output_weight_precision; 1)
+        });
+    }
+
     pub fn build_net(&self) -> Net<B> {
         let mut branch_cfgs: Vec<BranchCfg> = Vec::new();
         let num_branches = self.widths.len();
@@ -102,6 +115,7 @@ impl<B: Branch> BlockNetCfg<B> {
             }
             branch_cfgs.push(B::build_cfg(cfg_bld));
         }
+        self.update_branch_cfgs_output_weight_precision(&mut branch_cfgs);
         Net::new(
             NetworkPrecisionHyperparameters {
                 dense: self.dense_precision_prior_hyperparams.clone(),

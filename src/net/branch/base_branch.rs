@@ -13,6 +13,7 @@ use rand::thread_rng;
 
 pub struct BaseBranch {
     pub(crate) num_params: usize,
+    pub(crate) num_weights: usize,
     pub(crate) params: BranchParams,
     pub(crate) num_markers: usize,
     pub(crate) precisions: BranchPrecisions,
@@ -34,6 +35,7 @@ impl Branch for BaseBranch {
     fn from_cfg(cfg: &BranchCfg) -> Self {
         Self {
             num_params: cfg.num_params,
+            num_weights: cfg.num_weights,
             num_markers: cfg.num_markers,
             num_layers: cfg.layer_widths.len(),
             layer_widths: cfg.layer_widths.clone(),
@@ -47,6 +49,7 @@ impl Branch for BaseBranch {
     fn to_cfg(&self) -> BranchCfg {
         BranchCfg {
             num_params: self.num_params,
+            num_weights: self.num_weights,
             num_markers: self.num_markers,
             layer_widths: self.layer_widths.clone(),
             params: self.params.param_vec(),

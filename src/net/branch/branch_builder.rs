@@ -38,6 +38,14 @@ impl BranchBuilder {
         }
     }
 
+    fn num_weights(&self) -> usize {
+        let mut res = 0;
+        for e in &self.weights {
+            res += e.as_ref().unwrap().elements();
+        }
+        res
+    }
+
     pub fn with_num_markers(&mut self, num_markers: usize) -> &mut Self {
         self.num_markers = num_markers;
         self
@@ -203,6 +211,7 @@ impl BranchBuilder {
 
         BaseBranch {
             num_params: self.num_params,
+            num_weights: self.num_weights(),
             num_markers: self.num_markers,
             params: BranchParams { weights, biases },
             // TODO: impl build method for setting precisions
@@ -280,6 +289,7 @@ impl BranchBuilder {
 
         ArdBranch {
             num_params: self.num_params,
+            num_weights: self.num_weights(),
             num_markers: self.num_markers,
             params: BranchParams { weights, biases },
             // TODO: impl build method for setting precisions

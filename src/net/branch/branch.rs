@@ -620,6 +620,7 @@ impl BranchLogDensityGradient {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct BranchCfg {
     pub(crate) num_params: usize,
+    pub(crate) num_weights: usize,
     pub(crate) num_markers: usize,
     pub(crate) layer_widths: Vec<usize>,
     pub(crate) params: Vec<f32>,
