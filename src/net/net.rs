@@ -181,6 +181,14 @@ impl<B: Branch> Net<B> {
         let mut branch_ixs = (0..self.num_branches).collect::<Vec<usize>>();
         let mut report_interval = 1;
 
+        // initial error precision
+        self.error_precision = multi_param_precision_posterior(
+            self.hyperparams.output_layer_prior_shape(),
+            self.hyperparams.output_layer_prior_scale(),
+            &residual,
+            &mut rng,
+        );
+
         info!(
             "Training net with {:} branches, {:} params",
             self.num_branches,
@@ -203,19 +211,21 @@ impl<B: Branch> Net<B> {
 
         for chain_ix in 1..=mcmc_cfg.chain_length {
             // sample ouput bias term
-            residual += self.output_bias.af_bias();
-            self.output_bias.sample_bias(
-                self.error_precision,
-                &residual,
-                num_individuals,
-                &mut rng,
-            );
-            self.output_bias.sample_precision(
-                self.hyperparams.output_layer_prior_shape(),
-                self.hyperparams.output_layer_prior_scale(),
-                &mut rng,
-            );
-            residual -= self.output_bias.af_bias();
+            // output bias is 0 upon initialization.
+            // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            // residual += self.output_bias.af_bias();
+            // self.output_bias.sample_bias(
+            //     self.error_precision,
+            //     &residual,
+            //     num_individuals,
+            //     &mut rng,
+            // );
+            // self.output_bias.sample_precision(
+            //     self.hyperparams.output_layer_prior_shape(),
+            //     self.hyperparams.output_layer_prior_scale(),
+            //     &mut rng,
+            // );
+            // residual -= self.output_bias.af_bias();
             // shuffle order in which branches are trained
             branch_ixs.shuffle(&mut rng);
             for &branch_ix in &branch_ixs {
@@ -246,13 +256,15 @@ impl<B: Branch> Net<B> {
                     // not accepted, just remove previous prediction
                     _ => residual -= prev_pred,
                 }
-                branch.sample_precisions(&self.hyperparams);
+                // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                // branch.sample_precisions(&self.hyperparams);
 
                 // dump branch cfg
                 self.branch_cfgs[branch_ix] = branch.to_cfg();
             }
 
-            self.sample_output_layer_precision(&mut rng);
+            // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            // self.sample_output_layer_precision(&mut rng);
 
             // TODO:
             // this can be easily done without predicting again,

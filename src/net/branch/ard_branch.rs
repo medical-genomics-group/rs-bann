@@ -288,6 +288,7 @@ impl Branch for ArdBranch {
 #[cfg(test)]
 mod tests {
     use arrayfire::{dim4, sum, Array};
+    use assert_approx_eq::assert_approx_eq;
     // use arrayfire::{af_print, randu};
 
     use super::super::{branch::Branch, branch_builder::BranchBuilder};
@@ -296,6 +297,13 @@ mod tests {
     use crate::net::branch::momenta::BranchMomenta;
     use crate::net::params::BranchParams;
     use crate::to_host;
+
+    fn assert_approx_eq_slice(a: &[f32], b: &[f32], tol: f32) {
+        assert_eq!(a.len(), b.len());
+        for (ai, bi) in a.iter().zip(b.iter()) {
+            assert_approx_eq!(ai, bi, tol);
+        }
+    }
 
     // #[test]
     // fn test_af() {
@@ -534,6 +542,68 @@ mod tests {
         }
         for i in 0..(branch.num_layers - 1) {
             assert_eq!(to_host(&ldg.wrt_biases[i]), to_host(&exp_ldg_wrt_b[i]));
+        }
+    }
+
+    #[test]
+    fn test_num_log_density_gradient() {
+        let num_individuals = 4;
+        let num_markers = 3;
+        let mut branch = make_test_branch();
+        let x_train: Array<f32> = Array::new(
+            &[1., 0., 0., 2., 1., 1., 2., 0., 0., 2., 0., 1.],
+            dim4![num_individuals, num_markers, 1, 1],
+        );
+        let y_train: Array<f32> = Array::new(&[0.0, 2.0, 1.0, 1.5], dim4![4, 1, 1, 1]);
+        let ldg = branch.numerical_log_density_gradient(&x_train, &y_train);
+
+        // correct output length
+        assert_eq!(ldg.wrt_weights.len(), branch.num_layers);
+        assert_eq!(ldg.wrt_biases.len(), branch.num_layers - 1);
+
+        // correct dimensions
+        for i in 0..(branch.num_layers) {
+            assert_eq!(ldg.wrt_weights[i].dims(), branch.weights(i).dims());
+        }
+        for i in 0..(branch.num_layers - 1) {
+            assert_eq!(ldg.wrt_biases[i].dims(), branch.biases(i).dims());
+        }
+
+        let exp_ldg_wrt_w = [
+            Array::new(
+                &[
+                    -0.0005189283,
+                    -1.0005465,
+                    -2.0000138,
+                    -3.0000000010532997,
+                    -4.00000000114826,
+                    -5.000000000000059,
+                ],
+                dim4![3, 2, 1, 1],
+            ),
+            Array::new(&[-1.0014552, -2.0017552], dim4![2, 1, 1, 1]),
+            Array::new(&[-5.4986963], dim4![1, 1, 1, 1]),
+        ];
+
+        let exp_ldg_wrt_b = [
+            Array::new(&[-0.00053271546, -1.0000000011007801], dim4![2, 1, 1, 1]),
+            Array::new(&[-2.0017552], dim4![1, 1, 1, 1]),
+        ];
+
+        // correct values
+        for i in 0..(branch.num_layers) {
+            assert_approx_eq_slice(
+                &to_host(&ldg.wrt_weights[i]),
+                &to_host(&exp_ldg_wrt_w[i]),
+                1e-2f32,
+            );
+        }
+        for i in 0..(branch.num_layers - 1) {
+            assert_approx_eq_slice(
+                &to_host(&ldg.wrt_biases[i]),
+                &to_host(&exp_ldg_wrt_b[i]),
+                1e-2f32,
+            );
         }
     }
 

@@ -531,9 +531,18 @@ def plot_perf_r2(wdir: str, burn_in):
     r2_test = 1 - \
         (np.array(training_stats["mse_test"]) / test_phen_stats["variance"])
 
+    h2_train = (train_phen_stats["variance"] -
+                train_phen_stats["env_variance"]) / train_phen_stats["variance"]
+    h2_test = (test_phen_stats["variance"] -
+               test_phen_stats["env_variance"]) / test_phen_stats["variance"]
+
     axes[1].set_title(r"$R^2$")
     axes[1].plot(r2_train, label="nn train")
     axes[1].plot(r2_test, label="nn test")
+    axes[1].hlines(h2_train, 0, len(trace.error_precision),
+                   linestyle="dashed", color="#35063e", label="h2 train")
+    axes[1].hlines(h2_test, 0, len(trace.error_precision),
+                   linestyle="dashdot", color="#35063e", label="h2 test")
     axes[1].hlines(
         ridge_r2_train,
         0,
