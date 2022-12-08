@@ -10,6 +10,7 @@ use super::{
     step_sizes::StepSizes,
     trajectory::Trajectory,
 };
+use crate::net::gibbs_steps::multi_param_precision_posterior;
 use crate::{net::params::NetworkPrecisionHyperparameters, scalar_to_host};
 use arrayfire::{diag_extract, dim4, dot, matmul, randu, sum, tanh, Array, MatProp};
 use log::{debug, warn};
@@ -51,11 +52,29 @@ pub trait Branch {
 
     fn rng(&mut self) -> &mut ThreadRng;
 
-    fn sample_precisions(&mut self, precision_prior_hyperparams: &NetworkPrecisionHyperparameters);
+    fn sample_prior_precisions(
+        &mut self,
+        precision_prior_hyperparams: &NetworkPrecisionHyperparameters,
+    );
 
     fn num_markers(&self) -> usize;
 
     fn layer_widths(&self) -> &Vec<usize>;
+
+    fn sample_error_precision(
+        &mut self,
+        residual: &Array<f32>,
+        prior_shape: f32,
+        prior_scale: f32,
+        rng: &mut ThreadRng,
+    ) {
+        self.set_error_precision(multi_param_precision_posterior(
+            prior_shape,
+            prior_scale,
+            residual,
+            rng,
+        ));
+    }
 
     fn summary_layer_index(&self) -> usize {
         self.num_layers() - 2

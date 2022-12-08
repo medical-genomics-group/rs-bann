@@ -43,27 +43,36 @@ impl Display for ModelType {
 
 #[derive(Serialize, Deserialize)]
 pub struct OutputBias {
+    // the part of the total residual error precision contributed by the output bias (lambda_e)
+    pub(crate) error_precision: f32,
+    // a sample from the posterior of the precision of the prior of the output bias (lambda_b)
     pub(crate) precision: f32,
     pub(crate) bias: f32,
 }
 
 impl OutputBias {
-    fn sample_bias(
-        &mut self,
-        error_precision: f32,
-        residual: &Array<f32>,
-        n: usize,
-        rng: &mut ThreadRng,
-    ) {
+    fn sample_bias(&mut self, residual: &Array<f32>, n: usize, rng: &mut ThreadRng) {
         let (sum_r, _) = sum_all(residual);
-        let nu = error_precision / (n as f32 * error_precision + self.precision);
+        let nu = self.error_precision / (n as f32 * self.error_precision + self.precision);
         let mean = nu * sum_r;
-        let std = (1. / (n as f32 * error_precision + self.precision)).sqrt();
+        let std = (1. / (n as f32 * self.error_precision + self.precision)).sqrt();
         self.bias = Normal::new(mean, std).unwrap().sample(rng);
     }
 
-    fn sample_precision(&mut self, prior_shape: f32, prior_scale: f32, rng: &mut ThreadRng) {
+    /// Sample lambda_theta of the output bias
+    fn sample_prior_precision(&mut self, prior_shape: f32, prior_scale: f32, rng: &mut ThreadRng) {
         self.precision = single_param_precision_posterior(prior_shape, prior_scale, self.bias, rng);
+    }
+
+    fn sample_error_precision(
+        &mut self,
+        residual: &Array<f32>,
+        prior_shape: f32,
+        prior_scale: f32,
+        rng: &mut ThreadRng,
+    ) {
+        self.error_precision =
+            multi_param_precision_posterior(prior_shape, prior_scale, residual, rng);
     }
 
     fn af_bias(&self) -> Array<f32> {
@@ -213,19 +222,21 @@ impl<B: Branch> Net<B> {
             // sample ouput bias term
             // output bias is 0 upon initialization.
             // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            // residual += self.output_bias.af_bias();
-            // self.output_bias.sample_bias(
-            //     self.error_precision,
-            //     &residual,
-            //     num_individuals,
-            //     &mut rng,
-            // );
-            // self.output_bias.sample_precision(
-            //     self.hyperparams.output_layer_prior_shape(),
-            //     self.hyperparams.output_layer_prior_scale(),
-            //     &mut rng,
-            // );
-            // residual -= self.output_bias.af_bias();
+            self.output_bias.sample_error_precision(
+                &residual,
+                self.hyperparams.output_layer_prior_shape(),
+                self.hyperparams.output_layer_prior_scale(),
+                &mut rng,
+            );
+            residual += self.output_bias.af_bias();
+            self.output_bias
+                .sample_bias(&residual, num_individuals, &mut rng);
+            self.output_bias.sample_prior_precision(
+                self.hyperparams.output_layer_prior_shape(),
+                self.hyperparams.output_layer_prior_scale(),
+                &mut rng,
+            );
+            residual -= self.output_bias.af_bias();
             // shuffle order in which branches are trained
             branch_ixs.shuffle(&mut rng);
             for &branch_ix in &branch_ixs {
@@ -238,12 +249,17 @@ impl<B: Branch> Net<B> {
                 );
                 // load branch cfg
                 let mut branch = B::from_cfg(cfg);
-                // tell branch about global error precision
-                branch.set_error_precision(self.error_precision);
+                branch.sample_error_precision(
+                    &residual,
+                    self.hyperparams.output_layer_prior_shape(),
+                    self.hyperparams.output_layer_prior_scale(),
+                    &mut rng,
+                );
                 // TODO: save last prediction contribution for each branch to reduce compute
                 // ... this might need substantial amount of memory though, probably not worth it.
                 let prev_pred = branch.predict(&x);
                 residual = &residual + &prev_pred;
+                // update error precision
                 let step_res = if mcmc_cfg.gradient_descent {
                     branch.gradient_descent(&x, &residual, mcmc_cfg)
                 } else {
@@ -257,14 +273,14 @@ impl<B: Branch> Net<B> {
                     _ => residual -= prev_pred,
                 }
                 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                // branch.sample_precisions(&self.hyperparams);
+                branch.sample_prior_precisions(&self.hyperparams);
 
                 // dump branch cfg
                 self.branch_cfgs[branch_ix] = branch.to_cfg();
             }
 
             // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            // self.sample_output_layer_precision(&mut rng);
+            self.sample_output_layer_weight_precision(&mut rng);
 
             // TODO:
             // this can be easily done without predicting again,
@@ -302,7 +318,7 @@ impl<B: Branch> Net<B> {
         self.training_stats.to_file(&mcmc_cfg.outpath);
     }
 
-    fn sample_output_layer_precision(&mut self, rng: &mut ThreadRng) {
+    fn sample_output_layer_weight_precision(&mut self, rng: &mut ThreadRng) {
         // collect all output layer weights
         let output_layer_weights = self
             .branch_cfgs

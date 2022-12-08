@@ -200,5 +200,5 @@ impl Branch for StdNormalBranch {
     }
 
     /// Samples precision values from their posterior distribution in a Gibbs step.
-    fn sample_precisions(&mut self, __hyperparams: &NetworkPrecisionHyperparameters) {}
+    fn sample_prior_precisions(&mut self, __hyperparams: &NetworkPrecisionHyperparameters) {}
 }

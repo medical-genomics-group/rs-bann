@@ -225,7 +225,7 @@ impl Branch for ArdBranch {
     }
 
     /// Samples precision values from their posterior distribution in a Gibbs step.
-    fn sample_precisions(&mut self, hyperparams: &NetworkPrecisionHyperparameters) {
+    fn sample_prior_precisions(&mut self, hyperparams: &NetworkPrecisionHyperparameters) {
         // this iterates over layers
         // the last two layers (summary and output)
         // are sampled in the base layer way, otherwise there is overwhelming

@@ -207,7 +207,7 @@ impl Branch for BaseBranch {
     }
 
     /// Samples precision values from their posterior distribution in a Gibbs step.
-    fn sample_precisions(&mut self, hyperparams: &NetworkPrecisionHyperparameters) {
+    fn sample_prior_precisions(&mut self, hyperparams: &NetworkPrecisionHyperparameters) {
         // output precision is sampled jointly for all branches
         for i in 0..self.num_layers() - 2 {
             self.precisions.weight_precisions[i] = Array::new(

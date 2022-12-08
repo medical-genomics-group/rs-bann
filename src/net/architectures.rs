@@ -125,6 +125,7 @@ impl<B: Branch> BlockNetCfg<B> {
             num_branches,
             branch_cfgs,
             OutputBias {
+                error_precision: 1.0,
                 precision: 1.0,
                 bias: 0.0,
             },
