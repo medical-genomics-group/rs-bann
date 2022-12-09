@@ -204,7 +204,7 @@ impl BranchCfgBuilder {
         for (lix, width) in self.layer_widths[..self.num_layers].iter().enumerate() {
             let num_weights = prev_width * width;
             // this is the precision at the extreme point of the prior as a function of the precision
-            let layer_precision: f32 = 2.0f32
+            let layer_precision: f32 = num_weights as f32
                 / params[insert_ix..insert_ix + num_weights]
                     .iter()
                     .map(|e| e * e)
@@ -225,7 +225,7 @@ impl BranchCfgBuilder {
         let mut insert_ix = num_weights;
         for (lix, width) in self.layer_widths[..self.num_layers - 1].iter().enumerate() {
             let num_biases = width;
-            let layer_precision: f32 = 2.0f32
+            let layer_precision: f32 = *num_biases as f32
                 / params[insert_ix..insert_ix + num_biases]
                     .iter()
                     .map(|e| e * e)
@@ -271,7 +271,7 @@ impl BranchCfgBuilder {
             let num_weights = prev_width * width;
             let mut layer_precisions = vec![0.0; prev_width];
             for ard_group_ix in 0..prev_width {
-                layer_precisions[ard_group_ix] = 2.0f32
+                layer_precisions[ard_group_ix] = *width as f32
                     / (ard_group_ix..num_weights)
                         .step_by(prev_width)
                         .map(|ix| params[insert_ix + ix])
@@ -284,7 +284,7 @@ impl BranchCfgBuilder {
             prev_width = *width;
         }
         // summary layer
-        let summary_layer_precision = 2.0f32
+        let summary_layer_precision = prev_width as f32
             / params[insert_ix..insert_ix + prev_width]
                 .iter()
                 .map(|e| e * e)

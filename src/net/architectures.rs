@@ -84,7 +84,7 @@ impl<B: Branch> BlockNetCfg<B> {
     }
 
     fn update_branch_cfgs_output_weight_precision(&self, cfgs: &mut Vec<BranchCfg>) {
-        let output_weight_precision = 2.0f32
+        let output_weight_precision = cfgs.len() as f32
             / cfgs
                 .iter()
                 .map(|c| c.params[c.num_weights - 1])
