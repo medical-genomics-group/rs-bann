@@ -483,8 +483,8 @@ where
     phen_test.to_file(&test_path);
 
     if args.json_data {
-        Phenotypes::new(g_test).to_json("genetic_values_train.json");
-        Phenotypes::new(g_train).to_json("genetic_values_train.json");
+        Phenotypes::new(g_test).to_json(&path.join("genetic_values_train.json"));
+        Phenotypes::new(g_train).to_json(&path.join("genetic_values_train.json"));
         phen_train.to_json(&path.join("phen_train.json"));
         phen_test.to_json(&path.join("phen_test.json"));
         gen_train.to_json(&path.join("gen_train.json"));
