@@ -56,9 +56,10 @@ def tanh_rss(p: SingleBranchNoHiddenLayerParams, d: Data):
 
 def tanh_posterior(p: SingleBranchNoHiddenLayerParams, d: Data, lambda_w0: float, lambda_e: float, w0_ix: int):
     return -lambda_e / 2 * tanh_rss(p, d) - lambda_w0 / 2 * p.w0[w0_ix] ** 2
+    # return -lambda_e / 2 * tanh_rss(p, d) - lambda_w0 / 2 * np.sum(p.w0 ** 2)
 
 
-def plot_posterior(p: SingleBranchNoHiddenLayerParams, d1: Data, d2: Data, w0_ix: int, posterior, margin=100):
+def plot_posterior(p: SingleBranchNoHiddenLayerParams, d1: Data, d2: Data, w0_ix: int, posterior, lambda_w0=1, lambda_e=1, margin=100):
     w0_val = p.w0[w0_ix]
 
     w0s = np.linspace(w0_val - margin, w0_val + margin, 100)
@@ -67,8 +68,8 @@ def plot_posterior(p: SingleBranchNoHiddenLayerParams, d1: Data, d2: Data, w0_ix
 
     for v in w0s:
         p.w0[w0_ix] = v
-        logl_tst.append(posterior(p, d1, 1, 1, w0_ix))
-        logl_trn.append(posterior(p, d2, 1, 1, w0_ix))
+        logl_tst.append(posterior(p, d1, lambda_w0, lambda_e, w0_ix))
+        logl_trn.append(posterior(p, d2, lambda_w0, lambda_e, w0_ix))
 
     p.w0[w0_ix] = w0_val
 
@@ -145,3 +146,15 @@ def sim_single_branch_no_hidden_layer(n: int, m: int, h2: float, plot=False):
         plt.xlabel('x2')
 
     return d1, d2, p
+
+
+def exp_r2_in_indep_sample(m: int, n: int, h2: float, formula="wrey") -> float:
+    match formula:
+        case "wrey":
+            k = m / (n + h2)
+            x1 = (1 + k) - (np.sqrt((1 + k) ** 2 + 4 * k * h2) / (-2 * k))
+            x2 = (1 + k) + (np.sqrt((1 + k) ** 2 + 4 * k * h2) / (-2 * k))
+            return np.sqrt([x1, x2])
+        case "deatwyler":
+            k = n * h2 / m
+            return k / (k + 1)
