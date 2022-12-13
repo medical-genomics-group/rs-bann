@@ -435,8 +435,11 @@ where
     gen_test.to_file(&test_path);
 
     info!("Making phenotype data");
-    let mut y_train = net.predict(&gen_train);
-    let mut y_test = net.predict(&gen_test);
+    // genetic values
+    let g_train = net.predict(&gen_train);
+    let mut y_train = g_train.clone();
+    let g_test = net.predict(&gen_test);
+    let mut y_test = g_test.clone();
 
     let mut train_residual_variance: f64 = 0.0;
     let mut test_residual_variance: f64 = 0.0;
@@ -480,6 +483,8 @@ where
     phen_test.to_file(&test_path);
 
     if args.json_data {
+        Phenotypes::new(g_test).to_json("genetic_values_train.json");
+        Phenotypes::new(g_train).to_json("genetic_values_train.json");
         phen_train.to_json(&path.join("phen_train.json"));
         phen_test.to_json(&path.join("phen_test.json"));
         gen_train.to_json(&path.join("gen_train.json"));
