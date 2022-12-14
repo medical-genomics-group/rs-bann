@@ -111,8 +111,7 @@ fn read_model_type_from_model_args(path: &Path) -> ModelType {
     let text = std::fs::read_to_string(&path).unwrap();
     // Parse the string into a dynamically-typed JSON structure.
     let json = serde_json::from_str::<serde_json::Value>(&text).unwrap();
-    ModelType::from_str(&json["model_type"].to_string())
-        .expect("Failed to parse ModelType from args.json")
+    ModelType::from_str(json["model_type"].as_str().unwrap()).unwrap()
 }
 
 fn predict(args: PredictArgs) {
@@ -122,12 +121,11 @@ fn predict(args: PredictArgs) {
         genotypes.standardize();
     }
     // get model type
-    let parent_path = Path::new(&args.model_path)
+    let args_path = Path::new(&args.model_path)
         .parent()
         .unwrap()
         .join("args.json");
-
-    let model_type = read_model_type_from_model_args(&parent_path);
+    let model_type = read_model_type_from_model_args(&args_path);
     // stdout writer in csv format
     let mut wtr = csv::Writer::from_writer(std::io::stdout());
 
@@ -492,7 +490,7 @@ where
     phen_test.to_file(&test_path);
 
     if args.json_data {
-        Phenotypes::new(g_test).to_json(&path.join("genetic_values_train.json"));
+        Phenotypes::new(g_test).to_json(&path.join("genetic_values_test.json"));
         Phenotypes::new(g_train).to_json(&path.join("genetic_values_train.json"));
         phen_train.to_json(&path.join("phen_train.json"));
         phen_test.to_json(&path.join("phen_test.json"));
