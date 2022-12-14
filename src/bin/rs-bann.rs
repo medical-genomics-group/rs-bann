@@ -359,146 +359,158 @@ where
     let params_path = path.join("model.params");
     let model_path = path.join("model.bin");
 
-    info!("Building model");
-    let mut net_cfg = if let (Some(k), Some(s)) = (args.init_gamma_shape, args.init_gamma_scale) {
-        BlockNetCfg::<B>::new()
-            .with_depth(args.branch_depth)
-            .with_init_gamma_params(k, s)
-            .with_dense_precision_prior(k, s)
-            .with_summary_precision_prior(k, s)
-            .with_output_precision_prior(1., 1.)
-    } else {
-        BlockNetCfg::<B>::new()
-            .with_depth(args.branch_depth)
-            .with_init_param_variance(args.init_param_variance)
-    };
-    for _ in 0..args.num_branches {
-        net_cfg.add_branch(args.num_markers_per_branch, args.hidden_layer_width);
-    }
-    let net = net_cfg.build_net();
-
-    info!("Saving model");
-    net.to_file(&model_path);
-
-    info!("Saving model params");
-    info!("Creating: {:?}", params_path);
-    let mut net_params_file = BufWriter::new(File::create(params_path).unwrap());
-    to_writer(&mut net_params_file, net.branch_cfgs()).unwrap();
-    net_params_file.write_all(b"\n").unwrap();
-
-    let mut rng = thread_rng();
-
-    info!("Generating random marker data");
-    let gt_per_branch = args.num_markers_per_branch * args.num_individuals;
-    let mut x_train: Vec<Vec<f32>> = vec![vec![0.0; gt_per_branch]; args.num_branches];
-    let mut x_test: Vec<Vec<f32>> = vec![vec![0.0; gt_per_branch]; args.num_branches];
-    let mut x_means: Vec<Vec<f32>> =
-        vec![vec![0.0; args.num_markers_per_branch]; args.num_branches];
-    let mut x_stds: Vec<Vec<f32>> = vec![vec![0.0; args.num_markers_per_branch]; args.num_branches];
-    for branch_ix in 0..args.num_branches {
-        for marker_ix in 0..args.num_markers_per_branch {
-            let maf = Uniform::from(0.0..0.5).sample(&mut rng);
-            x_means[branch_ix][marker_ix] = 2. * maf;
-            x_stds[branch_ix][marker_ix] = (2. * maf * (1. - maf)).sqrt();
-
-            let binom = Binomial::new(2, maf as f64).unwrap();
-            (0..args.num_individuals).for_each(|i| {
-                x_train[branch_ix][marker_ix * args.num_individuals + i] =
-                    binom.sample(&mut rng) as f32
-            });
-            (0..args.num_individuals).for_each(|i| {
-                x_test[branch_ix][marker_ix * args.num_individuals + i] =
-                    binom.sample(&mut rng) as f32
-            });
-        }
-    }
-
-    let mut gen_train = GenotypesBuilder::new()
-        .with_x(
-            x_train,
-            vec![args.num_markers_per_branch; args.num_branches],
-            args.num_individuals,
-        )
-        .with_means(x_means.clone())
-        .with_stds(x_stds.clone())
-        .build()
-        .unwrap();
-    gen_train.standardize();
-    train_path.set_extension("gen");
-    gen_train.to_file(&train_path);
-
-    let mut gen_test = GenotypesBuilder::new()
-        .with_x(
-            x_test,
-            vec![args.num_markers_per_branch; args.num_branches],
-            args.num_individuals,
-        )
-        .with_means(x_means)
-        .with_stds(x_stds)
-        .build()
-        .unwrap();
-    gen_test.standardize();
-    test_path.set_extension("gen");
-    gen_test.to_file(&test_path);
-
-    info!("Making phenotype data");
-    // genetic values
-    let g_train = net.predict(&gen_train);
-    let mut y_train = g_train.clone();
-    let g_test = net.predict(&gen_test);
-    let mut y_test = g_test.clone();
-
     let mut train_residual_variance: f64 = 0.0;
     let mut test_residual_variance: f64 = 0.0;
 
-    if args.heritability != 1. {
-        let s2_train = (&y_train.iter().map(|e| *e as f64).collect::<Vec<f64>>()).variance();
-        train_residual_variance = s2_train * (1. / args.heritability as f64 - 1.);
-        let rv_train_dist = Normal::new(0.0, train_residual_variance.sqrt()).unwrap();
-        y_train
-            .iter_mut()
-            .for_each(|e| *e += rv_train_dist.sample(&mut rng) as f32);
+    loop {
+        info!("Building model");
+        let mut net_cfg = if let (Some(k), Some(s)) = (args.init_gamma_shape, args.init_gamma_scale)
+        {
+            BlockNetCfg::<B>::new()
+                .with_depth(args.branch_depth)
+                .with_init_gamma_params(k, s)
+                .with_dense_precision_prior(k, s)
+                .with_summary_precision_prior(k, s)
+                .with_output_precision_prior(1., 1.)
+        } else {
+            BlockNetCfg::<B>::new()
+                .with_depth(args.branch_depth)
+                .with_init_param_variance(args.init_param_variance)
+        };
+        for _ in 0..args.num_branches {
+            net_cfg.add_branch(args.num_markers_per_branch, args.hidden_layer_width);
+        }
+        let net = net_cfg.build_net();
 
-        let s2_test = (&y_test.iter().map(|e| *e as f64).collect::<Vec<f64>>()).variance();
-        test_residual_variance = s2_test * (1. / args.heritability as f64 - 1.);
-        let rv_test_dist = Normal::new(0.0, test_residual_variance.sqrt()).unwrap();
-        y_test
-            .iter_mut()
-            .for_each(|e| *e += rv_test_dist.sample(&mut rng) as f32);
+        let mut rng = thread_rng();
+
+        info!("Generating random marker data");
+        let gt_per_branch = args.num_markers_per_branch * args.num_individuals;
+        let mut x_train: Vec<Vec<f32>> = vec![vec![0.0; gt_per_branch]; args.num_branches];
+        let mut x_test: Vec<Vec<f32>> = vec![vec![0.0; gt_per_branch]; args.num_branches];
+        let mut x_means: Vec<Vec<f32>> =
+            vec![vec![0.0; args.num_markers_per_branch]; args.num_branches];
+        let mut x_stds: Vec<Vec<f32>> =
+            vec![vec![0.0; args.num_markers_per_branch]; args.num_branches];
+        for branch_ix in 0..args.num_branches {
+            for marker_ix in 0..args.num_markers_per_branch {
+                let maf = Uniform::from(0.0..0.5).sample(&mut rng);
+                x_means[branch_ix][marker_ix] = 2. * maf;
+                x_stds[branch_ix][marker_ix] = (2. * maf * (1. - maf)).sqrt();
+
+                let binom = Binomial::new(2, maf as f64).unwrap();
+                (0..args.num_individuals).for_each(|i| {
+                    x_train[branch_ix][marker_ix * args.num_individuals + i] =
+                        binom.sample(&mut rng) as f32
+                });
+                (0..args.num_individuals).for_each(|i| {
+                    x_test[branch_ix][marker_ix * args.num_individuals + i] =
+                        binom.sample(&mut rng) as f32
+                });
+            }
+        }
+
+        let mut gen_train = GenotypesBuilder::new()
+            .with_x(
+                x_train,
+                vec![args.num_markers_per_branch; args.num_branches],
+                args.num_individuals,
+            )
+            .with_means(x_means.clone())
+            .with_stds(x_stds.clone())
+            .build()
+            .unwrap();
+        gen_train.standardize();
+
+        let mut gen_test = GenotypesBuilder::new()
+            .with_x(
+                x_test,
+                vec![args.num_markers_per_branch; args.num_branches],
+                args.num_individuals,
+            )
+            .with_means(x_means)
+            .with_stds(x_stds)
+            .build()
+            .unwrap();
+        gen_test.standardize();
+
+        info!("Making phenotype data");
+        // genetic values
+        let g_train = net.predict(&gen_train);
+        let mut y_train = g_train.clone();
+        let g_test = net.predict(&gen_test);
+        let mut y_test = g_test.clone();
+
+        if args.heritability != 1. {
+            let s2_train = (&y_train.iter().map(|e| *e as f64).collect::<Vec<f64>>()).variance();
+            train_residual_variance = s2_train * (1. / args.heritability as f64 - 1.);
+            let rv_train_dist = Normal::new(0.0, train_residual_variance.sqrt()).unwrap();
+            y_train
+                .iter_mut()
+                .for_each(|e| *e += rv_train_dist.sample(&mut rng) as f32);
+
+            let s2_test = (&y_test.iter().map(|e| *e as f64).collect::<Vec<f64>>()).variance();
+            test_residual_variance = s2_test * (1. / args.heritability as f64 - 1.);
+            let rv_test_dist = Normal::new(0.0, test_residual_variance.sqrt()).unwrap();
+            y_test
+                .iter_mut()
+                .for_each(|e| *e += rv_test_dist.sample(&mut rng) as f32);
+
+            // TODO: let user set minimal residual variance
+            if train_residual_variance < 0.01 || train_residual_variance < 0.01 {
+                continue;
+            }
+        }
+
+        info!("Saving model");
+        net.to_file(&model_path);
+
+        info!("Saving model params");
+        info!("Creating: {:?}", &params_path);
+        let mut net_params_file = BufWriter::new(File::create(&params_path).unwrap());
+        to_writer(&mut net_params_file, net.branch_cfgs()).unwrap();
+        net_params_file.write_all(b"\n").unwrap();
+
+        train_path.set_extension("gen");
+        gen_train.to_file(&train_path);
+        test_path.set_extension("gen");
+        gen_test.to_file(&test_path);
+
+        PhenStats::new(
+            (&y_test.iter().map(|e| *e as f64).collect::<Vec<f64>>()).mean() as f32,
+            (&y_test.iter().map(|e| *e as f64).collect::<Vec<f64>>()).variance() as f32,
+            test_residual_variance as f32,
+        )
+        .to_file(&path.join("test_phen_stats.json"));
+
+        PhenStats::new(
+            (&y_train.iter().map(|e| *e as f64).collect::<Vec<f64>>()).mean() as f32,
+            (&y_train.iter().map(|e| *e as f64).collect::<Vec<f64>>()).variance() as f32,
+            train_residual_variance as f32,
+        )
+        .to_file(&path.join("train_phen_stats.json"));
+
+        train_path.set_extension("phen");
+        let phen_train = Phenotypes::new(y_train);
+        phen_train.to_file(&train_path);
+
+        test_path.set_extension("phen");
+        let phen_test = Phenotypes::new(y_test);
+        phen_test.to_file(&test_path);
+
+        if args.json_data {
+            Phenotypes::new(g_test).to_json(&path.join("genetic_values_test.json"));
+            Phenotypes::new(g_train).to_json(&path.join("genetic_values_train.json"));
+            phen_train.to_json(&path.join("phen_train.json"));
+            phen_test.to_json(&path.join("phen_test.json"));
+            gen_train.to_json(&path.join("gen_train.json"));
+            gen_test.to_json(&path.join("gen_test.json"));
+        }
+
+        args.to_file(&args_path);
+
+        break;
     }
-
-    PhenStats::new(
-        (&y_test.iter().map(|e| *e as f64).collect::<Vec<f64>>()).mean() as f32,
-        (&y_test.iter().map(|e| *e as f64).collect::<Vec<f64>>()).variance() as f32,
-        test_residual_variance as f32,
-    )
-    .to_file(&path.join("test_phen_stats.json"));
-
-    PhenStats::new(
-        (&y_train.iter().map(|e| *e as f64).collect::<Vec<f64>>()).mean() as f32,
-        (&y_train.iter().map(|e| *e as f64).collect::<Vec<f64>>()).variance() as f32,
-        train_residual_variance as f32,
-    )
-    .to_file(&path.join("train_phen_stats.json"));
-
-    train_path.set_extension("phen");
-    let phen_train = Phenotypes::new(y_train);
-    phen_train.to_file(&train_path);
-
-    test_path.set_extension("phen");
-    let phen_test = Phenotypes::new(y_test);
-    phen_test.to_file(&test_path);
-
-    if args.json_data {
-        Phenotypes::new(g_test).to_json(&path.join("genetic_values_test.json"));
-        Phenotypes::new(g_train).to_json(&path.join("genetic_values_train.json"));
-        phen_train.to_json(&path.join("phen_train.json"));
-        phen_test.to_json(&path.join("phen_test.json"));
-        gen_train.to_json(&path.join("gen_train.json"));
-        gen_test.to_json(&path.join("gen_test.json"));
-    }
-
-    args.to_file(&args_path);
 }
 
 fn load_data(indir: &str) -> (Data, Option<Data>) {
