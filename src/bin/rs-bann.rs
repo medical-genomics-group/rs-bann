@@ -24,6 +24,7 @@ use rs_bann::net::{
 };
 use serde_json::to_writer;
 use statrs::statistics::Statistics;
+use std::str::FromStr;
 use std::{
     fs::{read_dir, File},
     io::{BufWriter, Write},
@@ -106,6 +107,14 @@ fn branch_r2(args: BranchR2Args) {
     wtr.flush().expect("Failed to flush csv writer");
 }
 
+fn read_model_type_from_model_args(path: &Path) -> ModelType {
+    let text = std::fs::read_to_string(&path).unwrap();
+    // Parse the string into a dynamically-typed JSON structure.
+    let json = serde_json::from_str::<serde_json::Value>(&text).unwrap();
+    ModelType::from_str(&json["model_type"].to_string())
+        .expect("Failed to parse ModelType from args.json")
+}
+
 fn predict(args: PredictArgs) {
     let mut genotypes = Genotypes::from_file(Path::new(&args.input_data))
         .expect("Failed to load genotype input data");
@@ -117,8 +126,8 @@ fn predict(args: PredictArgs) {
         .parent()
         .unwrap()
         .join("args.json");
-    let train_args = TrainNewArgs::from_file(&parent_path);
-    let model_type = train_args.model_type;
+
+    let model_type = read_model_type_from_model_args(&parent_path);
     // stdout writer in csv format
     let mut wtr = csv::Writer::from_writer(std::io::stdout());
 
