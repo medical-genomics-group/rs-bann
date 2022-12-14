@@ -5,6 +5,7 @@ from dataclasses import dataclass
 import json
 from typing import List
 from pathlib import Path
+import pandas as pd
 
 SMALL_SIZE = 10
 MEDIUM_SIZE = 12
@@ -378,6 +379,10 @@ def data_dir(wdir: str):
     return str(Path(wdir).parent)
 
 
+def parent_dir(d: str):
+    return str(Path(d).parent)
+
+
 def plot_single_branch_posterior_means(wdir: str, burn_in, branch_ix=0):
     ddir = data_dir(wdir)
     trace = load_json_trace(wdir, branch_ix)
@@ -486,6 +491,54 @@ def plot_single_branch_state(wdir: str, state_ix: int, branch_ix=0):
             axes[3, lix].set_xlabel(r"$\lambda_b$")
 
     plt.tight_layout()
+
+
+def load_genetic_values(wdir: str):
+    with open(wdir + "/genetic_values_train.json", 'r') as fin:
+        train = json.load(fin)
+    with open(wdir + "/genetic_values_test.json", 'r') as fin:
+        test = json.load(fin)
+    return train['y'], test['y']
+
+
+# def plot_perf_r2_genetic_value(wdir: str, burn_in):
+#     ddir = parent_dir(wdir)
+
+#     test_g, train_g = load_genetic_values(wdir)
+
+#     fig = plt.figure(figsize=(6, 3))
+#     fig.suptitle(wdir)
+
+#     r2_test = [r2(df.iloc[0].values, test_g)]
+
+#     ax = plt.gca()
+#     ax.set_title(r"$R^2$")
+#     ax.plot(r2_train, label="nn train")
+#     ax.plot(r2_test, label="nn test")
+#     ax.hlines(h2_train, 0, len(trace.error_precision),
+#               linestyle="dashed", color="#35063e", label="h2 train")
+#     ax.hlines(h2_test, 0, len(trace.error_precision),
+#               linestyle="dashdot", color="#35063e", label="h2 test")
+#     ax.hlines(
+#         ridge_r2_train,
+#         0,
+#         len(trace.error_precision),
+#         color="gray",
+#         linestyle="dashed",
+#         label="ridge train"
+#     )
+#     ax.hlines(
+#         ridge_r2_test,
+#         0,
+#         len(trace.error_precision),
+#         color="gray",
+#         linestyle="dotted",
+#         label="ridge test"
+#     )
+#     ax.legend()
+#     ax.set_ylim(0.0, 1.0)
+
+#     plt.tight_layout()
 
 
 def plot_perf_r2(wdir: str, burn_in):
