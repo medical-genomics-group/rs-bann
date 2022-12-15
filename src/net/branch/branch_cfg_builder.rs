@@ -17,6 +17,7 @@ pub struct BranchCfgBuilder {
     num_params: usize,
     num_weights: usize,
     num_markers: usize,
+    summary_layer_width: usize,
     layer_widths: Vec<usize>,
     num_layers: usize,
     output_param_variance: f32,
@@ -39,6 +40,7 @@ impl BranchCfgBuilder {
             num_params: 0,
             num_weights: 0,
             num_markers: 0,
+            summary_layer_width: 1,
             // this does not contain the input layer width
             layer_widths: vec![],
             num_layers: MIN_NUM_LAYERS,
@@ -105,6 +107,11 @@ impl BranchCfgBuilder {
 
     pub fn with_init_gamma_params(mut self, shape: f32, scale: f32) -> Self {
         self.init_gamma_params = Some(GammaParams { shape, scale });
+        self
+    }
+
+    pub fn with_summary_layer_width(mut self, layer_width: usize) -> Self {
+        self.summary_layer_width = layer_width;
         self
     }
 
@@ -238,15 +245,16 @@ impl BranchCfgBuilder {
     }
 
     fn finalize_num_params(&mut self) {
-        // summary layer weights + bias
-        self.num_params += self.last_layer_before_summary_width() + 1;
-        self.num_weights += self.last_layer_before_summary_width();
-        // output layer weight
-        self.num_weights += 1;
-        self.num_params += 1;
+        // summary layer weights + biases
+        self.num_params += (self.last_layer_before_summary_width() + 1) * self.summary_layer_width;
+        self.num_weights += self.last_layer_before_summary_width() * self.summary_layer_width;
+        // output layer weights
+        self.num_weights += self.summary_layer_width;
+        self.num_params += self.summary_layer_width;
 
-        // summary and output node
-        self.layer_widths.push(1);
+        // summary layer width
+        self.layer_widths.push(self.summary_layer_width);
+        // output layer width
         self.layer_widths.push(1);
     }
 
@@ -283,9 +291,10 @@ impl BranchCfgBuilder {
             insert_ix += num_weights;
             prev_width = *width;
         }
-        // summary layer
-        let summary_layer_precision = prev_width as f32
-            / params[insert_ix..insert_ix + prev_width]
+        // summary layer is always Base
+        let num_weights = prev_width * self.summary_layer_width;
+        let summary_layer_precision = num_weights as f32
+            / params[insert_ix..insert_ix + num_weights]
                 .iter()
                 .map(|e| e * e)
                 .sum::<f32>();

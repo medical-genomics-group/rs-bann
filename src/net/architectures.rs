@@ -13,7 +13,8 @@ use std::marker::PhantomData;
 pub struct BlockNetCfg<B: Branch> {
     num_markers: Vec<usize>,
     depth: usize,
-    widths: Vec<usize>,
+    hidden_layer_widths: Vec<usize>,
+    summary_layer_widths: Vec<usize>,
     dense_precision_prior_hyperparams: PrecisionHyperparameters,
     summary_precision_prior_hyperparams: PrecisionHyperparameters,
     output_precision_prior_hyperparams: PrecisionHyperparameters,
@@ -36,7 +37,8 @@ impl<B: Branch> BlockNetCfg<B> {
             // TODO: rename! this is not network depth, but the number
             // of hidden layers in a single branch, i.e. depth -2
             depth: 0,
-            widths: vec![],
+            hidden_layer_widths: vec![],
+            summary_layer_widths: vec![],
             dense_precision_prior_hyperparams: PrecisionHyperparameters::default(),
             summary_precision_prior_hyperparams: PrecisionHyperparameters::default(),
             output_precision_prior_hyperparams: PrecisionHyperparameters::default(),
@@ -47,9 +49,15 @@ impl<B: Branch> BlockNetCfg<B> {
         }
     }
 
-    pub fn add_branch(&mut self, num_markers: usize, width: usize) {
+    pub fn add_branch(
+        &mut self,
+        num_markers: usize,
+        hidden_layer_width: usize,
+        summary_layer_width: usize,
+    ) {
         self.num_markers.push(num_markers);
-        self.widths.push(width);
+        self.hidden_layer_widths.push(hidden_layer_width);
+        self.summary_layer_widths.push(summary_layer_width);
     }
 
     pub fn with_depth(mut self, depth: usize) -> Self {
@@ -98,20 +106,22 @@ impl<B: Branch> BlockNetCfg<B> {
 
     pub fn build_net(&self) -> Net<B> {
         let mut branch_cfgs: Vec<BranchCfg> = Vec::new();
-        let num_branches = self.widths.len();
+        let num_branches = self.hidden_layer_widths.len();
         for branch_ix in 0..num_branches {
             let mut cfg_bld =
                 if let (Some(k), Some(s)) = (self.init_gamma_shape, self.init_gamma_scale) {
                     BranchCfgBuilder::new()
                         .with_num_markers(self.num_markers[branch_ix])
                         .with_init_gamma_params(k, s)
+                        .with_summary_layer_width(self.summary_layer_widths[branch_ix])
                 } else {
                     BranchCfgBuilder::new()
                         .with_num_markers(self.num_markers[branch_ix])
                         .with_init_param_variance(self.init_param_variance)
+                        .with_summary_layer_width(self.summary_layer_widths[branch_ix])
                 };
             for _ in 0..self.depth {
-                cfg_bld.add_hidden_layer(self.widths[branch_ix]);
+                cfg_bld.add_hidden_layer(self.hidden_layer_widths[branch_ix]);
             }
             branch_cfgs.push(B::build_cfg(cfg_bld));
         }
@@ -142,10 +152,10 @@ mod tests {
     #[test]
     fn test_block_net_architecture_num_params_in_branch() {
         let mut cfg = BlockNetCfg::<BaseBranch>::new().with_depth(1);
-        cfg.add_branch(3, 3);
-        cfg.add_branch(3, 3);
+        cfg.add_branch(3, 3, 1);
+        cfg.add_branch(3, 3, 2);
         let net = cfg.build_net();
         assert_eq!(net.branch_cfg(0).num_params, 17);
-        assert_eq!(net.branch_cfg(1).num_params, 17);
+        assert_eq!(net.branch_cfg(1).num_params, 22);
     }
 }

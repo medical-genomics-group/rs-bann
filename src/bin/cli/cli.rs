@@ -138,6 +138,10 @@ pub(crate) struct SimulateXYArgs {
     /// number of hidden layers in branches
     pub branch_depth: usize,
 
+    /// width of summary layer. By default equal to hidden layer width
+    #[clap(long)]
+    pub summary_layer_width: Option<usize>,
+
     /// variance of network params upon initialization
     #[clap(long, default_value_t = 1.0)]
     pub init_param_variance: f32,
@@ -262,7 +266,7 @@ pub(crate) struct TrainNewArgs {
     #[clap(short, long, default_value = "./")]
     pub indir: String,
 
-    /// width of hidden layer
+    /// width of hidden layers
     pub hidden_layer_width: usize,
 
     /// number of hidden layers in branches
@@ -348,6 +352,10 @@ pub(crate) struct TrainNewArgs {
     /// CAUTION: this does only lead to point estimates for all parameters
     #[clap(long)]
     pub gradient_descent: bool,
+
+    /// width of summary layer. By default equal to hidden layer width
+    #[clap(long)]
+    pub summary_layer_width: Option<usize>,
 
     /// Set error precision of model before training.
     #[clap(long)]

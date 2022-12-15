@@ -230,7 +230,7 @@ where
 
     // width is fixed to half the number of input nodes
     for size in grouping.group_sizes() {
-        net_cfg.add_branch(size, size / 2);
+        net_cfg.add_branch(size, size / 2, size / 2);
     }
     let net = net_cfg.build_net();
 
@@ -324,10 +324,11 @@ where
     }
 
     let mut path = Path::new(&args.outdir).join(format!(
-        "{}_b{}_w{}_d{}_m{}_n{}_h{}_v{}",
+        "{}_b{}_wh{}_ws{}_d{}_m{}_n{}_h{}_v{}",
         args.model_type,
         args.num_branches,
         args.hidden_layer_width,
+        args.summary_layer_width.unwrap_or(args.hidden_layer_width),
         args.branch_depth,
         args.num_markers_per_branch,
         args.num_individuals,
@@ -337,10 +338,11 @@ where
 
     if let (Some(k), Some(s)) = (args.init_gamma_shape, args.init_gamma_scale) {
         path = Path::new(&args.outdir).join(format!(
-            "{}_b{}_w{}_d{}_m{}_n{}_h{}_k{}_s{}",
+            "{}_b{}_wh{}_ws{}_d{}_m{}_n{}_h{}_k{}_s{}",
             args.model_type,
             args.num_branches,
             args.hidden_layer_width,
+            args.summary_layer_width.unwrap_or(args.hidden_layer_width),
             args.branch_depth,
             args.num_markers_per_branch,
             args.num_individuals,
@@ -378,7 +380,11 @@ where
                 .with_init_param_variance(args.init_param_variance)
         };
         for _ in 0..args.num_branches {
-            net_cfg.add_branch(args.num_markers_per_branch, args.hidden_layer_width);
+            net_cfg.add_branch(
+                args.num_markers_per_branch,
+                args.hidden_layer_width,
+                args.summary_layer_width.unwrap_or(args.hidden_layer_width),
+            );
         }
         let net = net_cfg.build_net();
 
@@ -599,6 +605,7 @@ fn train_new(args: TrainNewArgs) {
                 net_cfg.add_branch(
                     train_data.num_markers_in_branch(bix),
                     args.hidden_layer_width,
+                    args.summary_layer_width.unwrap_or(args.hidden_layer_width),
                 );
             }
             let mut net = net_cfg.build_net();
@@ -629,6 +636,7 @@ fn train_new(args: TrainNewArgs) {
                 net_cfg.add_branch(
                     train_data.num_markers_in_branch(bix),
                     args.hidden_layer_width,
+                    args.summary_layer_width.unwrap_or(args.hidden_layer_width),
                 );
             }
             let mut net = net_cfg.build_net();
@@ -654,6 +662,7 @@ fn train_new(args: TrainNewArgs) {
                 net_cfg.add_branch(
                     train_data.num_markers_in_branch(bix),
                     args.hidden_layer_width,
+                    args.summary_layer_width.unwrap_or(args.hidden_layer_width),
                 );
             }
             let mut net = net_cfg.build_net();

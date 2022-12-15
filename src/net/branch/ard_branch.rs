@@ -164,7 +164,7 @@ impl Branch for ArdBranch {
                 ))
                 .0;
         }
-        // summary layer
+        // summary layer (is always Base)
         log_density -= 0.5
             * arrayfire::sum_all(
                 &(self.weight_precisions(self.summary_layer_index())
