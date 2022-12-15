@@ -219,6 +219,11 @@ impl<B: Branch> Net<B> {
             trace_file.as_mut().unwrap().write_all(b"\n").unwrap();
         }
 
+        // save initial model if no burn in
+        if mcmc_cfg.burn_in == 0 {
+            self.save_model(0, mcmc_cfg);
+        }
+
         for chain_ix in 1..=mcmc_cfg.chain_length {
             // sample ouput bias term
             // output bias is 0 upon initialization.
@@ -302,8 +307,8 @@ impl<B: Branch> Net<B> {
             );
 
             // save current model if done with burn in
-            if chain_ix > mcmc_cfg.burn_in {
-                let model_ix = chain_ix - mcmc_cfg.burn_in;
+            if chain_ix >= mcmc_cfg.burn_in {
+                let model_ix = chain_ix;
                 self.save_model(model_ix, mcmc_cfg);
             }
 
