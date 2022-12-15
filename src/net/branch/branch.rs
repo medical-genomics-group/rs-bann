@@ -315,17 +315,19 @@ pub trait Branch {
 
         // TODO: factor of 2 might be necessary here?
         let mut error = activation - y_train;
-        weights_gradient.push(arrayfire::dot(
-            &error,
+
+        weights_gradient.push(arrayfire::matmul(
             &activations[self.num_layers() - 2],
-            MatProp::NONE,
+            &error,
+            MatProp::TRANS,
             MatProp::NONE,
         ));
+
         error = matmul(
             &error,
             self.weights(self.num_layers() - 1),
             MatProp::NONE,
-            MatProp::NONE,
+            MatProp::TRANS,
         );
 
         for layer_index in (1..self.num_layers() - 1).rev() {
