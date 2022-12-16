@@ -146,12 +146,12 @@ impl<B: Branch> BlockNetCfg<B> {
 
 #[cfg(test)]
 mod tests {
-    use super::super::branch::base_branch::BaseBranch;
+    use super::super::branch::ridge_base::RidgeBaseBranch;
     use super::BlockNetCfg;
 
     #[test]
     fn test_block_net_architecture_num_params_in_branch() {
-        let mut cfg = BlockNetCfg::<BaseBranch>::new().with_depth(1);
+        let mut cfg = BlockNetCfg::<RidgeBaseBranch>::new().with_depth(1);
         cfg.add_branch(3, 3, 1);
         cfg.add_branch(3, 3, 2);
         let net = cfg.build_net();

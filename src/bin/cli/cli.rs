@@ -1,6 +1,6 @@
 use clap::{Args, Parser, Subcommand};
 use log::info;
-use rs_bann::net::{mcmc_cfg::StepSizeMode, net::ModelType};
+use rs_bann::net::{mcmc_cfg::StepSizeMode, model_type::ModelType};
 use serde::{Deserialize, Serialize};
 use serde_json::to_writer_pretty;
 use std::{fs::File, io::BufReader, path::Path};

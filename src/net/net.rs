@@ -1,8 +1,9 @@
+use super::model_type::ModelType;
 use super::{
     branch::branch::{Branch, BranchCfg, HMCStepResult},
     data::{Data, Genotypes},
     gibbs_steps::{
-        multi_param_precision_posterior, multi_param_precision_posterior_host,
+        multi_param_precision_posterior_host, ridge_multi_param_precision_posterior,
         single_param_precision_posterior,
     },
     mcmc_cfg::MCMCCfg,
@@ -19,27 +20,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::to_writer;
 use std::path::Path;
 use std::{
-    fmt::{Display, Formatter},
     fs::{create_dir_all, File},
     io::{BufReader, BufWriter, Write},
     marker::PhantomData,
 };
-use strum_macros::EnumString;
-
-#[derive(clap::ValueEnum, Clone, Debug, Serialize, Deserialize, EnumString)]
-pub enum ModelType {
-    ARD,
-    Base,
-    StdNormal,
-}
-
-impl Display for ModelType {
-    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-        write!(f, "{:?}", self)
-        // or, alternatively:
-        // fmt::Debug::fmt(self, f)
-    }
-}
 
 #[derive(Serialize, Deserialize)]
 pub struct OutputBias {
@@ -72,7 +56,7 @@ impl OutputBias {
         rng: &mut ThreadRng,
     ) {
         self.error_precision =
-            multi_param_precision_posterior(prior_shape, prior_scale, residual, rng);
+            ridge_multi_param_precision_posterior(prior_shape, prior_scale, residual, rng);
     }
 
     fn af_bias(&self) -> Array<f32> {
@@ -192,7 +176,7 @@ impl<B: Branch> Net<B> {
 
         // // initial error precision
         // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        self.error_precision = multi_param_precision_posterior(
+        self.error_precision = ridge_multi_param_precision_posterior(
             self.hyperparams.output_layer_prior_shape(),
             self.hyperparams.output_layer_prior_scale(),
             &residual,
@@ -299,7 +283,7 @@ impl<B: Branch> Net<B> {
 
             // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             // update error precision
-            self.error_precision = multi_param_precision_posterior(
+            self.error_precision = ridge_multi_param_precision_posterior(
                 self.hyperparams.output_layer_prior_shape(),
                 self.hyperparams.output_layer_prior_scale(),
                 &residual,
@@ -416,7 +400,7 @@ impl<B: Branch> Net<B> {
         let y_test_arr = Array::new(data.y(), dim4!(data.num_individuals() as u64, 1, 1, 1));
         let y_hat = self.predict_device(data.x(), data.num_individuals());
         let residual = y_test_arr - y_hat;
-        super::gibbs_steps::sum_of_squares(&residual)
+        super::af_helpers::l2_norm(&residual)
     }
 
     pub fn mse(&self, data: &Data) -> f32 {

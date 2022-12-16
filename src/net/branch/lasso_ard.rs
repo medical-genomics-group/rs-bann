@@ -1,18 +1,19 @@
 use super::{
-    super::gibbs_steps::multi_param_precision_posterior,
-    super::net::ModelType,
+    super::af_helpers::sign,
+    super::gibbs_steps::lasso_multi_param_precision_posterior,
+    super::model_type::ModelType,
     super::params::{BranchParams, BranchPrecisions},
     branch::{Branch, BranchCfg, BranchLogDensityGradient},
     branch_cfg_builder::BranchCfgBuilder,
     step_sizes::StepSizes,
 };
 use crate::{net::params::NetworkPrecisionHyperparameters, to_host};
-use arrayfire::{dim4, matmul, sqrt, sum, sum_all, tile, Array, MatProp};
+use arrayfire::{abs, dim4, matmul, sqrt, sum, sum_all, tile, Array, MatProp};
 use rand::prelude::ThreadRng;
 use rand::thread_rng;
 use rand_distr::{Distribution, Gamma};
 
-pub struct ArdBranch {
+pub struct LassoArdBranch {
     pub(crate) num_params: usize,
     pub(crate) num_weights: usize,
     pub(crate) num_markers: usize,
@@ -25,7 +26,7 @@ pub struct ArdBranch {
 
 // Weights in this branch are grouped by the node they
 // are going out of.
-impl Branch for ArdBranch {
+impl Branch for LassoArdBranch {
     fn model_type() -> ModelType {
         ModelType::ARD
     }
@@ -155,37 +156,30 @@ impl Branch for ArdBranch {
         let mut log_density: f32 = -0.5 * precisions.error_precision * rss;
 
         for i in 0..self.summary_layer_index() {
-            log_density -= 0.5
-                * sum_all(&matmul(
-                    &(params.weights(i) * params.weights(i)),
-                    self.weight_precisions(i),
-                    MatProp::TRANS,
-                    MatProp::NONE,
-                ))
-                .0;
+            log_density -= sum_all(&matmul(
+                &(abs(params.weights(i))),
+                self.weight_precisions(i),
+                MatProp::TRANS,
+                MatProp::NONE,
+            ))
+            .0;
         }
         // summary layer (is always Base)
-        log_density -= 0.5
-            * arrayfire::sum_all(
-                &(self.weight_precisions(self.summary_layer_index())
-                    * &(params.weights(self.summary_layer_index())
-                        * params.weights(self.summary_layer_index()))),
-            )
-            .0;
+        log_density -= sum_all(
+            &(self.weight_precisions(self.summary_layer_index())
+                * &(abs(params.weights(self.summary_layer_index())))),
+        )
+        .0;
 
         // output layer
-        log_density -= 0.5
-            * arrayfire::sum_all(
-                &(self.weight_precisions(self.output_layer_index())
-                    * &(params.weights(self.output_layer_index())
-                        * params.weights(self.output_layer_index()))),
-            )
-            .0;
+        log_density -= sum_all(
+            &(self.weight_precisions(self.output_layer_index())
+                * &(abs(params.weights(self.output_layer_index())))),
+        )
+        .0;
 
         for i in 0..self.num_layers() - 1 {
-            log_density -= precisions.bias_precisions[i]
-                * 0.5
-                * sum_all(&(params.biases(i) * params.biases(i))).0;
+            log_density -= precisions.bias_precisions[i] * sum_all(&(abs(params.biases(i)))).0;
         }
         log_density
     }
@@ -207,13 +201,13 @@ impl Branch for ArdBranch {
 
             ldg_wrt_weights.push(
                 -(self.error_precision() * &d_rss_wrt_weights[layer_index]
-                    + prec_m * self.weights(layer_index)),
+                    + prec_m * sign(self.weights(layer_index))),
             );
         }
 
         for layer_index in 0..self.num_layers - 1 {
             ldg_wrt_biases.push(
-                -self.bias_precision(layer_index) * self.biases(layer_index)
+                -self.bias_precision(layer_index) * sign(self.biases(layer_index))
                     - self.error_precision() * &d_rss_wrt_biases[layer_index],
             );
         }
@@ -232,22 +226,19 @@ impl Branch for ArdBranch {
         // influence of the hyperparameters.
         for i in 0..self.num_layers() - 2 {
             let param_group_size = self.layer_width(i) as f32;
-            let posterior_shape = param_group_size / 2. + hyperparams.dense_layer_prior_shape();
-            // compute sums of squares of all rows
+            let posterior_shape = param_group_size + hyperparams.dense_layer_prior_shape();
+            // compute l1 norm of all rows
             self.precisions.weight_precisions[i] = Array::new(
-                &to_host(&sum(
-                    &(&self.params.weights[i] * &self.params.weights[i]),
-                    1,
-                ))
-                .iter()
-                .map(|sum_squares| {
-                    let posterior_scale = 2. * hyperparams.dense_layer_prior_scale()
-                        / (2. + hyperparams.dense_layer_prior_scale() * sum_squares);
-                    Gamma::new(posterior_shape, posterior_scale)
-                        .unwrap()
-                        .sample(self.rng())
-                })
-                .collect::<Vec<f32>>(),
+                &to_host(&sum(&abs(&self.params.weights[i]), 1))
+                    .iter()
+                    .map(|l1_norm| {
+                        let posterior_scale = hyperparams.dense_layer_prior_scale()
+                            / (1. + hyperparams.dense_layer_prior_scale() * l1_norm);
+                        Gamma::new(posterior_shape, posterior_scale)
+                            .unwrap()
+                            .sample(self.rng())
+                    })
+                    .collect::<Vec<f32>>(),
                 self.precisions.weight_precisions[i].dims(),
             );
         }
@@ -255,7 +246,7 @@ impl Branch for ArdBranch {
         // output precision is sampled jointly for all branches, not here
 
         for i in 0..self.num_layers() - 2 {
-            self.precisions.bias_precisions[i] = multi_param_precision_posterior(
+            self.precisions.bias_precisions[i] = lasso_multi_param_precision_posterior(
                 hyperparams.dense_layer_prior_shape(),
                 hyperparams.dense_layer_prior_scale(),
                 &self.params.biases[i],
@@ -266,7 +257,7 @@ impl Branch for ArdBranch {
         // sample summary layer weights in base manner
         let summary_layer_index = self.summary_layer_index();
         self.precisions.weight_precisions[summary_layer_index] = Array::new(
-            &[multi_param_precision_posterior(
+            &[lasso_multi_param_precision_posterior(
                 hyperparams.summary_layer_prior_shape(),
                 hyperparams.summary_layer_prior_scale(),
                 &self.params.weights[summary_layer_index],
@@ -276,12 +267,13 @@ impl Branch for ArdBranch {
         );
 
         // sample summary layer biases with summary layer hyperparams
-        self.precisions.bias_precisions[summary_layer_index] = multi_param_precision_posterior(
-            hyperparams.summary_layer_prior_shape(),
-            hyperparams.summary_layer_prior_scale(),
-            &self.params.biases[summary_layer_index],
-            &mut self.rng,
-        );
+        self.precisions.bias_precisions[summary_layer_index] =
+            lasso_multi_param_precision_posterior(
+                hyperparams.summary_layer_prior_shape(),
+                hyperparams.summary_layer_prior_scale(),
+                &self.params.biases[summary_layer_index],
+                &mut self.rng,
+            );
     }
 }
 
@@ -292,7 +284,7 @@ mod tests {
     // use arrayfire::{af_print, randu};
 
     use super::super::{branch::Branch, branch_builder::BranchBuilder};
-    use super::ArdBranch;
+    use super::LassoArdBranch;
 
     use crate::net::branch::momenta::BranchMomenta;
     use crate::net::params::BranchParams;
@@ -303,6 +295,19 @@ mod tests {
         for (ai, bi) in a.iter().zip(b.iter()) {
             assert_approx_eq!(ai, bi, tol);
         }
+    }
+
+    #[test]
+    fn test_af_sign() {
+        let a = Array::new(&[0f32, 2f32, -2f32], dim4![3, 1, 1, 1]);
+
+        let neg = arrayfire::sign(&a);
+        let pos = arrayfire::gt(&a, &0f32, false);
+        let a_dims = a.dims().get().clone();
+        let sign =
+            arrayfire::constant!(0f32; a_dims[0], a_dims[1], a_dims[2], a_dims[3]) - neg + pos;
+
+        assert_eq!(to_host(&sign), vec![0f32, 1f32, -1f32]);
     }
 
     // #[test]
@@ -329,7 +334,7 @@ mod tests {
         assert!(to_host(&a) != vec![0., 1., 3., 0., 1., 3.]);
     }
 
-    fn make_test_branch() -> ArdBranch {
+    fn make_test_branch() -> LassoArdBranch {
         let exp_weights = [
             Array::new(&[0., 1., 2., 3., 4., 5.], dim4![3, 2, 1, 1]),
             Array::new(&[1., 2.], dim4![2, 1, 1, 1]),
@@ -348,7 +353,7 @@ mod tests {
             .add_summary_weights(&exp_weights[1])
             .add_summary_bias(&exp_biases[1])
             .add_output_weight(&exp_weights[2])
-            .build_ard()
+            .build_lasso_ard()
     }
 
     fn make_test_uniform_params(c: f32) -> BranchParams {

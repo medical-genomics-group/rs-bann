@@ -1,6 +1,6 @@
 use super::{
-    super::gibbs_steps::multi_param_precision_posterior,
-    super::net::ModelType,
+    super::gibbs_steps::ridge_multi_param_precision_posterior,
+    super::model_type::ModelType,
     super::params::{BranchParams, BranchPrecisions},
     branch::{Branch, BranchCfg, BranchLogDensityGradient},
     branch_cfg_builder::BranchCfgBuilder,
@@ -11,7 +11,7 @@ use arrayfire::{dim4, sqrt, Array};
 use rand::prelude::ThreadRng;
 use rand::thread_rng;
 
-pub struct BaseBranch {
+pub struct RidgeBaseBranch {
     pub(crate) num_params: usize,
     pub(crate) num_weights: usize,
     pub(crate) params: BranchParams,
@@ -22,7 +22,7 @@ pub struct BaseBranch {
     pub(crate) rng: ThreadRng,
 }
 
-impl Branch for BaseBranch {
+impl Branch for RidgeBaseBranch {
     fn model_type() -> ModelType {
         ModelType::Base
     }
@@ -211,7 +211,7 @@ impl Branch for BaseBranch {
         // output precision is sampled jointly for all branches
         for i in 0..self.num_layers() - 2 {
             self.precisions.weight_precisions[i] = Array::new(
-                &[multi_param_precision_posterior(
+                &[ridge_multi_param_precision_posterior(
                     hyperparams.dense_layer_prior_shape(),
                     hyperparams.dense_layer_prior_scale(),
                     &self.params.weights[i],
@@ -221,7 +221,7 @@ impl Branch for BaseBranch {
             );
         }
         for i in 0..self.num_layers() - 2 {
-            self.precisions.bias_precisions[i] = multi_param_precision_posterior(
+            self.precisions.bias_precisions[i] = ridge_multi_param_precision_posterior(
                 hyperparams.dense_layer_prior_shape(),
                 hyperparams.dense_layer_prior_scale(),
                 &self.params.biases[i],
@@ -232,7 +232,7 @@ impl Branch for BaseBranch {
         // sample summary layer weights in base manner
         let summary_layer_index = self.summary_layer_index();
         self.precisions.weight_precisions[summary_layer_index] = Array::new(
-            &[multi_param_precision_posterior(
+            &[ridge_multi_param_precision_posterior(
                 hyperparams.summary_layer_prior_shape(),
                 hyperparams.summary_layer_prior_scale(),
                 &self.params.weights[summary_layer_index],
@@ -242,12 +242,13 @@ impl Branch for BaseBranch {
         );
 
         // sample summary layer biases with summary layer hyperparams
-        self.precisions.bias_precisions[summary_layer_index] = multi_param_precision_posterior(
-            hyperparams.summary_layer_prior_shape(),
-            hyperparams.summary_layer_prior_scale(),
-            &self.params.biases[summary_layer_index],
-            &mut self.rng,
-        );
+        self.precisions.bias_precisions[summary_layer_index] =
+            ridge_multi_param_precision_posterior(
+                hyperparams.summary_layer_prior_shape(),
+                hyperparams.summary_layer_prior_scale(),
+                &self.params.biases[summary_layer_index],
+                &mut self.rng,
+            );
     }
 }
 
@@ -257,7 +258,7 @@ mod tests {
     // use arrayfire::{af_print, randu};
 
     use super::super::{branch::Branch, branch_builder::BranchBuilder};
-    use super::BaseBranch;
+    use super::RidgeBaseBranch;
 
     use crate::net::branch::momenta::BranchMomenta;
     use crate::net::params::BranchParams;
@@ -272,7 +273,7 @@ mod tests {
     //     af_print!("Create a 5-by-3 matrix of random floats on the GPU", a);
     // }
 
-    fn make_test_branch() -> BaseBranch {
+    fn make_test_branch() -> RidgeBaseBranch {
         let exp_weights = [
             Array::new(&[0., 1., 2., 3., 4., 5.], dim4![3, 2, 1, 1]),
             Array::new(&[1., 2.], dim4![2, 1, 1, 1]),
@@ -291,7 +292,7 @@ mod tests {
             .add_summary_weights(&exp_weights[1])
             .add_summary_bias(&exp_biases[1])
             .add_output_weight(&exp_weights[2])
-            .build_base()
+            .build_ridge_base()
     }
 
     fn make_test_uniform_params(c: f32) -> BranchParams {

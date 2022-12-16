@@ -1,9 +1,11 @@
-pub mod ard_branch;
-pub mod base_branch;
 pub mod branch;
 pub mod branch_builder;
 pub mod branch_cfg_builder;
+pub mod lasso_ard;
+pub mod lasso_base;
 pub(crate) mod momenta;
+pub mod ridge_ard;
+pub mod ridge_base;
 pub mod std_normal_branch;
 pub(crate) mod step_sizes;
 pub(crate) mod trajectory;

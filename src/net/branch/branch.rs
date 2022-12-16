@@ -1,7 +1,7 @@
 use super::{
     super::{
         mcmc_cfg::{MCMCCfg, StepSizeMode},
-        net::ModelType,
+        model_type::ModelType,
         params::BranchParams,
         params::BranchPrecisions,
     },
@@ -10,7 +10,7 @@ use super::{
     step_sizes::StepSizes,
     trajectory::Trajectory,
 };
-use crate::net::gibbs_steps::multi_param_precision_posterior;
+use crate::net::gibbs_steps::ridge_multi_param_precision_posterior;
 use crate::{net::params::NetworkPrecisionHyperparameters, scalar_to_host};
 use arrayfire::{diag_extract, dim4, dot, matmul, randu, sum, tanh, Array, MatProp};
 use log::{debug, warn};
@@ -68,7 +68,7 @@ pub trait Branch {
         prior_scale: f32,
         rng: &mut ThreadRng,
     ) {
-        self.set_error_precision(multi_param_precision_posterior(
+        self.set_error_precision(ridge_multi_param_precision_posterior(
             prior_shape,
             prior_scale,
             residual,

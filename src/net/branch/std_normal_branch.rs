@@ -1,5 +1,5 @@
 use super::{
-    super::net::ModelType,
+    super::model_type::ModelType,
     super::params::{BranchParams, BranchPrecisions},
     branch::{Branch, BranchCfg, BranchLogDensityGradient},
     branch_cfg_builder::BranchCfgBuilder,

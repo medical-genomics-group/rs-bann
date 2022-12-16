@@ -14,12 +14,13 @@ use rs_bann::group::{
 use rs_bann::net::{
     architectures::BlockNetCfg,
     branch::{
-        ard_branch::ArdBranch, base_branch::BaseBranch, branch::Branch,
+        branch::Branch, ridge_ard::RidgeArdBranch, ridge_base::RidgeBaseBranch,
         std_normal_branch::StdNormalBranch,
     },
     data::{Data, Genotypes, GenotypesBuilder, PhenStats, Phenotypes},
     mcmc_cfg::MCMCCfg,
-    net::{ModelType, Net},
+    model_type::ModelType,
+    net::Net,
     train_stats::ReportCfg,
 };
 use serde_json::to_writer;
@@ -34,13 +35,13 @@ use std::{
 fn main() {
     match Cli::parse().cmd {
         SubCmd::SimulateY(args) => match args.model_type {
-            ModelType::Base => simulate_y::<BaseBranch>(args),
-            ModelType::ARD => simulate_y::<ArdBranch>(args),
+            ModelType::Base => simulate_y::<RidgeBaseBranch>(args),
+            ModelType::ARD => simulate_y::<RidgeArdBranch>(args),
             ModelType::StdNormal => simulate_y::<StdNormalBranch>(args),
         },
         SubCmd::SimulateXY(args) => match args.model_type {
-            ModelType::Base => simulate_xy::<BaseBranch>(args),
-            ModelType::ARD => simulate_xy::<ArdBranch>(args),
+            ModelType::Base => simulate_xy::<RidgeBaseBranch>(args),
+            ModelType::ARD => simulate_xy::<RidgeArdBranch>(args),
             ModelType::StdNormal => simulate_xy::<StdNormalBranch>(args),
         },
         SubCmd::TrainNew(args) => train_new(args),
@@ -98,8 +99,8 @@ fn branch_r2(args: BranchR2Args) {
 
     for path in model_files {
         let r2s = match model_type {
-            ModelType::ARD => Net::<ArdBranch>::from_file(&path).branch_r2s(&data),
-            ModelType::Base => Net::<BaseBranch>::from_file(&path).branch_r2s(&data),
+            ModelType::ARD => Net::<RidgeArdBranch>::from_file(&path).branch_r2s(&data),
+            ModelType::Base => Net::<RidgeBaseBranch>::from_file(&path).branch_r2s(&data),
             ModelType::StdNormal => Net::<StdNormalBranch>::from_file(&path).branch_r2s(&data),
         };
         wtr.write_record(r2s.iter().map(|e| e.to_string())).unwrap();
@@ -140,8 +141,8 @@ fn predict(args: PredictArgs) {
 
     for path in model_files {
         let prediction = match model_type {
-            ModelType::ARD => Net::<ArdBranch>::from_file(&path).predict(&genotypes),
-            ModelType::Base => Net::<BaseBranch>::from_file(&path).predict(&genotypes),
+            ModelType::ARD => Net::<RidgeArdBranch>::from_file(&path).predict(&genotypes),
+            ModelType::Base => Net::<RidgeBaseBranch>::from_file(&path).predict(&genotypes),
             ModelType::StdNormal => Net::<StdNormalBranch>::from_file(&path).predict(&genotypes),
         };
         wtr.write_record(prediction.iter().map(|e| e.to_string()))
@@ -595,7 +596,7 @@ fn train_new(args: TrainNewArgs) {
 
     match args.model_type {
         ModelType::Base => {
-            let mut net_cfg = BlockNetCfg::<BaseBranch>::new()
+            let mut net_cfg = BlockNetCfg::<RidgeBaseBranch>::new()
                 .with_depth(args.branch_depth)
                 .with_dense_precision_prior(args.dpk, args.dps)
                 .with_summary_precision_prior(args.spk, args.sps)
@@ -626,7 +627,7 @@ fn train_new(args: TrainNewArgs) {
             net.train(&train_data, &mcmc_cfg, true, Some(report_cfg));
         }
         ModelType::ARD => {
-            let mut net_cfg = BlockNetCfg::<ArdBranch>::new()
+            let mut net_cfg = BlockNetCfg::<RidgeArdBranch>::new()
                 .with_depth(args.branch_depth)
                 .with_dense_precision_prior(args.dpk, args.dps)
                 .with_summary_precision_prior(args.spk, args.sps)
@@ -736,7 +737,7 @@ fn train(args: TrainArgs) {
 
     match args.model_type {
         ModelType::Base => {
-            let mut net = Net::<BaseBranch>::from_file(model_path);
+            let mut net = Net::<RidgeBaseBranch>::from_file(model_path);
             if let Some(p) = args.error_precision {
                 net.set_error_precision(p);
             }
@@ -745,7 +746,7 @@ fn train(args: TrainArgs) {
             net.train(&train_data, &mcmc_cfg, true, Some(report_cfg));
         }
         ModelType::ARD => {
-            let mut net = Net::<ArdBranch>::from_file(model_path);
+            let mut net = Net::<RidgeArdBranch>::from_file(model_path);
             if let Some(p) = args.error_precision {
                 net.set_error_precision(p);
             }
