@@ -6,6 +6,7 @@ import json
 from typing import List
 from pathlib import Path
 import pandas as pd
+import sim
 
 SMALL_SIZE = 10
 MEDIUM_SIZE = 12
@@ -501,8 +502,10 @@ def load_genetic_values(wdir: str):
     return train['y'], test['y']
 
 
-def plot_perf_r2_genetic_value(wdir: str, burn_in):
+def plot_perf_r2_genetic_value(wdir: str, burn_in, branch_ix=0):
     ddir = parent_dir(wdir)
+    truth = load_true_params(ddir)[branch_ix]
+    num_params = truth.num_params
     train_data = Data.load_train(ddir)
     test_data = Data.load_test(ddir)
     g_train, g_test = load_genetic_values(parent_dir(wdir))
@@ -589,6 +592,10 @@ def plot_perf_r2_genetic_value(wdir: str, burn_in):
     axes[1].set_ylim(0.0, 1.0)
     axes[1].set_ylabel(r"$r^2_{\hat{y}y}$")
 
+    exp_r2 = sim.exp_r2_in_indep_sample(
+        num_params, len(g_train), h2_test, "deatwyler")
+    axes[2].axhline(exp_r2, linestyle="dotted", color='red',
+                    label=r"expected $r^2_{\hat{y}g}$")
     axes[2].plot(r2g_train)
     axes[2].plot(r2g_test)
     axes[2].set_ylabel(r"$r^{2}_{\hat{y}g}$")
