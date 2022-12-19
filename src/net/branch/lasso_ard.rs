@@ -181,6 +181,8 @@ impl Branch for LassoArdBranch {
         for i in 0..self.num_layers() - 1 {
             log_density -= precisions.bias_precisions[i] * sum_all(&(abs(params.biases(i)))).0;
         }
+        println!("ld: {:?}", log_density);
+
         log_density
     }
 
@@ -541,20 +543,20 @@ mod tests {
                 &[
                     -0.0005189283,
                     -1.0005465,
-                    -2.0000138,
-                    -3.0000000010532997,
-                    -4.00000000114826,
-                    -5.000000000000059,
+                    -1.0000138,
+                    -1.0000000010532997,
+                    -1.00000000114826,
+                    -1.000000000000059,
                 ],
                 dim4![3, 2, 1, 1],
             ),
-            Array::new(&[-1.0014552, -2.0017552], dim4![2, 1, 1, 1]),
-            Array::new(&[-5.4986963], dim4![1, 1, 1, 1]),
+            Array::new(&[-1.0014552, -1.0017552], dim4![2, 1, 1, 1]),
+            Array::new(&[-4.4986963], dim4![1, 1, 1, 1]),
         ];
 
         let exp_ldg_wrt_b = [
             Array::new(&[-0.00053271546, -1.0000000011007801], dim4![2, 1, 1, 1]),
-            Array::new(&[-2.0017552], dim4![1, 1, 1, 1]),
+            Array::new(&[-1.0017552], dim4![1, 1, 1, 1]),
         ];
 
         // correct values
