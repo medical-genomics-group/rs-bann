@@ -1,9 +1,11 @@
+//! Sampling from the precision posterior distributions.
+
 use super::af_helpers::{l1_norm, l2_norm};
 use arrayfire::Array;
 use rand::rngs::ThreadRng;
 use rand_distr::{Distribution, Gamma};
 
-pub(crate) fn single_param_precision_posterior(
+pub(crate) fn ridge_single_param_precision_posterior(
     // k
     prior_shape: f32,
     // s or theta
@@ -35,6 +37,23 @@ pub(crate) fn lasso_multi_param_precision_posterior(
         .sample(rng)
 }
 
+pub(crate) fn lasso_multi_param_precision_posterior_host(
+    // k
+    prior_shape: f32,
+    // s or theta
+    prior_scale: f32,
+    param_vals: &Vec<f32>,
+    rng: &mut ThreadRng,
+) -> f32 {
+    let num_params = param_vals.len();
+    let posterior_shape = prior_shape + num_params as f32;
+    let l1_norm: f32 = param_vals.iter().map(|e| e.abs()).sum();
+    let posterior_scale = prior_scale / (1. + prior_scale * l1_norm);
+    Gamma::new(posterior_shape, posterior_scale)
+        .unwrap()
+        .sample(rng)
+}
+
 pub(crate) fn ridge_multi_param_precision_posterior(
     // k
     prior_shape: f32,
@@ -51,7 +70,7 @@ pub(crate) fn ridge_multi_param_precision_posterior(
         .sample(rng)
 }
 
-pub(crate) fn multi_param_precision_posterior_host(
+pub(crate) fn ridge_multi_param_precision_posterior_host(
     // k
     prior_shape: f32,
     // s or theta

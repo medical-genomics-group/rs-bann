@@ -2,10 +2,7 @@ use super::model_type::ModelType;
 use super::{
     branch::branch::{Branch, BranchCfg, HMCStepResult},
     data::{Data, Genotypes},
-    gibbs_steps::{
-        multi_param_precision_posterior_host, ridge_multi_param_precision_posterior,
-        single_param_precision_posterior,
-    },
+    gibbs_steps::{ridge_multi_param_precision_posterior, ridge_single_param_precision_posterior},
     mcmc_cfg::MCMCCfg,
     params::{ModelHyperparameters, NetworkPrecisionHyperparameters},
     train_stats::{ReportCfg, TrainingStats},
@@ -45,7 +42,8 @@ impl OutputBias {
 
     /// Sample lambda_theta of the output bias
     fn sample_prior_precision(&mut self, prior_shape: f32, prior_scale: f32, rng: &mut ThreadRng) {
-        self.precision = single_param_precision_posterior(prior_shape, prior_scale, self.bias, rng);
+        self.precision =
+            ridge_single_param_precision_posterior(prior_shape, prior_scale, self.bias, rng);
     }
 
     fn sample_error_precision(
@@ -319,7 +317,7 @@ impl<B: Branch> Net<B> {
             .iter()
             .map(|cfg| cfg.output_layer_weight())
             .collect::<Vec<f32>>();
-        let precision = multi_param_precision_posterior_host(
+        let precision = B::precision_posterior_host(
             self.hyperparams.output_layer_prior_shape(),
             self.hyperparams.output_layer_prior_scale(),
             &output_layer_weights,

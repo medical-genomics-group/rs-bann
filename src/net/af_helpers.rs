@@ -1,3 +1,5 @@
+//! Useful elementary array based functions that are missing in arrayfire.
+
 use arrayfire::{Array, MatProp};
 
 pub(crate) fn l2_norm(arr: &Array<f32>) -> f32 {

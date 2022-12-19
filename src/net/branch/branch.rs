@@ -50,6 +50,15 @@ pub trait Branch {
 
     fn set_error_precision(&mut self, val: f32);
 
+    fn precision_posterior_host(
+        // k
+        prior_shape: f32,
+        // s or theta
+        prior_scale: f32,
+        param_vals: &Vec<f32>,
+        rng: &mut ThreadRng,
+    ) -> f32;
+
     fn rng(&mut self) -> &mut ThreadRng;
 
     fn sample_prior_precisions(

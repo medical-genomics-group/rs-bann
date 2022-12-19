@@ -1,5 +1,6 @@
 use super::{
-    super::gibbs_steps::ridge_multi_param_precision_posterior,
+    super::af_helpers::sign,
+    super::gibbs_steps::lasso_multi_param_precision_posterior,
     super::model_type::ModelType,
     super::params::{BranchParams, BranchPrecisions},
     branch::{Branch, BranchCfg, BranchLogDensityGradient},
@@ -7,7 +8,7 @@ use super::{
     step_sizes::StepSizes,
 };
 use crate::{net::params::NetworkPrecisionHyperparameters, scalar_to_host};
-use arrayfire::{dim4, sqrt, Array};
+use arrayfire::{abs, dim4, sqrt, sum_all, Array};
 use rand::prelude::ThreadRng;
 use rand::thread_rng;
 
@@ -165,16 +166,12 @@ impl Branch for LassoBaseBranch {
     fn log_density(&self, params: &BranchParams, precisions: &BranchPrecisions, rss: f32) -> f32 {
         let mut log_density: f32 = -0.5 * precisions.error_precision * rss;
         for i in 0..self.num_layers() {
-            log_density -= 0.5
-                * arrayfire::sum_all(
-                    &(&precisions.weight_precisions[i] * &(params.weights(i) * params.weights(i))),
-                )
-                .0;
+            log_density -=
+                sum_all(&(&precisions.weight_precisions[i] * &(abs(params.weights(i))))).0;
         }
         for i in 0..self.num_layers() - 1 {
-            log_density -= precisions.bias_precisions[i]
-                * 0.5
-                * arrayfire::sum_all(&(params.biases(i) * params.biases(i))).0;
+            log_density -=
+                precisions.bias_precisions[i] * arrayfire::sum_all(&(abs(params.biases(i)))).0;
         }
         log_density
     }
@@ -190,12 +187,12 @@ impl Branch for LassoBaseBranch {
         for layer_index in 0..self.num_layers() {
             ldg_wrt_weights.push(
                 -(self.error_precision() * &d_rss_wrt_weights[layer_index]
-                    + self.weight_precisions(layer_index) * self.weights(layer_index)),
+                    + self.weight_precisions(layer_index) * sign(self.weights(layer_index))),
             );
         }
         for layer_index in 0..self.num_layers() - 1 {
             ldg_wrt_biases.push(
-                -self.bias_precision(layer_index) * self.biases(layer_index)
+                -self.bias_precision(layer_index) * sign(self.biases(layer_index))
                     - self.error_precision() * &d_rss_wrt_biases[layer_index],
             );
         }
@@ -206,12 +203,28 @@ impl Branch for LassoBaseBranch {
         }
     }
 
-    /// Samples precision values from their posterior distribution in a Gibbs step.
+    fn precision_posterior_host(
+        // k
+        prior_shape: f32,
+        // s or theta
+        prior_scale: f32,
+        param_vals: &Vec<f32>,
+        rng: &mut ThreadRng,
+    ) -> f32 {
+        super::super::gibbs_steps::lasso_multi_param_precision_posterior_host(
+            prior_shape,
+            prior_scale,
+            param_vals,
+            rng,
+        )
+    }
+
+    /// Samples precision values of the parameters priors from the precision posterior distributions in a Gibbs step.
     fn sample_prior_precisions(&mut self, hyperparams: &NetworkPrecisionHyperparameters) {
         // output precision is sampled jointly for all branches
         for i in 0..self.num_layers() - 2 {
             self.precisions.weight_precisions[i] = Array::new(
-                &[ridge_multi_param_precision_posterior(
+                &[lasso_multi_param_precision_posterior(
                     hyperparams.dense_layer_prior_shape(),
                     hyperparams.dense_layer_prior_scale(),
                     &self.params.weights[i],
@@ -221,7 +234,7 @@ impl Branch for LassoBaseBranch {
             );
         }
         for i in 0..self.num_layers() - 2 {
-            self.precisions.bias_precisions[i] = ridge_multi_param_precision_posterior(
+            self.precisions.bias_precisions[i] = lasso_multi_param_precision_posterior(
                 hyperparams.dense_layer_prior_shape(),
                 hyperparams.dense_layer_prior_scale(),
                 &self.params.biases[i],
@@ -232,7 +245,7 @@ impl Branch for LassoBaseBranch {
         // sample summary layer weights in base manner
         let summary_layer_index = self.summary_layer_index();
         self.precisions.weight_precisions[summary_layer_index] = Array::new(
-            &[ridge_multi_param_precision_posterior(
+            &[lasso_multi_param_precision_posterior(
                 hyperparams.summary_layer_prior_shape(),
                 hyperparams.summary_layer_prior_scale(),
                 &self.params.weights[summary_layer_index],
@@ -243,7 +256,7 @@ impl Branch for LassoBaseBranch {
 
         // sample summary layer biases with summary layer hyperparams
         self.precisions.bias_precisions[summary_layer_index] =
-            ridge_multi_param_precision_posterior(
+            lasso_multi_param_precision_posterior(
                 hyperparams.summary_layer_prior_shape(),
                 hyperparams.summary_layer_prior_scale(),
                 &self.params.biases[summary_layer_index],

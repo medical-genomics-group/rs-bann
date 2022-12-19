@@ -199,6 +199,15 @@ impl Branch for StdNormalBranch {
         }
     }
 
+    fn precision_posterior_host(
+        _prior_shape: f32,
+        _prior_scale: f32,
+        _param_vals: &Vec<f32>,
+        _rng: &mut ThreadRng,
+    ) -> f32 {
+        0.0
+    }
+
     /// Samples precision values from their posterior distribution in a Gibbs step.
     fn sample_prior_precisions(&mut self, __hyperparams: &NetworkPrecisionHyperparameters) {}
 }

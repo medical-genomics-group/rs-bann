@@ -206,6 +206,22 @@ impl Branch for RidgeBaseBranch {
         }
     }
 
+    fn precision_posterior_host(
+        // k
+        prior_shape: f32,
+        // s or theta
+        prior_scale: f32,
+        param_vals: &Vec<f32>,
+        rng: &mut ThreadRng,
+    ) -> f32 {
+        super::super::gibbs_steps::lasso_multi_param_precision_posterior_host(
+            prior_shape,
+            prior_scale,
+            param_vals,
+            rng,
+        )
+    }
+
     /// Samples precision values from their posterior distribution in a Gibbs step.
     fn sample_prior_precisions(&mut self, hyperparams: &NetworkPrecisionHyperparameters) {
         // output precision is sampled jointly for all branches
