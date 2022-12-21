@@ -35,7 +35,7 @@ impl ExternalGrouping {
 
             res.groups
                 .entry(line_fields[1] as usize)
-                .or_insert(Vec::new())
+                .or_default()
                 .push(line_fields[0]);
 
             buffer.clear();

@@ -109,7 +109,7 @@ fn branch_r2(args: BranchR2Args) {
 }
 
 fn read_model_type_from_model_args(path: &Path) -> ModelType {
-    let text = std::fs::read_to_string(&path).unwrap();
+    let text = std::fs::read_to_string(path).unwrap();
     // Parse the string into a dynamically-typed JSON structure.
     let json = serde_json::from_str::<serde_json::Value>(&text).unwrap();
     ModelType::from_str(json["model_type"].as_str().unwrap()).unwrap()
@@ -464,7 +464,7 @@ where
                 .for_each(|e| *e += rv_test_dist.sample(&mut rng) as f32);
 
             // TODO: let user set minimal residual variance
-            if train_residual_variance < 0.01 || train_residual_variance < 0.01 {
+            if train_residual_variance < 0.01 || test_residual_variance < 0.01 {
                 continue;
             }
         }

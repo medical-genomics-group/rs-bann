@@ -202,7 +202,7 @@ impl Branch for StdNormalBranch {
     fn precision_posterior_host(
         _prior_shape: f32,
         _prior_scale: f32,
-        _param_vals: &Vec<f32>,
+        _param_vals: &[f32],
         _rng: &mut ThreadRng,
     ) -> f32 {
         0.0

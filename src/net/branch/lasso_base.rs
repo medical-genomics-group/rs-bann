@@ -208,7 +208,7 @@ impl Branch for LassoBaseBranch {
         prior_shape: f32,
         // s or theta
         prior_scale: f32,
-        param_vals: &Vec<f32>,
+        param_vals: &[f32],
         rng: &mut ThreadRng,
     ) -> f32 {
         super::super::gibbs_steps::lasso_multi_param_precision_posterior_host(

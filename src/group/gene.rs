@@ -68,7 +68,7 @@ impl GeneGrouping {
                     {
                         groups
                             .entry(group_id)
-                            .or_insert(Vec::new())
+                            .or_default()
                             .push(bim_entry.ix.try_into().unwrap());
                     }
                 }
@@ -84,7 +84,7 @@ impl GeneGrouping {
                         RelativePosition::Overlap => {
                             groups
                                 .entry(group_id)
-                                .or_insert(Vec::new())
+                                .or_default()
                                 .push(bim_entry.ix.try_into().unwrap());
                             // needed for next feature
                             bim_buffer.push_back(bim_entry);

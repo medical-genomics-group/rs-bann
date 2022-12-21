@@ -42,7 +42,7 @@ pub(crate) fn lasso_multi_param_precision_posterior_host(
     prior_shape: f32,
     // s or theta
     prior_scale: f32,
-    param_vals: &Vec<f32>,
+    param_vals: &[f32],
     rng: &mut ThreadRng,
 ) -> f32 {
     let num_params = param_vals.len();
@@ -75,7 +75,7 @@ pub(crate) fn ridge_multi_param_precision_posterior_host(
     prior_shape: f32,
     // s or theta
     prior_scale: f32,
-    param_vals: &Vec<f32>,
+    param_vals: &[f32],
     rng: &mut ThreadRng,
 ) -> f32 {
     let num_params = param_vals.len();

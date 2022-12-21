@@ -181,7 +181,6 @@ impl Branch for LassoArdBranch {
         for i in 0..self.num_layers() - 1 {
             log_density -= precisions.bias_precisions[i] * sum_all(&(abs(params.biases(i)))).0;
         }
-        println!("ld: {:?}", log_density);
 
         log_density
     }
@@ -225,7 +224,7 @@ impl Branch for LassoArdBranch {
         prior_shape: f32,
         // s or theta
         prior_scale: f32,
-        param_vals: &Vec<f32>,
+        param_vals: &[f32],
         rng: &mut ThreadRng,
     ) -> f32 {
         super::super::gibbs_steps::lasso_multi_param_precision_posterior_host(
@@ -321,7 +320,7 @@ mod tests {
 
         let neg = arrayfire::sign(&a);
         let pos = arrayfire::gt(&a, &0f32, false);
-        let a_dims = a.dims().get().clone();
+        let a_dims = *a.dims().get();
         let sign =
             arrayfire::constant!(0f32; a_dims[0], a_dims[1], a_dims[2], a_dims[3]) - neg + pos;
 
@@ -595,22 +594,24 @@ mod tests {
         let exp_ldg_wrt_w = [
             Array::new(
                 &[
-                    -0.0005189283,
+                    // here the first entry is also -1, because of the sharp transition of the gradient between theta=0 and theta != 1
+                    // in the regularization term
+                    -1.0005189,
                     -1.0005465,
-                    -2.0000138,
-                    -3.0000000010532997,
-                    -4.00000000114826,
-                    -5.000000000000059,
+                    -1.0000138,
+                    -1.0000000010532997,
+                    -1.00000000114826,
+                    -1.000000000000059,
                 ],
                 dim4![3, 2, 1, 1],
             ),
-            Array::new(&[-1.0014552, -2.0017552], dim4![2, 1, 1, 1]),
-            Array::new(&[-5.4986963], dim4![1, 1, 1, 1]),
+            Array::new(&[-1.0014552, -1.0017552], dim4![2, 1, 1, 1]),
+            Array::new(&[-4.4986963], dim4![1, 1, 1, 1]),
         ];
 
         let exp_ldg_wrt_b = [
-            Array::new(&[-0.00053271546, -1.0000000011007801], dim4![2, 1, 1, 1]),
-            Array::new(&[-2.0017552], dim4![1, 1, 1, 1]),
+            Array::new(&[-1.0005327, -1.0000000011007801], dim4![2, 1, 1, 1]),
+            Array::new(&[-1.0017552], dim4![1, 1, 1, 1]),
         ];
 
         // correct values
