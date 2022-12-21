@@ -28,7 +28,7 @@ pub struct LassoArdBranch {
 // are going out of.
 impl Branch for LassoArdBranch {
     fn model_type() -> ModelType {
-        ModelType::ARD
+        ModelType::LassoARD
     }
 
     fn build_cfg(cfg_bld: BranchCfgBuilder) -> BranchCfg {

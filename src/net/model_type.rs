@@ -4,8 +4,10 @@ use strum_macros::EnumString;
 
 #[derive(clap::ValueEnum, Clone, Debug, Serialize, Deserialize, EnumString)]
 pub enum ModelType {
-    ARD,
-    Base,
+    RidgeARD,
+    RidgeBase,
+    LassoARD,
+    LassoBase,
     StdNormal,
 }
 

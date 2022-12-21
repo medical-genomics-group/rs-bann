@@ -14,8 +14,8 @@ use rs_bann::group::{
 use rs_bann::net::{
     architectures::BlockNetCfg,
     branch::{
-        branch::Branch, ridge_ard::RidgeArdBranch, ridge_base::RidgeBaseBranch,
-        std_normal_branch::StdNormalBranch,
+        branch::Branch, lasso_ard::LassoArdBranch, lasso_base::LassoBaseBranch,
+        ridge_ard::RidgeArdBranch, ridge_base::RidgeBaseBranch, std_normal_branch::StdNormalBranch,
     },
     data::{Data, Genotypes, GenotypesBuilder, PhenStats, Phenotypes},
     mcmc_cfg::MCMCCfg,
@@ -35,17 +35,33 @@ use std::{
 fn main() {
     match Cli::parse().cmd {
         SubCmd::SimulateY(args) => match args.model_type {
-            ModelType::Base => simulate_y::<RidgeBaseBranch>(args),
-            ModelType::ARD => simulate_y::<RidgeArdBranch>(args),
+            ModelType::LassoBase => simulate_y::<LassoBaseBranch>(args),
+            ModelType::LassoARD => simulate_y::<LassoArdBranch>(args),
+            ModelType::RidgeBase => simulate_y::<RidgeBaseBranch>(args),
+            ModelType::RidgeARD => simulate_y::<RidgeArdBranch>(args),
             ModelType::StdNormal => simulate_y::<StdNormalBranch>(args),
         },
         SubCmd::SimulateXY(args) => match args.model_type {
-            ModelType::Base => simulate_xy::<RidgeBaseBranch>(args),
-            ModelType::ARD => simulate_xy::<RidgeArdBranch>(args),
+            ModelType::LassoBase => simulate_xy::<LassoBaseBranch>(args),
+            ModelType::LassoARD => simulate_xy::<LassoArdBranch>(args),
+            ModelType::RidgeBase => simulate_xy::<RidgeBaseBranch>(args),
+            ModelType::RidgeARD => simulate_xy::<RidgeArdBranch>(args),
             ModelType::StdNormal => simulate_xy::<StdNormalBranch>(args),
         },
-        SubCmd::TrainNew(args) => train_new(args),
-        SubCmd::Train(args) => train(args),
+        SubCmd::TrainNew(args) => match args.model_type {
+            ModelType::LassoBase => train_new::<LassoBaseBranch>(args),
+            ModelType::LassoARD => train_new::<LassoArdBranch>(args),
+            ModelType::RidgeBase => train_new::<RidgeBaseBranch>(args),
+            ModelType::RidgeARD => train_new::<RidgeArdBranch>(args),
+            ModelType::StdNormal => train_new::<StdNormalBranch>(args),
+        },
+        SubCmd::Train(args) => match args.model_type {
+            ModelType::LassoBase => train::<LassoBaseBranch>(args),
+            ModelType::LassoARD => train::<LassoArdBranch>(args),
+            ModelType::RidgeBase => train::<RidgeBaseBranch>(args),
+            ModelType::RidgeARD => train::<RidgeArdBranch>(args),
+            ModelType::StdNormal => train::<StdNormalBranch>(args),
+        },
         SubCmd::GroupByLD(args) => group_centered(args),
         SubCmd::Predict(args) => predict(args),
         SubCmd::BranchR2(args) => branch_r2(args),
@@ -99,8 +115,10 @@ fn branch_r2(args: BranchR2Args) {
 
     for path in model_files {
         let r2s = match model_type {
-            ModelType::ARD => Net::<RidgeArdBranch>::from_file(&path).branch_r2s(&data),
-            ModelType::Base => Net::<RidgeBaseBranch>::from_file(&path).branch_r2s(&data),
+            ModelType::RidgeARD => Net::<RidgeArdBranch>::from_file(&path).branch_r2s(&data),
+            ModelType::LassoARD => Net::<LassoArdBranch>::from_file(&path).branch_r2s(&data),
+            ModelType::RidgeBase => Net::<RidgeBaseBranch>::from_file(&path).branch_r2s(&data),
+            ModelType::LassoBase => Net::<LassoBaseBranch>::from_file(&path).branch_r2s(&data),
             ModelType::StdNormal => Net::<StdNormalBranch>::from_file(&path).branch_r2s(&data),
         };
         wtr.write_record(r2s.iter().map(|e| e.to_string())).unwrap();
@@ -141,8 +159,10 @@ fn predict(args: PredictArgs) {
 
     for path in model_files {
         let prediction = match model_type {
-            ModelType::ARD => Net::<RidgeArdBranch>::from_file(&path).predict(&genotypes),
-            ModelType::Base => Net::<RidgeBaseBranch>::from_file(&path).predict(&genotypes),
+            ModelType::RidgeARD => Net::<RidgeArdBranch>::from_file(&path).predict(&genotypes),
+            ModelType::LassoARD => Net::<LassoArdBranch>::from_file(&path).predict(&genotypes),
+            ModelType::RidgeBase => Net::<RidgeBaseBranch>::from_file(&path).predict(&genotypes),
+            ModelType::LassoBase => Net::<LassoBaseBranch>::from_file(&path).predict(&genotypes),
             ModelType::StdNormal => Net::<StdNormalBranch>::from_file(&path).predict(&genotypes),
         };
         wtr.write_record(prediction.iter().map(|e| e.to_string()))
@@ -538,7 +558,10 @@ fn load_data(indir: &str) -> (Data, Option<Data>) {
     (train_data, test_data)
 }
 
-fn train_new(args: TrainNewArgs) {
+fn train_new<B>(args: TrainNewArgs)
+where
+    B: Branch,
+{
     if args.debug_prints {
         simple_logger::init_with_level(log::Level::Debug).unwrap();
     } else {
@@ -594,98 +617,44 @@ fn train_new(args: TrainNewArgs) {
 
     info!("Building net");
 
-    match args.model_type {
-        ModelType::Base => {
-            let mut net_cfg = BlockNetCfg::<RidgeBaseBranch>::new()
-                .with_depth(args.branch_depth)
-                .with_dense_precision_prior(args.dpk, args.dps)
-                .with_summary_precision_prior(args.spk, args.sps)
-                .with_output_precision_prior(args.opk, args.ops);
+    let mut net_cfg = BlockNetCfg::<B>::new()
+        .with_depth(args.branch_depth)
+        .with_dense_precision_prior(args.dpk, args.dps)
+        .with_summary_precision_prior(args.spk, args.sps)
+        .with_output_precision_prior(args.opk, args.ops);
 
-            for bix in 0..train_data.num_branches() {
-                net_cfg.add_branch(
-                    train_data.num_markers_in_branch(bix),
-                    args.hidden_layer_width,
-                    args.summary_layer_width.unwrap_or(args.hidden_layer_width),
-                );
-            }
-            let mut net = net_cfg.build_net();
-            if let Some(p) = args.error_precision {
-                net.set_error_precision(p);
-            }
+    for bix in 0..train_data.num_branches() {
+        net_cfg.add_branch(
+            train_data.num_markers_in_branch(bix),
+            args.hidden_layer_width,
+            args.summary_layer_width.unwrap_or(args.hidden_layer_width),
+        );
+    }
+    let mut net = net_cfg.build_net();
+    if let Some(p) = args.error_precision {
+        net.set_error_precision(p);
+    }
 
-            for bix in 0..net.num_branches() {
-                if net.num_branch_params(bix) > train_data.num_individuals() {
-                    warn!(
-                        "Num params > num individuals in branch {} (with {} params, {} individuals)",
-                        bix, net.num_branch_params(bix), train_data.num_individuals());
-                }
-            }
-            net.write_hyperparams(&mcmc_cfg);
-
-            info!("Training net");
-            net.train(&train_data, &mcmc_cfg, true, Some(report_cfg));
+    for bix in 0..net.num_branches() {
+        if net.num_branch_params(bix) > train_data.num_individuals() {
+            warn!(
+                "Num params > num individuals in branch {} (with {} params, {} individuals)",
+                bix,
+                net.num_branch_params(bix),
+                train_data.num_individuals()
+            );
         }
-        ModelType::ARD => {
-            let mut net_cfg = BlockNetCfg::<RidgeArdBranch>::new()
-                .with_depth(args.branch_depth)
-                .with_dense_precision_prior(args.dpk, args.dps)
-                .with_summary_precision_prior(args.spk, args.sps)
-                .with_output_precision_prior(args.opk, args.ops);
+    }
+    net.write_hyperparams(&mcmc_cfg);
 
-            for bix in 0..train_data.num_branches() {
-                net_cfg.add_branch(
-                    train_data.num_markers_in_branch(bix),
-                    args.hidden_layer_width,
-                    args.summary_layer_width.unwrap_or(args.hidden_layer_width),
-                );
-            }
-            let mut net = net_cfg.build_net();
-            if let Some(p) = args.error_precision {
-                net.set_error_precision(p);
-            }
-
-            for bix in 0..net.num_branches() {
-                if net.num_branch_params(bix) > train_data.num_individuals() {
-                    warn!(
-                        "Num params > num individuals in branch {} (with {} params, {} individuals)",
-                        bix, net.num_branch_params(bix), train_data.num_individuals());
-                }
-            }
-            net.write_hyperparams(&mcmc_cfg);
-            info!("Training net");
-            net.train(&train_data, &mcmc_cfg, true, Some(report_cfg));
-        }
-        ModelType::StdNormal => {
-            let mut net_cfg = BlockNetCfg::<StdNormalBranch>::new().with_depth(args.branch_depth);
-
-            for bix in 0..train_data.num_branches() {
-                net_cfg.add_branch(
-                    train_data.num_markers_in_branch(bix),
-                    args.hidden_layer_width,
-                    args.summary_layer_width.unwrap_or(args.hidden_layer_width),
-                );
-            }
-            let mut net = net_cfg.build_net();
-            if let Some(p) = args.error_precision {
-                net.set_error_precision(p);
-            }
-
-            for bix in 0..net.num_branches() {
-                if net.num_branch_params(bix) > train_data.num_individuals() {
-                    warn!(
-                        "Num params > num individuals in branch {} (with {} params, {} individuals)",
-                        bix, net.num_branch_params(bix), train_data.num_individuals());
-                }
-            }
-            net.write_hyperparams(&mcmc_cfg);
-            info!("Training net");
-            net.train(&train_data, &mcmc_cfg, true, Some(report_cfg));
-        }
-    };
+    info!("Training net");
+    net.train(&train_data, &mcmc_cfg, true, Some(report_cfg));
 }
 
-fn train(args: TrainArgs) {
+fn train<B>(args: TrainArgs)
+where
+    B: Branch,
+{
     if args.debug_prints {
         simple_logger::init_with_level(log::Level::Debug).unwrap();
     } else {
@@ -735,33 +704,11 @@ fn train(args: TrainArgs) {
 
     info!("Loading net");
 
-    match args.model_type {
-        ModelType::Base => {
-            let mut net = Net::<RidgeBaseBranch>::from_file(model_path);
-            if let Some(p) = args.error_precision {
-                net.set_error_precision(p);
-            }
-            net.write_hyperparams(&mcmc_cfg);
-            info!("Training net");
-            net.train(&train_data, &mcmc_cfg, true, Some(report_cfg));
-        }
-        ModelType::ARD => {
-            let mut net = Net::<RidgeArdBranch>::from_file(model_path);
-            if let Some(p) = args.error_precision {
-                net.set_error_precision(p);
-            }
-            net.write_hyperparams(&mcmc_cfg);
-            info!("Training net");
-            net.train(&train_data, &mcmc_cfg, true, Some(report_cfg));
-        }
-        ModelType::StdNormal => {
-            let mut net = Net::<StdNormalBranch>::from_file(model_path);
-            if let Some(p) = args.error_precision {
-                net.set_error_precision(p);
-            }
-            net.write_hyperparams(&mcmc_cfg);
-            info!("Training net");
-            net.train(&train_data, &mcmc_cfg, true, Some(report_cfg));
-        }
-    };
+    let mut net = Net::<RidgeBaseBranch>::from_file(model_path);
+    if let Some(p) = args.error_precision {
+        net.set_error_precision(p);
+    }
+    net.write_hyperparams(&mcmc_cfg);
+    info!("Training net");
+    net.train(&train_data, &mcmc_cfg, true, Some(report_cfg));
 }

@@ -25,7 +25,7 @@ pub struct LassoBaseBranch {
 
 impl Branch for LassoBaseBranch {
     fn model_type() -> ModelType {
-        ModelType::Base
+        ModelType::LassoBase
     }
 
     fn build_cfg(cfg_bld: BranchCfgBuilder) -> BranchCfg {

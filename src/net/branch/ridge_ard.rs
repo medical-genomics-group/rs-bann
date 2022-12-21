@@ -27,7 +27,7 @@ pub struct RidgeArdBranch {
 // are going out of.
 impl Branch for RidgeArdBranch {
     fn model_type() -> ModelType {
-        ModelType::ARD
+        ModelType::RidgeARD
     }
 
     fn build_cfg(cfg_bld: BranchCfgBuilder) -> BranchCfg {

@@ -24,7 +24,7 @@ pub struct RidgeBaseBranch {
 
 impl Branch for RidgeBaseBranch {
     fn model_type() -> ModelType {
-        ModelType::Base
+        ModelType::RidgeBase
     }
 
     fn build_cfg(cfg_bld: BranchCfgBuilder) -> BranchCfg {
