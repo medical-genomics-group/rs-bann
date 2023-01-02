@@ -2,7 +2,6 @@ use super::super::params::BranchPrecisions;
 use super::branch::BranchCfg;
 use arrayfire::{constant, dim4, Array};
 use rand::{distributions::Distribution, SeedableRng};
-use rand::{rngs::ThreadRng, thread_rng};
 use rand_chacha::ChaCha20Rng;
 use rand_distr::{Bernoulli, Gamma, Normal};
 
@@ -350,6 +349,8 @@ impl BranchCfgBuilder {
             self.init_weights_with_initial_param_variance(&mut params, self.num_weights);
         } else if self.init_gamma_params.is_some() {
             self.init_weights_with_init_gamma(&mut params);
+        } else {
+            panic!("No initial value, variance or gamma params for branch builder set!");
         }
 
         // initialize biases
@@ -386,7 +387,9 @@ mod tests {
 
     #[test]
     fn test_build_branch_cfg() {
-        let mut bld = BranchCfgBuilder::new().with_num_markers(3);
+        let mut bld = BranchCfgBuilder::new()
+            .with_num_markers(3)
+            .with_initial_weights_value(0.1);
         bld.add_hidden_layer(3);
         let cfg = bld.build_base();
         assert_eq!(cfg.num_markers, 3);
@@ -397,10 +400,18 @@ mod tests {
     //     assert_eq!(constant!(1.0; 5).dims()[0], 5);
     // }
 
-    // #[test]
-    // fn test_remove_markers_from_model() {
-    //     let mut cfg = BranchCfgBuilder::new().with_num_markers(3);
-    //     cfg.add_hidden_layer(3);
-    //     cfg.
-    // }
+    #[test]
+    fn test_remove_markers_from_model() {
+        let mut bld = BranchCfgBuilder::new()
+            .with_num_markers(4)
+            .with_initial_weights_value(0.1)
+            .with_seed(12344321)
+            .with_proportion_effective_markers(0.25);
+        bld.add_hidden_layer(2);
+        let cfg = bld.build_base();
+        assert_eq!(
+            cfg.params,
+            vec![0.0, 0.0, 0.0, 0.1, 0.0, 0.0, 0.0, 0.1, 0.1, 0.1, 0.1, 0.0, 0.0, 0.0]
+        );
+    }
 }
