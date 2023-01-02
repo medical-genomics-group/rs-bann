@@ -3,7 +3,7 @@ use super::branch::BranchCfg;
 use arrayfire::{constant, dim4, Array};
 use rand::distributions::Distribution;
 use rand::{rngs::ThreadRng, thread_rng};
-use rand_distr::{Gamma, Normal};
+use rand_distr::{Bernoulli, Gamma, Normal};
 
 // we always have a summary and an output node, so at least 2 layers.
 const MIN_NUM_LAYERS: usize = 2;
@@ -122,9 +122,26 @@ impl BranchCfgBuilder {
         self
     }
 
+    fn remove_markers_from_model(&self, params: &mut [f32]) {
+        // remove markers from model
+        if self.proportion_effective_markers < 1.0 {
+            let num_weights_w0 = self.num_markers * self.layer_widths[0];
+            let mut rng = thread_rng();
+            let inclusion_dist = Bernoulli::new(self.proportion_effective_markers as f64).unwrap();
+            (0..self.num_markers)
+                .filter(|_| !inclusion_dist.sample(&mut rng))
+                .for_each(|marker_ix| {
+                    (marker_ix..num_weights_w0)
+                        .step_by(self.num_markers)
+                        .for_each(|wix| params[wix] = 0.)
+                });
+        }
+    }
+
     fn init_weights_with_initial_weight_value(&self, params: &mut [f32], num_weights: usize) {
         let v = self.initial_weight_value.unwrap();
         params[0..num_weights].iter_mut().for_each(|x| *x = v);
+        self.remove_markers_from_model(params);
     }
 
     fn init_biases_with_initial_weight_value(&self, params: &mut [f32], num_weights: usize) {
@@ -143,6 +160,7 @@ impl BranchCfgBuilder {
         params[0..num_weights]
             .iter_mut()
             .for_each(|x| *x = d.sample(rng));
+        self.remove_markers_from_model(params);
     }
 
     fn init_biases_with_initial_param_variance(
@@ -180,6 +198,7 @@ impl BranchCfgBuilder {
             insert_ix += num_weights;
             prev_width = *width;
         }
+        self.remove_markers_from_model(params);
     }
 
     fn init_biases_with_init_gamma(

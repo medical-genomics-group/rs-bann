@@ -11,7 +11,7 @@ use rand_distr::{Binomial, Distribution, Normal, Uniform};
 use rs_bann::group::{
     centered::CorrGraph, external::ExternalGrouping, gene::GeneGrouping, grouping::MarkerGrouping,
 };
-use rs_bann::linear_model::{LinearModel, LinearModelBuilder};
+use rs_bann::linear_model::LinearModelBuilder;
 use rs_bann::net::{
     architectures::BlockNetCfg,
     branch::{
