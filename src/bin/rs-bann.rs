@@ -51,9 +51,7 @@ fn main() {
             ModelType::RidgeBase => simulate_xy::<RidgeBaseBranch>(args),
             ModelType::RidgeARD => simulate_xy::<RidgeArdBranch>(args),
             ModelType::StdNormal => simulate_xy::<StdNormalBranch>(args),
-            ModelType::Linear => {
-                unimplemented!("Simulation under linear models is currently not supported.")
-            }
+            ModelType::Linear => simulate_xy_linear(args),
         },
         SubCmd::TrainNew(args) => match args.model_type {
             ModelType::LassoBase => train_new::<LassoBaseBranch>(args),
@@ -445,7 +443,7 @@ fn simulate_xy_linear(args: SimulateXYArgs) {
     gen_test.standardize();
 
     let lm = LinearModelBuilder::new(args.num_branches, args.num_markers_per_branch)
-        .with_proportion_effective_markers(1.0)
+        .with_proportion_effective_markers(args.proportion_effective)
         .with_random_effects(args.heritability)
         .build();
 
@@ -568,6 +566,7 @@ where
         {
             BlockNetCfg::<B>::new()
                 .with_depth(args.branch_depth)
+                .with_proportion_effective_markers(args.proportion_effective)
                 .with_init_gamma_params(k, s)
                 .with_dense_precision_prior(k, s)
                 .with_summary_precision_prior(k, s)
@@ -575,6 +574,7 @@ where
         } else {
             BlockNetCfg::<B>::new()
                 .with_depth(args.branch_depth)
+                .with_proportion_effective_markers(args.proportion_effective)
                 .with_init_param_variance(args.init_param_variance)
         };
         for _ in 0..args.num_branches {

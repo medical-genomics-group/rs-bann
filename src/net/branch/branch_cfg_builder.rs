@@ -26,6 +26,7 @@ pub struct BranchCfgBuilder {
     init_param_variance: Option<f32>,
     init_gamma_params: Option<GammaParams>,
     sample_precisions: bool,
+    proportion_effective_markers: f32,
 }
 
 impl Default for BranchCfgBuilder {
@@ -50,6 +51,7 @@ impl BranchCfgBuilder {
             init_param_variance: None,
             init_gamma_params: None,
             sample_precisions: false,
+            proportion_effective_markers: 1.0,
         }
     }
 
@@ -58,6 +60,11 @@ impl BranchCfgBuilder {
     /// of setting them to the prior means.
     pub fn with_sampled_precisions(mut self) -> Self {
         self.sample_precisions = true;
+        self
+    }
+
+    pub fn with_proportion_effective_markers(mut self, proportion: f32) -> Self {
+        self.proportion_effective_markers = proportion;
         self
     }
 

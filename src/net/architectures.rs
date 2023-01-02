@@ -21,6 +21,7 @@ pub struct BlockNetCfg<B: Branch> {
     init_param_variance: f32,
     init_gamma_shape: Option<f32>,
     init_gamma_scale: Option<f32>,
+    proportion_effective_markers: f32,
     branch_type: PhantomData<B>,
 }
 
@@ -45,6 +46,7 @@ impl<B: Branch> BlockNetCfg<B> {
             init_param_variance: 0.05,
             init_gamma_shape: None,
             init_gamma_scale: None,
+            proportion_effective_markers: 1.0,
             branch_type: PhantomData,
         }
     }
@@ -62,6 +64,11 @@ impl<B: Branch> BlockNetCfg<B> {
 
     pub fn with_depth(mut self, depth: usize) -> Self {
         self.depth = depth;
+        self
+    }
+
+    pub fn with_proportion_effective_markers(mut self, proportion: f32) -> Self {
+        self.proportion_effective_markers = proportion;
         self
     }
 
@@ -112,11 +119,13 @@ impl<B: Branch> BlockNetCfg<B> {
                 if let (Some(k), Some(s)) = (self.init_gamma_shape, self.init_gamma_scale) {
                     BranchCfgBuilder::new()
                         .with_num_markers(self.num_markers[branch_ix])
+                        .with_proportion_effective_markers(self.proportion_effective_markers)
                         .with_init_gamma_params(k, s)
                         .with_summary_layer_width(self.summary_layer_widths[branch_ix])
                 } else {
                     BranchCfgBuilder::new()
                         .with_num_markers(self.num_markers[branch_ix])
+                        .with_proportion_effective_markers(self.proportion_effective_markers)
                         .with_init_param_variance(self.init_param_variance)
                         .with_summary_layer_width(self.summary_layer_widths[branch_ix])
                 };
