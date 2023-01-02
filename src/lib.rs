@@ -3,6 +3,7 @@ extern crate openblas_src;
 
 pub mod error;
 pub mod group;
+pub mod linear_model;
 pub mod net;
 
 use arrayfire::Array;

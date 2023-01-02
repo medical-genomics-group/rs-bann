@@ -9,6 +9,7 @@ pub enum ModelType {
     LassoARD,
     LassoBase,
     StdNormal,
+    Linear,
 }
 
 impl Display for ModelType {

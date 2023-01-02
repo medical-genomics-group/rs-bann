@@ -177,6 +177,16 @@ impl Genotypes {
         self.num_individuals
     }
 
+    pub fn af_branch_data(&self, branch_ix: usize) -> Array<f32> {
+        Array::new(
+            &self.x[branch_ix],
+            dim4!(
+                self.num_individuals as u64,
+                self.num_markers_per_branch[branch_ix] as u64
+            ),
+        )
+    }
+
     pub fn standardize(&mut self) {
         if !self.standardized {
             if self.means.is_some() && self.stds.is_some() {

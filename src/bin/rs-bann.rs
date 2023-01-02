@@ -11,6 +11,7 @@ use rand_distr::{Binomial, Distribution, Normal, Uniform};
 use rs_bann::group::{
     centered::CorrGraph, external::ExternalGrouping, gene::GeneGrouping, grouping::MarkerGrouping,
 };
+use rs_bann::linear_model::{LinearModel, LinearModelBuilder};
 use rs_bann::net::{
     architectures::BlockNetCfg,
     branch::{
@@ -40,6 +41,9 @@ fn main() {
             ModelType::RidgeBase => simulate_y::<RidgeBaseBranch>(args),
             ModelType::RidgeARD => simulate_y::<RidgeArdBranch>(args),
             ModelType::StdNormal => simulate_y::<StdNormalBranch>(args),
+            ModelType::Linear => {
+                unimplemented!("Simulation under linear models is currently not supported.")
+            }
         },
         SubCmd::SimulateXY(args) => match args.model_type {
             ModelType::LassoBase => simulate_xy::<LassoBaseBranch>(args),
@@ -47,6 +51,9 @@ fn main() {
             ModelType::RidgeBase => simulate_xy::<RidgeBaseBranch>(args),
             ModelType::RidgeARD => simulate_xy::<RidgeArdBranch>(args),
             ModelType::StdNormal => simulate_xy::<StdNormalBranch>(args),
+            ModelType::Linear => {
+                unimplemented!("Simulation under linear models is currently not supported.")
+            }
         },
         SubCmd::TrainNew(args) => match args.model_type {
             ModelType::LassoBase => train_new::<LassoBaseBranch>(args),
@@ -54,6 +61,9 @@ fn main() {
             ModelType::RidgeBase => train_new::<RidgeBaseBranch>(args),
             ModelType::RidgeARD => train_new::<RidgeArdBranch>(args),
             ModelType::StdNormal => train_new::<StdNormalBranch>(args),
+            ModelType::Linear => {
+                unimplemented!("Training linear models is currently not supported.")
+            }
         },
         SubCmd::Train(args) => match args.model_type {
             ModelType::LassoBase => train::<LassoBaseBranch>(args),
@@ -61,6 +71,9 @@ fn main() {
             ModelType::RidgeBase => train::<RidgeBaseBranch>(args),
             ModelType::RidgeARD => train::<RidgeArdBranch>(args),
             ModelType::StdNormal => train::<StdNormalBranch>(args),
+            ModelType::Linear => {
+                unimplemented!("Training linear models is currently not supported.")
+            }
         },
         SubCmd::GroupByLD(args) => group_centered(args),
         SubCmd::Predict(args) => predict(args),
@@ -120,6 +133,7 @@ fn branch_r2(args: BranchR2Args) {
             ModelType::RidgeBase => Net::<RidgeBaseBranch>::from_file(&path).branch_r2s(&data),
             ModelType::LassoBase => Net::<LassoBaseBranch>::from_file(&path).branch_r2s(&data),
             ModelType::StdNormal => Net::<StdNormalBranch>::from_file(&path).branch_r2s(&data),
+            ModelType::Linear => unimplemented!("Linear models are currently not supported."),
         };
         wtr.write_record(r2s.iter().map(|e| e.to_string())).unwrap();
     }
@@ -164,6 +178,7 @@ fn predict(args: PredictArgs) {
             ModelType::RidgeBase => Net::<RidgeBaseBranch>::from_file(&path).predict(&genotypes),
             ModelType::LassoBase => Net::<LassoBaseBranch>::from_file(&path).predict(&genotypes),
             ModelType::StdNormal => Net::<StdNormalBranch>::from_file(&path).predict(&genotypes),
+            ModelType::Linear => unimplemented!("Linear models are currently not supported."),
         };
         wtr.write_record(prediction.iter().map(|e| e.to_string()))
             .unwrap();
@@ -325,6 +340,168 @@ where
     phen_test.to_file(&test_path);
 
     if args.json_data {
+        phen_train.to_json(&path.join("phen_train.json"));
+        phen_test.to_json(&path.join("phen_test.json"));
+        gen_train.to_json(&path.join("gen_train.json"));
+        gen_test.to_json(&path.join("gen_test.json"));
+    }
+
+    args.to_file(&args_path);
+}
+
+fn simulate_xy_linear(args: SimulateXYArgs) {
+    simple_logger::init_with_level(log::Level::Info).unwrap();
+
+    if !(args.heritability >= 0. && args.heritability <= 1.) {
+        panic!("Heritability must be within [0, 1].");
+    }
+
+    let mut path = Path::new(&args.outdir).join(format!(
+        "{}_b{}_wh{}_ws{}_d{}_m{}_n{}_h{}_v{}",
+        args.model_type,
+        args.num_branches,
+        args.hidden_layer_width,
+        args.summary_layer_width.unwrap_or(args.hidden_layer_width),
+        args.branch_depth,
+        args.num_markers_per_branch,
+        args.num_individuals,
+        args.heritability,
+        args.init_param_variance
+    ));
+
+    if let (Some(k), Some(s)) = (args.init_gamma_shape, args.init_gamma_scale) {
+        path = Path::new(&args.outdir).join(format!(
+            "{}_b{}_wh{}_ws{}_d{}_m{}_n{}_h{}_k{}_s{}",
+            args.model_type,
+            args.num_branches,
+            args.hidden_layer_width,
+            args.summary_layer_width.unwrap_or(args.hidden_layer_width),
+            args.branch_depth,
+            args.num_markers_per_branch,
+            args.num_individuals,
+            args.heritability,
+            k,
+            s
+        ));
+    }
+
+    if !path.exists() {
+        std::fs::create_dir_all(&path).expect("Could not create output directory!");
+    }
+    let mut train_path = path.join("train");
+    let mut test_path = path.join("test");
+    let args_path = path.join("args.json");
+    let params_path = path.join("model.params");
+
+    let mut rng = thread_rng();
+
+    info!("Generating random marker data");
+    let gt_per_branch = args.num_markers_per_branch * args.num_individuals;
+    let mut x_train: Vec<Vec<f32>> = vec![vec![0.0; gt_per_branch]; args.num_branches];
+    let mut x_test: Vec<Vec<f32>> = vec![vec![0.0; gt_per_branch]; args.num_branches];
+    let mut x_means: Vec<Vec<f32>> =
+        vec![vec![0.0; args.num_markers_per_branch]; args.num_branches];
+    let mut x_stds: Vec<Vec<f32>> = vec![vec![0.0; args.num_markers_per_branch]; args.num_branches];
+    for branch_ix in 0..args.num_branches {
+        for marker_ix in 0..args.num_markers_per_branch {
+            let maf = Uniform::from(0.0..0.5).sample(&mut rng);
+            x_means[branch_ix][marker_ix] = 2. * maf;
+            x_stds[branch_ix][marker_ix] = (2. * maf * (1. - maf)).sqrt();
+
+            let binom = Binomial::new(2, maf as f64).unwrap();
+            (0..args.num_individuals).for_each(|i| {
+                x_train[branch_ix][marker_ix * args.num_individuals + i] =
+                    binom.sample(&mut rng) as f32
+            });
+            (0..args.num_individuals).for_each(|i| {
+                x_test[branch_ix][marker_ix * args.num_individuals + i] =
+                    binom.sample(&mut rng) as f32
+            });
+        }
+    }
+
+    let mut gen_train = GenotypesBuilder::new()
+        .with_x(
+            x_train,
+            vec![args.num_markers_per_branch; args.num_branches],
+            args.num_individuals,
+        )
+        .with_means(x_means.clone())
+        .with_stds(x_stds.clone())
+        .build()
+        .unwrap();
+    gen_train.standardize();
+
+    let mut gen_test = GenotypesBuilder::new()
+        .with_x(
+            x_test,
+            vec![args.num_markers_per_branch; args.num_branches],
+            args.num_individuals,
+        )
+        .with_means(x_means)
+        .with_stds(x_stds)
+        .build()
+        .unwrap();
+    gen_test.standardize();
+
+    let lm = LinearModelBuilder::new(args.num_branches, args.num_markers_per_branch)
+        .with_proportion_effective_markers(1.0)
+        .with_random_effects(args.heritability)
+        .build();
+
+    info!("Making phenotype data");
+    // genetic values
+    let g_train = lm.predict(&gen_train);
+    let mut y_train = g_train.clone();
+    let g_test = lm.predict(&gen_test);
+    let mut y_test = g_test.clone();
+
+    let std_e_train: f32 =
+        (1.0 - (&y_train.iter().map(|e| *e as f64).collect::<Vec<f64>>()).variance()).sqrt() as f32;
+    let std_e_test: f32 =
+        (1.0 - (&y_test.iter().map(|e| *e as f64).collect::<Vec<f64>>()).variance()).sqrt() as f32;
+
+    let std_e_norm_train = Normal::new(0.0, std_e_train).unwrap();
+    (0..args.num_individuals).for_each(|i| y_train[i] += std_e_norm_train.sample(&mut rng));
+    let std_e_norm_test = Normal::new(0.0, std_e_test).unwrap();
+    (0..args.num_individuals).for_each(|i| y_test[i] += std_e_norm_test.sample(&mut rng));
+
+    info!("Saving model params");
+    info!("Creating: {:?}", &params_path);
+    let mut net_params_file = BufWriter::new(File::create(&params_path).unwrap());
+    to_writer(&mut net_params_file, &lm).unwrap();
+    net_params_file.write_all(b"\n").unwrap();
+
+    train_path.set_extension("gen");
+    gen_train.to_file(&train_path);
+    test_path.set_extension("gen");
+    gen_test.to_file(&test_path);
+
+    PhenStats::new(
+        (&y_test.iter().map(|e| *e as f64).collect::<Vec<f64>>()).mean() as f32,
+        (&y_test.iter().map(|e| *e as f64).collect::<Vec<f64>>()).variance() as f32,
+        std_e_test * std_e_test,
+    )
+    .to_file(&path.join("test_phen_stats.json"));
+
+    PhenStats::new(
+        (&y_train.iter().map(|e| *e as f64).collect::<Vec<f64>>()).mean() as f32,
+        (&y_train.iter().map(|e| *e as f64).collect::<Vec<f64>>()).variance() as f32,
+        std_e_train * std_e_train,
+    )
+    .to_file(&path.join("train_phen_stats.json"));
+
+    train_path.set_extension("phen");
+    let phen_train = Phenotypes::new(y_train);
+    phen_train.to_file(&train_path);
+
+    test_path.set_extension("phen");
+    let phen_test = Phenotypes::new(y_test);
+    phen_test.to_file(&test_path);
+
+    if args.json_data {
+        Phenotypes::new(g_test).to_json(&path.join("genetic_values_test.json"));
+        Phenotypes::new(g_train).to_json(&path.join("genetic_values_train.json"));
         phen_train.to_json(&path.join("phen_train.json"));
         phen_test.to_json(&path.join("phen_test.json"));
         gen_train.to_json(&path.join("gen_train.json"));
