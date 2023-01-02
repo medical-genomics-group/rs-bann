@@ -245,6 +245,7 @@ where
     info!("Building model");
     let mut net_cfg = if let (Some(k), Some(s)) = (args.init_gamma_shape, args.init_gamma_scale) {
         BlockNetCfg::<B>::new()
+            .with_proportion_effective_markers(args.proportion_effective)
             .with_depth(args.branch_depth)
             .with_init_gamma_params(k, s)
             .with_dense_precision_prior(k, s)
@@ -254,6 +255,7 @@ where
             .with_output_precision_prior(1., 1.)
     } else {
         BlockNetCfg::<B>::new()
+            .with_proportion_effective_markers(args.proportion_effective)
             .with_depth(args.branch_depth)
             .with_init_param_variance(args.init_param_variance)
     };
