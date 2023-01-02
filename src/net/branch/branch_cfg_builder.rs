@@ -1,8 +1,9 @@
 use super::super::params::BranchPrecisions;
 use super::branch::BranchCfg;
 use arrayfire::{constant, dim4, Array};
-use rand::distributions::Distribution;
+use rand::{distributions::Distribution, SeedableRng};
 use rand::{rngs::ThreadRng, thread_rng};
+use rand_chacha::ChaCha20Rng;
 use rand_distr::{Bernoulli, Gamma, Normal};
 
 // we always have a summary and an output node, so at least 2 layers.
@@ -27,6 +28,7 @@ pub struct BranchCfgBuilder {
     init_gamma_params: Option<GammaParams>,
     sample_precisions: bool,
     proportion_effective_markers: f32,
+    rng: ChaCha20Rng,
 }
 
 impl Default for BranchCfgBuilder {
@@ -52,7 +54,13 @@ impl BranchCfgBuilder {
             init_gamma_params: None,
             sample_precisions: false,
             proportion_effective_markers: 1.0,
+            rng: ChaCha20Rng::from_entropy(),
         }
+    }
+
+    pub fn with_seed(mut self, seed: u64) -> Self {
+        self.rng = ChaCha20Rng::seed_from_u64(seed);
+        self
     }
 
     // TODO: allow this through cli
@@ -122,14 +130,13 @@ impl BranchCfgBuilder {
         self
     }
 
-    fn remove_markers_from_model(&self, params: &mut [f32]) {
+    fn remove_markers_from_model(&mut self, params: &mut [f32]) {
         // remove markers from model
         if self.proportion_effective_markers < 1.0 {
             let num_weights_w0 = self.num_markers * self.layer_widths[0];
-            let mut rng = thread_rng();
             let inclusion_dist = Bernoulli::new(self.proportion_effective_markers as f64).unwrap();
             (0..self.num_markers)
-                .filter(|_| !inclusion_dist.sample(&mut rng))
+                .filter(|_| !inclusion_dist.sample(&mut self.rng))
                 .for_each(|marker_ix| {
                     (marker_ix..num_weights_w0)
                         .step_by(self.num_markers)
@@ -138,7 +145,7 @@ impl BranchCfgBuilder {
         }
     }
 
-    fn init_weights_with_initial_weight_value(&self, params: &mut [f32], num_weights: usize) {
+    fn init_weights_with_initial_weight_value(&mut self, params: &mut [f32], num_weights: usize) {
         let v = self.initial_weight_value.unwrap();
         params[0..num_weights].iter_mut().for_each(|x| *x = v);
         self.remove_markers_from_model(params);
@@ -149,34 +156,24 @@ impl BranchCfgBuilder {
         params[num_weights..].iter_mut().for_each(|x| *x = v);
     }
 
-    fn init_weights_with_initial_param_variance(
-        &self,
-        params: &mut [f32],
-        num_weights: usize,
-        rng: &mut ThreadRng,
-    ) {
+    fn init_weights_with_initial_param_variance(&mut self, params: &mut [f32], num_weights: usize) {
         let v = self.init_param_variance.unwrap();
         let d = Normal::new(0.0, v.sqrt()).unwrap();
         params[0..num_weights]
             .iter_mut()
-            .for_each(|x| *x = d.sample(rng));
+            .for_each(|x| *x = d.sample(&mut self.rng));
         self.remove_markers_from_model(params);
     }
 
-    fn init_biases_with_initial_param_variance(
-        &self,
-        params: &mut [f32],
-        num_weights: usize,
-        rng: &mut ThreadRng,
-    ) {
+    fn init_biases_with_initial_param_variance(&mut self, params: &mut [f32], num_weights: usize) {
         let v = self.init_param_variance.unwrap();
         let d = Normal::new(0.0, v.sqrt()).unwrap();
         params[num_weights..]
             .iter_mut()
-            .for_each(|x| *x = d.sample(rng));
+            .for_each(|x| *x = d.sample(&mut self.rng));
     }
 
-    fn init_weights_with_init_gamma(&self, params: &mut [f32], rng: &mut ThreadRng) {
+    fn init_weights_with_init_gamma(&mut self, params: &mut [f32]) {
         // iterate over layers
         let gamma_params = self.init_gamma_params.as_ref().unwrap();
         let precision_prior = Gamma::new(gamma_params.shape, gamma_params.scale).unwrap();
@@ -184,7 +181,7 @@ impl BranchCfgBuilder {
         let mut insert_ix: usize = 0;
         for (_lix, width) in self.layer_widths[..self.num_layers].iter().enumerate() {
             let layer_precision = if self.sample_precisions {
-                precision_prior.sample(rng)
+                precision_prior.sample(&mut self.rng)
             } else {
                 // set to mean of gamma
                 gamma_params.shape * gamma_params.scale
@@ -194,19 +191,14 @@ impl BranchCfgBuilder {
             let num_weights = prev_width * width;
             params[insert_ix..insert_ix + num_weights]
                 .iter_mut()
-                .for_each(|x| *x = layer_weight_prior.sample(rng));
+                .for_each(|x| *x = layer_weight_prior.sample(&mut self.rng));
             insert_ix += num_weights;
             prev_width = *width;
         }
         self.remove_markers_from_model(params);
     }
 
-    fn init_biases_with_init_gamma(
-        &self,
-        params: &mut [f32],
-        num_weights: usize,
-        rng: &mut ThreadRng,
-    ) {
+    fn init_biases_with_init_gamma(&mut self, params: &mut [f32], num_weights: usize) {
         // iterate over layers
         let gamma_params = self.init_gamma_params.as_ref().unwrap();
         let precision_prior = Gamma::new(gamma_params.shape, gamma_params.scale).unwrap();
@@ -214,7 +206,7 @@ impl BranchCfgBuilder {
         for (_lix, width) in self.layer_widths[..self.num_layers - 1].iter().enumerate() {
             let num_biases = width;
             let layer_bias_precision = if self.sample_precisions {
-                precision_prior.sample(rng)
+                precision_prior.sample(&mut self.rng)
             } else {
                 gamma_params.shape * gamma_params.scale
             };
@@ -222,7 +214,7 @@ impl BranchCfgBuilder {
             let layer_bias_prior = Normal::new(0.0, layer_bias_std).unwrap();
             params[insert_ix..insert_ix + num_biases]
                 .iter_mut()
-                .for_each(|x| *x = layer_bias_prior.sample(rng));
+                .for_each(|x| *x = layer_bias_prior.sample(&mut self.rng));
             insert_ix += num_biases;
         }
     }
@@ -349,25 +341,24 @@ impl BranchCfgBuilder {
 
     fn build(&mut self) -> BranchCfg {
         self.finalize_num_params();
-        let mut rng = thread_rng();
 
         let mut params: Vec<f32> = vec![0.0; self.num_params];
 
         if self.initial_weight_value.is_some() {
             self.init_weights_with_initial_weight_value(&mut params, self.num_weights);
         } else if self.init_param_variance.is_some() {
-            self.init_weights_with_initial_param_variance(&mut params, self.num_weights, &mut rng);
+            self.init_weights_with_initial_param_variance(&mut params, self.num_weights);
         } else if self.init_gamma_params.is_some() {
-            self.init_weights_with_init_gamma(&mut params, &mut rng);
+            self.init_weights_with_init_gamma(&mut params);
         }
 
         // initialize biases
         if self.initial_bias_value.is_some() {
             self.init_biases_with_initial_weight_value(&mut params, self.num_weights);
         } else if self.init_param_variance.is_some() {
-            self.init_biases_with_initial_param_variance(&mut params, self.num_weights, &mut rng);
+            self.init_biases_with_initial_param_variance(&mut params, self.num_weights);
         } else if self.init_gamma_params.is_some() {
-            self.init_biases_with_init_gamma(&mut params, self.num_weights, &mut rng);
+            self.init_biases_with_init_gamma(&mut params, self.num_weights);
         }
 
         let bias_precisions = self.bias_precisions(self.num_weights, &params);
@@ -404,5 +395,12 @@ mod tests {
 
     // fn test_af_constant_dims() {
     //     assert_eq!(constant!(1.0; 5).dims()[0], 5);
+    // }
+
+    // #[test]
+    // fn test_remove_markers_from_model() {
+    //     let mut cfg = BranchCfgBuilder::new().with_num_markers(3);
+    //     cfg.add_hidden_layer(3);
+    //     cfg.
     // }
 }

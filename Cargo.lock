@@ -1361,6 +1361,7 @@ dependencies = [
  "ndarray",
  "openblas-src",
  "rand",
+ "rand_chacha",
  "rand_distr",
  "rayon",
  "rs-bedvec",
