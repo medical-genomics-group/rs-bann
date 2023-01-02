@@ -85,6 +85,10 @@ pub(crate) struct SimulateYArgs {
     /// number of hidden layers in branches
     pub branch_depth: usize,
 
+    /// proportion of effective markers
+    #[clap(short, long, default_value_t = 1.0)]
+    pub proportion_effective: f32,
+
     /// variance of network params upon initialization
     #[clap(long, default_value_t = 1.0)]
     pub init_param_variance: f32,
@@ -137,6 +141,10 @@ pub(crate) struct SimulateXYArgs {
 
     /// number of hidden layers in branches
     pub branch_depth: usize,
+
+    /// proportion of effective markers
+    #[clap(short, long, default_value_t = 1.0)]
+    pub proportion_effective: f32,
 
     /// width of summary layer. By default equal to hidden layer width
     #[clap(long)]
