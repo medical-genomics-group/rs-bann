@@ -452,6 +452,23 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_effect_size_dim() {
+        let num_individuals = 4;
+        let num_markers = 3;
+        let branch = make_test_branch();
+        let x_train: Array<f32> = Array::new(
+            &[1., 0., 0., 2., 1., 1., 2., 0., 0., 2., 0., 1.],
+            dim4![num_individuals, num_markers, 1, 1],
+        );
+        let y_train: Array<f32> = Array::new(&[0.0, 2.0, 1.0, 1.5], dim4![4, 1, 1, 1]);
+        let effect_sizes = branch.effect_sizes(&x_train, &y_train);
+        assert_eq!(
+            effect_sizes.dims(),
+            dim4!(num_individuals, num_markers, 1, 1)
+        );
+    }
+
     // TODO: this test is flaky, depending on the hardware it is run on. Should use approx
     // comparisons instead.
     // #[test]

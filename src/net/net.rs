@@ -156,6 +156,7 @@ impl<B: Branch> Net<B> {
     ) {
         if mcmc_cfg.chain_length > mcmc_cfg.burn_in {
             self.create_model_dir(mcmc_cfg);
+            self.create_effect_size_dir(mcmc_cfg);
         }
 
         let mut trace_file = None;
@@ -165,15 +166,12 @@ impl<B: Branch> Net<B> {
 
         let mut rng = thread_rng();
         let num_individuals = train_data.num_individuals();
-        let mut residual = self.residual(
-            train_data.x(),
-            &Array::new(train_data.y(), dim4!(num_individuals as u64, 1, 1, 1)),
-        );
+        let y_train = &Array::new(train_data.y(), dim4!(num_individuals as u64, 1, 1, 1));
+        let mut residual = self.residual(train_data.x(), y_train);
         let mut branch_ixs = (0..self.num_branches).collect::<Vec<usize>>();
         let mut report_interval = 1;
 
         // // initial error precision
-        // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         self.error_precision = ridge_multi_param_precision_posterior(
             self.hyperparams.output_layer_prior_shape(),
             self.hyperparams.output_layer_prior_scale(),
@@ -209,7 +207,6 @@ impl<B: Branch> Net<B> {
         for chain_ix in 1..=mcmc_cfg.chain_length {
             // sample ouput bias term
             // output bias is 0 upon initialization.
-            // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             self.output_bias.sample_error_precision(
                 &residual,
                 self.hyperparams.output_layer_prior_shape(),
@@ -237,9 +234,7 @@ impl<B: Branch> Net<B> {
                 );
                 // load branch cfg
                 let mut branch = B::from_cfg(cfg);
-                // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                // branch.set_error_precision(self.error_precision);
-                // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                branch.set_error_precision(self.error_precision);
                 branch.sample_error_precision(
                     &residual,
                     self.hyperparams.output_layer_prior_shape(),
@@ -263,14 +258,17 @@ impl<B: Branch> Net<B> {
                     // not accepted, just remove previous prediction
                     _ => residual -= prev_pred,
                 }
-                // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                 branch.sample_prior_precisions(&self.hyperparams);
 
                 // dump branch cfg
                 self.branch_cfgs[branch_ix] = branch.to_cfg();
+
+                // compute effect sizes and save
+                if chain_ix >= mcmc_cfg.burn_in {
+                    self.save_effect_sizes(&branch.effect_sizes(&x, y_train), chain_ix, mcmc_cfg)
+                }
             }
 
-            // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             self.sample_output_layer_weight_precision(&mut rng);
 
             // TODO:
@@ -279,7 +277,6 @@ impl<B: Branch> Net<B> {
             // and combining them.
             self.record_mse(train_data, report_cfg.as_ref().unwrap().test_data);
 
-            // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             // update error precision
             self.error_precision = ridge_multi_param_precision_posterior(
                 self.hyperparams.output_layer_prior_shape(),
@@ -358,8 +355,22 @@ impl<B: Branch> Net<B> {
         self.to_file(&model_path);
     }
 
+    fn save_effect_sizes(&self, effect_sizes: &Array<f32>, model_ix: usize, mcmc_cfg: &MCMCCfg) {
+        let num_markers = effect_sizes.dims().get()[1] as usize;
+        let file_path = mcmc_cfg.effect_sizes_path().join(model_ix.to_string());
+        let mut wtr = csv::Writer::from_path(file_path).unwrap();
+        to_host(&arrayfire::transpose(effect_sizes, false))
+            .chunks(num_markers)
+            .for_each(|row| wtr.write_record(row.iter().map(|e| e.to_string())).unwrap());
+        wtr.flush().expect("Failed to flush csv writer");
+    }
+
     fn create_model_dir(&self, mcmc_cfg: &MCMCCfg) {
         create_dir_all(mcmc_cfg.models_path()).expect("Failed to create models outdir");
+    }
+
+    fn create_effect_size_dir(&self, mcmc_cfg: &MCMCCfg) {
+        create_dir_all(mcmc_cfg.effect_sizes_path()).expect("Failed to create effect size outdir");
     }
 
     fn record_mse(&mut self, train_data: &Data, test_data: Option<&Data>) {

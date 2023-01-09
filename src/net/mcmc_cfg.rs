@@ -48,6 +48,10 @@ impl MCMCCfg {
     pub fn models_path(&self) -> PathBuf {
         Path::new(&self.outpath).join("models")
     }
+
+    pub fn effect_sizes_path(&self) -> PathBuf {
+        Path::new(&self.outpath).join("effect_sizes")
+    }
 }
 
 #[derive(clap::ValueEnum, Clone, Debug, Serialize, Deserialize)]

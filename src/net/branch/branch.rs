@@ -309,6 +309,39 @@ pub trait Branch {
         )
     }
 
+    /// Computes the absolute values of the
+    /// partial derivatives of the predicted value w.r.t. the input.
+    /// The output is a n x m matrix.
+    fn effect_sizes(&self, x_train: &Array<f32>, y_train: &Array<f32>) -> Array<f32> {
+        // forward propagate to get signals
+        let activations = self.forward_feed(x_train);
+
+        // back propagate
+        let mut activation = activations.last().unwrap();
+
+        // TODO: factor of 2 might be necessary here?
+        let mut error = activation - y_train;
+
+        error = matmul(
+            &error,
+            self.weights(self.num_layers() - 1),
+            MatProp::NONE,
+            MatProp::TRANS,
+        );
+
+        for layer_index in (0..self.num_layers() - 1).rev() {
+            activation = &activations[layer_index];
+            let delta: Array<f32> = (1 - arrayfire::pow(activation, &2, false)) * error;
+            error = matmul(
+                &delta,
+                self.weights(layer_index),
+                MatProp::NONE,
+                MatProp::TRANS,
+            );
+        }
+        error
+    }
+
     fn backpropagate(
         &self,
         x_train: &Array<f32>,
