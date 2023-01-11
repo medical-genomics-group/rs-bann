@@ -607,7 +607,7 @@ def plot_perf_r2_genetic_value(wdir: str, burn_in, branch_ix=0):
     plt.tight_layout()
 
 
-def plot_perf_r2(wdir: str, burn_in):
+def plot_perf_r2(wdir: str, burn_in, full_r2_yrange=False):
     ddir = data_dir(wdir)
     train_data = Data.load_train(ddir)
     test_data = Data.load_test(ddir)
@@ -679,7 +679,8 @@ def plot_perf_r2(wdir: str, burn_in):
         label="ridge test"
     )
     axes[1].legend()
-    axes[1].set_ylim(0.0, 1.0)
+    if not full_r2_yrange:
+        axes[1].set_ylim(0.0, 1.0)
     # axes[1].set_yscale("log")
 
     plt.tight_layout()
