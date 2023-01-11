@@ -246,7 +246,7 @@ where
     let mut net_cfg = if let (Some(k), Some(s)) = (args.init_gamma_shape, args.init_gamma_scale) {
         BlockNetCfg::<B>::new()
             .with_proportion_effective_markers(args.proportion_effective)
-            .with_depth(args.branch_depth)
+            .with_num_hidden_layers(args.branch_depth)
             .with_init_gamma_params(k, s)
             .with_dense_precision_prior(k, s)
             .with_summary_precision_prior(k, s)
@@ -256,7 +256,7 @@ where
     } else {
         BlockNetCfg::<B>::new()
             .with_proportion_effective_markers(args.proportion_effective)
-            .with_depth(args.branch_depth)
+            .with_num_hidden_layers(args.branch_depth)
             .with_init_param_variance(args.init_param_variance)
     };
 
@@ -567,7 +567,7 @@ where
         let mut net_cfg = if let (Some(k), Some(s)) = (args.init_gamma_shape, args.init_gamma_scale)
         {
             BlockNetCfg::<B>::new()
-                .with_depth(args.branch_depth)
+                .with_num_hidden_layers(args.branch_depth)
                 .with_proportion_effective_markers(args.proportion_effective)
                 .with_init_gamma_params(k, s)
                 .with_dense_precision_prior(k, s)
@@ -575,7 +575,7 @@ where
                 .with_output_precision_prior(1., 1.)
         } else {
             BlockNetCfg::<B>::new()
-                .with_depth(args.branch_depth)
+                .with_num_hidden_layers(args.branch_depth)
                 .with_proportion_effective_markers(args.proportion_effective)
                 .with_init_param_variance(args.init_param_variance)
         };
@@ -797,7 +797,7 @@ where
     info!("Building net");
 
     let mut net_cfg = BlockNetCfg::<B>::new()
-        .with_depth(args.branch_depth)
+        .with_num_hidden_layers(args.branch_depth)
         .with_dense_precision_prior(args.dpk, args.dps)
         .with_summary_precision_prior(args.spk, args.sps)
         .with_output_precision_prior(args.opk, args.ops);

@@ -12,7 +12,7 @@ use std::marker::PhantomData;
 /// Width of branch layers: same within branches, dynamic between branches
 pub struct BlockNetCfg<B: Branch> {
     num_markers: Vec<usize>,
-    depth: usize,
+    num_hidden_layers: usize,
     hidden_layer_widths: Vec<usize>,
     summary_layer_widths: Vec<usize>,
     dense_precision_prior_hyperparams: PrecisionHyperparameters,
@@ -35,9 +35,8 @@ impl<B: Branch> BlockNetCfg<B> {
     pub fn new() -> Self {
         BlockNetCfg {
             num_markers: vec![],
-            // TODO: rename! this is not network depth, but the number
-            // of hidden layers in a single branch, i.e. depth -2
-            depth: 0,
+            // summary layer is not counted as hidden layer
+            num_hidden_layers: 0,
             hidden_layer_widths: vec![],
             summary_layer_widths: vec![],
             dense_precision_prior_hyperparams: PrecisionHyperparameters::default(),
@@ -62,8 +61,8 @@ impl<B: Branch> BlockNetCfg<B> {
         self.summary_layer_widths.push(summary_layer_width);
     }
 
-    pub fn with_depth(mut self, depth: usize) -> Self {
-        self.depth = depth;
+    pub fn with_num_hidden_layers(mut self, depth: usize) -> Self {
+        self.num_hidden_layers = depth;
         self
     }
 
@@ -99,6 +98,8 @@ impl<B: Branch> BlockNetCfg<B> {
     }
 
     fn update_branch_cfgs_output_weight_precision(&self, cfgs: &mut Vec<BranchCfg>) {
+        println!("num_weights: {:?}", cfgs[0].num_weights);
+        println!("num_params: {:?}", cfgs[0].params.len());
         let output_weight_precision = cfgs.len() as f32
             / cfgs
                 .iter()
@@ -129,7 +130,7 @@ impl<B: Branch> BlockNetCfg<B> {
                         .with_init_param_variance(self.init_param_variance)
                         .with_summary_layer_width(self.summary_layer_widths[branch_ix])
                 };
-            for _ in 0..self.depth {
+            for _ in 0..self.num_hidden_layers {
                 cfg_bld.add_hidden_layer(self.hidden_layer_widths[branch_ix]);
             }
             branch_cfgs.push(B::build_cfg(cfg_bld));
@@ -160,7 +161,7 @@ mod tests {
 
     #[test]
     fn test_block_net_architecture_num_params_in_branch() {
-        let mut cfg = BlockNetCfg::<RidgeBaseBranch>::new().with_depth(1);
+        let mut cfg = BlockNetCfg::<RidgeBaseBranch>::new().with_num_hidden_layers(1);
         cfg.add_branch(3, 3, 1);
         cfg.add_branch(3, 3, 2);
         let net = cfg.build_net();
