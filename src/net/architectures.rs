@@ -58,6 +58,10 @@ impl<B: Branch> BlockNetCfg<B> {
     ) {
         self.num_markers.push(num_markers);
         self.hidden_layer_widths.push(hidden_layer_width);
+        assert!(
+            summary_layer_width != 0,
+            "Branch cannot be initiated with summary layer width = 0."
+        );
         self.summary_layer_widths.push(summary_layer_width);
     }
 
@@ -98,8 +102,6 @@ impl<B: Branch> BlockNetCfg<B> {
     }
 
     fn update_branch_cfgs_output_weight_precision(&self, cfgs: &mut Vec<BranchCfg>) {
-        println!("num_weights: {:?}", cfgs[0].num_weights);
-        println!("num_params: {:?}", cfgs[0].params.len());
         let output_weight_precision = cfgs.len() as f32
             / cfgs
                 .iter()
