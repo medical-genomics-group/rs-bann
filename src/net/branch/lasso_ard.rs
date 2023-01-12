@@ -121,7 +121,8 @@ impl Branch for LassoArdBranch {
         let mut wrt_weights: Vec<Array<f32>> = Vec::with_capacity(self.num_layers());
         let mut wrt_biases = Vec::with_capacity(self.num_layers() - 1);
 
-        for index in 0..self.num_layers() {
+        // ard layers
+        for index in 0..self.summary_layer_index() {
             wrt_weights.push(tile(
                 &(std::f32::consts::PI
                     / (2f32
@@ -129,6 +130,16 @@ impl Branch for LassoArdBranch {
                         * integration_length as f32)),
                 dim4!(1, self.layer_widths[index] as u64, 1, 1),
             ));
+        }
+
+        // base layers
+        for index in self.summary_layer_index()..self.num_layers() {
+            wrt_weights.push(
+                std::f32::consts::PI
+                    / (2f32
+                        * sqrt(&self.precisions().weight_precisions[index])
+                        * integration_length as f32),
+            );
         }
 
         // there is only one bias precision per layer here
@@ -194,7 +205,8 @@ impl Branch for LassoArdBranch {
         let mut ldg_wrt_weights: Vec<Array<f32>> = Vec::with_capacity(self.num_layers);
         let mut ldg_wrt_biases: Vec<Array<f32>> = Vec::with_capacity(self.num_layers - 1);
 
-        for layer_index in 0..self.num_layers() {
+        // ard layer weights
+        for layer_index in 0..self.summary_layer_index() {
             let prec_m = arrayfire::tile(
                 self.weight_precisions(layer_index),
                 dim4!(1, self.weights(layer_index).dims().get()[1], 1, 1),
@@ -203,6 +215,14 @@ impl Branch for LassoArdBranch {
             ldg_wrt_weights.push(
                 -(self.error_precision() * &d_rss_wrt_weights[layer_index]
                     + prec_m * sign(self.weights(layer_index))),
+            );
+        }
+
+        // base layer weights
+        for layer_index in self.summary_layer_index()..self.num_layers() {
+            ldg_wrt_weights.push(
+                -(self.error_precision() * &d_rss_wrt_weights[layer_index]
+                    + self.weight_precisions(layer_index) * sign(self.weights(layer_index))),
             );
         }
 

@@ -115,12 +115,12 @@ impl Branch for RidgeArdBranch {
         }
     }
 
-    // TODO: this makes massive step sizes sometimes.
     fn izmailov_step_sizes(&mut self, integration_length: usize) -> StepSizes {
         let mut wrt_weights: Vec<Array<f32>> = Vec::with_capacity(self.num_layers());
         let mut wrt_biases = Vec::with_capacity(self.num_layers() - 1);
 
-        for index in 0..self.num_layers() {
+        // ard layers
+        for index in 0..self.summary_layer_index() {
             wrt_weights.push(tile(
                 &(std::f32::consts::PI
                     / (2f32
@@ -128,6 +128,16 @@ impl Branch for RidgeArdBranch {
                         * integration_length as f32)),
                 dim4!(1, self.layer_widths[index] as u64, 1, 1),
             ));
+        }
+
+        // base layers
+        for index in self.summary_layer_index()..self.num_layers() {
+            wrt_weights.push(
+                std::f32::consts::PI
+                    / (2f32
+                        * sqrt(&self.precisions().weight_precisions[index])
+                        * integration_length as f32),
+            );
         }
 
         // there is only one bias precision per layer here
@@ -199,7 +209,8 @@ impl Branch for RidgeArdBranch {
         let mut ldg_wrt_weights: Vec<Array<f32>> = Vec::with_capacity(self.num_layers);
         let mut ldg_wrt_biases: Vec<Array<f32>> = Vec::with_capacity(self.num_layers - 1);
 
-        for layer_index in 0..self.num_layers() {
+        // ard layer weights
+        for layer_index in 0..self.summary_layer_index() {
             let prec_m = arrayfire::tile(
                 self.weight_precisions(layer_index),
                 dim4!(1, self.weights(layer_index).dims().get()[1], 1, 1),
@@ -211,6 +222,15 @@ impl Branch for RidgeArdBranch {
             );
         }
 
+        // base layer weights
+        for layer_index in self.summary_layer_index()..self.num_layers() {
+            ldg_wrt_weights.push(
+                -(self.error_precision() * &d_rss_wrt_weights[layer_index]
+                    + self.weight_precisions(layer_index) * self.weights(layer_index)),
+            );
+        }
+
+        // biases
         for layer_index in 0..self.num_layers - 1 {
             ldg_wrt_biases.push(
                 -self.bias_precision(layer_index) * self.biases(layer_index)
@@ -308,7 +328,9 @@ mod tests {
     use assert_approx_eq::assert_approx_eq;
     // use arrayfire::{af_print, randu};
 
-    use super::super::{branch::Branch, branch_builder::BranchBuilder};
+    use super::super::{
+        branch::Branch, branch_builder::BranchBuilder, branch_cfg_builder::BranchCfgBuilder,
+    };
     use super::RidgeArdBranch;
 
     use crate::net::branch::momenta::BranchMomenta;
@@ -366,6 +388,16 @@ mod tests {
             .add_summary_bias(&exp_biases[1])
             .add_output_weight(&exp_weights[2])
             .build_ridge_ard()
+    }
+
+    fn make_test_branch_by_cfg() -> RidgeArdBranch {
+        let mut bld = BranchCfgBuilder::new()
+            .with_num_markers(3)
+            .with_initial_weights_value(0.1)
+            .with_initial_bias_value(0.0);
+        bld.add_hidden_layer(2);
+
+        RidgeArdBranch::from_cfg(&RidgeArdBranch::build_cfg(bld))
     }
 
     fn make_test_uniform_params(c: f32) -> BranchParams {
@@ -524,6 +556,19 @@ mod tests {
     //         assert_eq!(to_host(&bias_gradient[i]), to_host(&exp_bias_grad[i]));
     //     }
     // }
+
+    #[test]
+    fn test_log_density_gradient_by_cfg() {
+        let num_individuals = 4;
+        let num_markers = 3;
+        let branch = make_test_branch_by_cfg();
+        let x_train: Array<f32> = Array::new(
+            &[1., 0., 0., 2., 1., 1., 2., 0., 0., 2., 0., 1.],
+            dim4![num_individuals, num_markers, 1, 1],
+        );
+        let y_train: Array<f32> = Array::new(&[0.0, 2.0, 1.0, 1.5], dim4![4, 1, 1, 1]);
+        let _ldg = branch.log_density_gradient(&x_train, &y_train);
+    }
 
     #[test]
     fn test_log_density_gradient() {
