@@ -308,14 +308,6 @@ impl BranchCfgBuilder {
             insert_ix += num_weights;
             prev_width = *width;
         }
-        // summary layer is always Base
-        let num_weights = prev_width * self.summary_layer_width;
-        let summary_layer_precision = num_weights as f32
-            / params[insert_ix..insert_ix + num_weights]
-                .iter()
-                .map(|e| e * e)
-                .sum::<f32>();
-        weight_precisions[self.num_ard_layers()] = constant!(summary_layer_precision; 1);
 
         // output layer has to be done jointly for all branches
 
@@ -323,7 +315,7 @@ impl BranchCfgBuilder {
     }
 
     fn num_ard_layers(&self) -> usize {
-        self.num_layers - 2
+        self.num_layers - 1
     }
 
     pub fn build_base(mut self) -> BranchCfg {

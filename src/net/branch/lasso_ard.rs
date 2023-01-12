@@ -122,7 +122,7 @@ impl Branch for LassoArdBranch {
         let mut wrt_biases = Vec::with_capacity(self.num_layers() - 1);
 
         // ard layers
-        for index in 0..self.summary_layer_index() {
+        for index in 0..self.output_layer_index() {
             wrt_weights.push(tile(
                 &(std::f32::consts::PI
                     / (2f32
@@ -132,18 +132,16 @@ impl Branch for LassoArdBranch {
             ));
         }
 
-        // base layers
-        for index in self.summary_layer_index()..self.num_layers() {
-            wrt_weights.push(
-                std::f32::consts::PI
-                    / (2f32
-                        * sqrt(&self.precisions().weight_precisions[index])
-                        * integration_length as f32),
-            );
-        }
+        // output layer is base
+        wrt_weights.push(
+            std::f32::consts::PI
+                / (2f32
+                    * sqrt(&self.precisions().weight_precisions[self.output_layer_index()])
+                    * integration_length as f32),
+        );
 
         // there is only one bias precision per layer here
-        for index in 0..self.num_layers() - 1 {
+        for index in 0..self.output_layer_index() {
             wrt_biases.push(Array::new(
                 &vec![
                     std::f32::consts::PI
@@ -166,7 +164,7 @@ impl Branch for LassoArdBranch {
     fn log_density(&self, params: &BranchParams, precisions: &BranchPrecisions, rss: f32) -> f32 {
         let mut log_density: f32 = -0.5 * precisions.error_precision * rss;
 
-        for i in 0..self.summary_layer_index() {
+        for i in 0..self.output_layer_index() {
             log_density -= sum_all(&matmul(
                 &(abs(params.weights(i))),
                 self.weight_precisions(i),
@@ -175,12 +173,6 @@ impl Branch for LassoArdBranch {
             ))
             .0;
         }
-        // summary layer (is always Base)
-        log_density -= sum_all(
-            &(self.weight_precisions(self.summary_layer_index())
-                * &(abs(params.weights(self.summary_layer_index())))),
-        )
-        .0;
 
         // output layer
         log_density -= sum_all(
@@ -189,7 +181,7 @@ impl Branch for LassoArdBranch {
         )
         .0;
 
-        for i in 0..self.num_layers() - 1 {
+        for i in 0..self.output_layer_index() {
             log_density -= precisions.bias_precisions[i] * sum_all(&(abs(params.biases(i)))).0;
         }
 
@@ -206,7 +198,7 @@ impl Branch for LassoArdBranch {
         let mut ldg_wrt_biases: Vec<Array<f32>> = Vec::with_capacity(self.num_layers - 1);
 
         // ard layer weights
-        for layer_index in 0..self.summary_layer_index() {
+        for layer_index in 0..self.output_layer_index() {
             let prec_m = arrayfire::tile(
                 self.weight_precisions(layer_index),
                 dim4!(1, self.weights(layer_index).dims().get()[1], 1, 1),
@@ -218,15 +210,14 @@ impl Branch for LassoArdBranch {
             );
         }
 
-        // base layer weights
-        for layer_index in self.summary_layer_index()..self.num_layers() {
-            ldg_wrt_weights.push(
-                -(self.error_precision() * &d_rss_wrt_weights[layer_index]
-                    + self.weight_precisions(layer_index) * sign(self.weights(layer_index))),
-            );
-        }
+        // output layer is base
+        ldg_wrt_weights.push(
+            -(self.error_precision() * &d_rss_wrt_weights[self.output_layer_index()]
+                + self.weight_precisions(self.output_layer_index())
+                    * sign(self.weights(self.output_layer_index()))),
+        );
 
-        for layer_index in 0..self.num_layers - 1 {
+        for layer_index in 0..self.output_layer_index() {
             ldg_wrt_biases.push(
                 -self.bias_precision(layer_index) * sign(self.biases(layer_index))
                     - self.error_precision() * &d_rss_wrt_biases[layer_index],
@@ -257,11 +248,7 @@ impl Branch for LassoArdBranch {
 
     /// Samples precision values from their posterior distribution in a Gibbs step.
     fn sample_prior_precisions(&mut self, hyperparams: &NetworkPrecisionHyperparameters) {
-        // this iterates over layers
-        // the last two layers (summary and output)
-        // are sampled in the base layer way, otherwise there is overwhelming
-        // influence of the hyperparameters.
-        for i in 0..self.num_layers() - 2 {
+        for i in 0..self.output_layer_index() {
             let param_group_size = self.layer_width(i) as f32;
             let posterior_shape = param_group_size + hyperparams.dense_layer_prior_shape();
             // compute l1 norm of all rows
@@ -282,7 +269,7 @@ impl Branch for LassoArdBranch {
 
         // output precision is sampled jointly for all branches, not here
 
-        for i in 0..self.num_layers() - 2 {
+        for i in 0..self.summary_layer_index() {
             self.precisions.bias_precisions[i] = lasso_multi_param_precision_posterior(
                 hyperparams.dense_layer_prior_shape(),
                 hyperparams.dense_layer_prior_scale(),
@@ -291,18 +278,7 @@ impl Branch for LassoArdBranch {
             );
         }
 
-        // sample summary layer weights in base manner
         let summary_layer_index = self.summary_layer_index();
-        self.precisions.weight_precisions[summary_layer_index] = Array::new(
-            &[lasso_multi_param_precision_posterior(
-                hyperparams.summary_layer_prior_shape(),
-                hyperparams.summary_layer_prior_scale(),
-                &self.params.weights[summary_layer_index],
-                &mut self.rng,
-            )],
-            self.precisions.weight_precisions[summary_layer_index].dims(),
-        );
-
         // sample summary layer biases with summary layer hyperparams
         self.precisions.bias_precisions[summary_layer_index] =
             lasso_multi_param_precision_posterior(

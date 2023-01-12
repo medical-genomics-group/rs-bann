@@ -120,7 +120,7 @@ impl Branch for RidgeArdBranch {
         let mut wrt_biases = Vec::with_capacity(self.num_layers() - 1);
 
         // ard layers
-        for index in 0..self.summary_layer_index() {
+        for index in 0..self.output_layer_index() {
             wrt_weights.push(tile(
                 &(std::f32::consts::PI
                     / (2f32
@@ -131,17 +131,15 @@ impl Branch for RidgeArdBranch {
         }
 
         // base layers
-        for index in self.summary_layer_index()..self.num_layers() {
-            wrt_weights.push(
-                std::f32::consts::PI
-                    / (2f32
-                        * sqrt(&self.precisions().weight_precisions[index])
-                        * integration_length as f32),
-            );
-        }
+        wrt_weights.push(
+            std::f32::consts::PI
+                / (2f32
+                    * sqrt(&self.precisions().weight_precisions[self.output_layer_index()])
+                    * integration_length as f32),
+        );
 
         // there is only one bias precision per layer here
-        for index in 0..self.num_layers() - 1 {
+        for index in 0..self.output_layer_index() {
             wrt_biases.push(Array::new(
                 &vec![
                     std::f32::consts::PI
@@ -164,7 +162,7 @@ impl Branch for RidgeArdBranch {
     fn log_density(&self, params: &BranchParams, precisions: &BranchPrecisions, rss: f32) -> f32 {
         let mut log_density: f32 = -0.5 * precisions.error_precision * rss;
 
-        for i in 0..self.summary_layer_index() {
+        for i in 0..self.output_layer_index() {
             log_density -= 0.5
                 * sum_all(&matmul(
                     &(params.weights(i) * params.weights(i)),
@@ -174,14 +172,6 @@ impl Branch for RidgeArdBranch {
                 ))
                 .0;
         }
-        // summary layer (is always Base)
-        log_density -= 0.5
-            * arrayfire::sum_all(
-                &(self.weight_precisions(self.summary_layer_index())
-                    * &(params.weights(self.summary_layer_index())
-                        * params.weights(self.summary_layer_index()))),
-            )
-            .0;
 
         // output layer
         log_density -= 0.5
@@ -192,7 +182,7 @@ impl Branch for RidgeArdBranch {
             )
             .0;
 
-        for i in 0..self.num_layers() - 1 {
+        for i in 0..self.output_layer_index() {
             log_density -= precisions.bias_precisions[i]
                 * 0.5
                 * sum_all(&(params.biases(i) * params.biases(i))).0;
@@ -210,7 +200,7 @@ impl Branch for RidgeArdBranch {
         let mut ldg_wrt_biases: Vec<Array<f32>> = Vec::with_capacity(self.num_layers - 1);
 
         // ard layer weights
-        for layer_index in 0..self.summary_layer_index() {
+        for layer_index in 0..self.output_layer_index() {
             let prec_m = arrayfire::tile(
                 self.weight_precisions(layer_index),
                 dim4!(1, self.weights(layer_index).dims().get()[1], 1, 1),
@@ -222,16 +212,15 @@ impl Branch for RidgeArdBranch {
             );
         }
 
-        // base layer weights
-        for layer_index in self.summary_layer_index()..self.num_layers() {
-            ldg_wrt_weights.push(
-                -(self.error_precision() * &d_rss_wrt_weights[layer_index]
-                    + self.weight_precisions(layer_index) * self.weights(layer_index)),
-            );
-        }
+        // output layer is base
+        ldg_wrt_weights.push(
+            -(self.error_precision() * &d_rss_wrt_weights[self.output_layer_index()]
+                + self.weight_precisions(self.output_layer_index())
+                    * self.weights(self.output_layer_index())),
+        );
 
         // biases
-        for layer_index in 0..self.num_layers - 1 {
+        for layer_index in 0..self.output_layer_index() {
             ldg_wrt_biases.push(
                 -self.bias_precision(layer_index) * self.biases(layer_index)
                     - self.error_precision() * &d_rss_wrt_biases[layer_index],
@@ -262,11 +251,7 @@ impl Branch for RidgeArdBranch {
 
     /// Samples precision values from their posterior distribution in a Gibbs step.
     fn sample_prior_precisions(&mut self, hyperparams: &NetworkPrecisionHyperparameters) {
-        // this iterates over layers
-        // the last two layers (summary and output)
-        // are sampled in the base layer way, otherwise there is overwhelming
-        // influence of the hyperparameters.
-        for i in 0..self.num_layers() - 2 {
+        for i in 0..self.output_layer_index() {
             let param_group_size = self.layer_width(i) as f32;
             let posterior_shape = param_group_size / 2. + hyperparams.dense_layer_prior_shape();
             // compute sums of squares of all rows
@@ -290,7 +275,7 @@ impl Branch for RidgeArdBranch {
 
         // output precision is sampled jointly for all branches, not here
 
-        for i in 0..self.num_layers() - 2 {
+        for i in 0..self.summary_layer_index() {
             self.precisions.bias_precisions[i] = ridge_multi_param_precision_posterior(
                 hyperparams.dense_layer_prior_shape(),
                 hyperparams.dense_layer_prior_scale(),
@@ -299,18 +284,7 @@ impl Branch for RidgeArdBranch {
             );
         }
 
-        // sample summary layer weights in base manner
         let summary_layer_index = self.summary_layer_index();
-        self.precisions.weight_precisions[summary_layer_index] = Array::new(
-            &[ridge_multi_param_precision_posterior(
-                hyperparams.summary_layer_prior_shape(),
-                hyperparams.summary_layer_prior_scale(),
-                &self.params.weights[summary_layer_index],
-                &mut self.rng,
-            )],
-            self.precisions.weight_precisions[summary_layer_index].dims(),
-        );
-
         // sample summary layer biases with summary layer hyperparams
         self.precisions.bias_precisions[summary_layer_index] =
             ridge_multi_param_precision_posterior(
