@@ -33,16 +33,18 @@ impl LinearModelBuilder {
     pub fn with_random_effects(&mut self, heritability: f32) -> &mut Self {
         let mut rng = thread_rng();
         let m = self.num_markers_per_branch * self.num_branches;
-        let m_incl = (m as f32 * self.proportion_effective_markers) as usize;
+        let inclusion_dist = Bernoulli::new(self.proportion_effective_markers as f64).unwrap();
+        let included: Vec<bool> = (0..m).map(|_| inclusion_dist.sample(&mut rng)).collect();
+        let m_incl = included.iter().filter(|b| **b).count();
         let beta_std = (heritability / m_incl as f32).sqrt();
         let beta_dist = Normal::new(0.0, beta_std).unwrap();
-        let inclusion_dist = Bernoulli::new(self.proportion_effective_markers as f64).unwrap();
+
         let mut effects = Vec::new();
         for _ in 0..self.num_branches {
             effects.push(
                 (0..self.num_markers_per_branch)
-                    .map(|_| {
-                        if inclusion_dist.sample(&mut rng) {
+                    .map(|ix| {
+                        if included[ix] {
                             beta_dist.sample(&mut rng)
                         } else {
                             0.0
