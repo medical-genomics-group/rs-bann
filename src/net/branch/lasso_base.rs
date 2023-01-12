@@ -170,8 +170,7 @@ impl Branch for LassoBaseBranch {
                 sum_all(&(&precisions.weight_precisions[i] * &(abs(params.weights(i))))).0;
         }
         for i in 0..self.num_layers() - 1 {
-            log_density -=
-                precisions.bias_precisions[i] * arrayfire::sum_all(&(abs(params.biases(i)))).0;
+            log_density -= precisions.bias_precisions[i] * sum_all(&(abs(params.biases(i)))).0;
         }
         log_density
     }
