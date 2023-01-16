@@ -149,12 +149,21 @@ def sim_single_branch_no_hidden_layer(n: int, m: int, h2: float, plot=False):
 
 
 def exp_r2_in_indep_sample(m: int, n: int, h2: float, formula="wrey") -> float:
-    match formula:
-        case "wrey":
-            k = m / (n + h2)
-            x1 = (1 + k) - (np.sqrt((1 + k) ** 2 + 4 * k * h2) / (-2 * k))
-            x2 = (1 + k) + (np.sqrt((1 + k) ** 2 + 4 * k * h2) / (-2 * k))
-            return np.sqrt([x1, x2])
-        case "deatwyler":
-            k = n * h2 / m
-            return k / (k + 1)
+    # works only for python version >= 3.10
+    # match formula:
+    #     case "wrey":
+    #         k = m / (n + h2)
+    #         x1 = (1 + k) - (np.sqrt((1 + k) ** 2 + 4 * k * h2) / (-2 * k))
+    #         x2 = (1 + k) + (np.sqrt((1 + k) ** 2 + 4 * k * h2) / (-2 * k))
+    #         return np.sqrt([x1, x2])
+    #     case "deatwyler":
+    #         k = n * h2 / m
+    #         return k / (k + 1)
+    if formula == "wrey":
+        k = m / (n + h2)
+        x1 = (1 + k) - (np.sqrt((1 + k) ** 2 + 4 * k * h2) / (-2 * k))
+        x2 = (1 + k) + (np.sqrt((1 + k) ** 2 + 4 * k * h2) / (-2 * k))
+        return np.sqrt([x1, x2])
+    elif formula == "deatwyler":
+        k = n * h2 / m
+        return k / (k + 1)
