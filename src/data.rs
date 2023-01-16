@@ -3,6 +3,9 @@ use crate::group::grouping::MarkerGrouping;
 use arrayfire::{dim4, Array};
 use bed_reader::{Bed, ReadOptions};
 use bincode::{deserialize_from, serialize_into};
+use rand::SeedableRng;
+use rand_chacha::ChaCha20Rng;
+use rand_distr::{Binomial, Distribution, Uniform};
 use serde::{Deserialize, Serialize};
 use serde_json::{to_writer, to_writer_pretty};
 use std::{
@@ -40,6 +43,7 @@ pub struct GenotypesBuilder {
     means: Option<Vec<Vec<f32>>>,
     stds: Option<Vec<Vec<f32>>>,
     standardized: Option<bool>,
+    rng: ChaCha20Rng,
 }
 
 impl Default for GenotypesBuilder {
@@ -58,7 +62,13 @@ impl GenotypesBuilder {
             means: None,
             stds: None,
             standardized: None,
+            rng: ChaCha20Rng::from_entropy(),
         }
+    }
+
+    pub fn with_seed(mut self, seed: u64) -> Self {
+        self.rng = ChaCha20Rng::seed_from_u64(seed);
+        self
     }
 
     pub fn with_means(mut self, means: Vec<Vec<f32>>) -> Self {
@@ -68,6 +78,39 @@ impl GenotypesBuilder {
 
     pub fn with_stds(mut self, stds: Vec<Vec<f32>>) -> Self {
         self.stds = Some(stds);
+        self
+    }
+
+    pub fn with_random_x(
+        mut self,
+        num_markers_per_branch: Vec<usize>,
+        num_individuals: usize,
+    ) -> Self {
+        let num_branches = num_markers_per_branch.len();
+        let mut x: Vec<Vec<f32>> = Vec::new();
+        let mut x_means: Vec<Vec<f32>> = Vec::new();
+        let mut x_stds: Vec<Vec<f32>> = Vec::new();
+        for branch_ix in 0..num_branches {
+            let nmpb = num_markers_per_branch[branch_ix];
+            x.push(vec![0.0; nmpb * num_individuals]);
+            x_means.push(vec![0.0; nmpb]);
+            x_stds.push(vec![0.0; nmpb]);
+            for marker_ix in 0..nmpb {
+                let maf = Uniform::from(0.0..0.5).sample(&mut self.rng);
+                x_means[branch_ix][marker_ix] = 2. * maf;
+                x_stds[branch_ix][marker_ix] = (2. * maf * (1. - maf)).sqrt();
+
+                let binom = Binomial::new(2, maf as f64).unwrap();
+                (0..num_individuals).for_each(|i| {
+                    x[branch_ix][marker_ix * num_individuals + i] =
+                        binom.sample(&mut self.rng) as f32
+                });
+            }
+        }
+        self.x = Some(x);
+        self.num_branches = Some(num_branches);
+        self.num_markers_per_branch = Some(num_markers_per_branch);
+        self.num_individuals = Some(num_individuals);
         self
     }
 

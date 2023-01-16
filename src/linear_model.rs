@@ -1,7 +1,8 @@
-use crate::net::data::Genotypes;
+use crate::data::Genotypes;
 use crate::to_host;
 use arrayfire::{dim4, matmul, Array, MatProp};
-use rand::thread_rng;
+use rand::SeedableRng;
+use rand_chacha::ChaCha20Rng;
 use rand_distr::{Bernoulli, Distribution, Normal};
 use serde::Serialize;
 
@@ -10,6 +11,7 @@ pub struct LinearModelBuilder {
     num_markers_per_branch: usize,
     proportion_effective_markers: f32,
     effects: Option<Vec<Vec<f32>>>,
+    rng: ChaCha20Rng,
 }
 
 impl LinearModelBuilder {
@@ -19,7 +21,13 @@ impl LinearModelBuilder {
             num_markers_per_branch,
             proportion_effective_markers: 1.0,
             effects: None,
+            rng: ChaCha20Rng::from_entropy(),
         }
+    }
+
+    pub fn with_seed(mut self, seed: u64) -> Self {
+        self.rng = ChaCha20Rng::seed_from_u64(seed);
+        self
     }
 
     pub fn with_proportion_effective_markers(
@@ -31,10 +39,11 @@ impl LinearModelBuilder {
     }
 
     pub fn with_random_effects(&mut self, heritability: f32) -> &mut Self {
-        let mut rng = thread_rng();
         let m = self.num_markers_per_branch * self.num_branches;
         let inclusion_dist = Bernoulli::new(self.proportion_effective_markers as f64).unwrap();
-        let included: Vec<bool> = (0..m).map(|_| inclusion_dist.sample(&mut rng)).collect();
+        let included: Vec<bool> = (0..m)
+            .map(|_| inclusion_dist.sample(&mut self.rng))
+            .collect();
         let m_incl = included.iter().filter(|b| **b).count();
         let beta_std = (heritability / m_incl as f32).sqrt();
         let beta_dist = Normal::new(0.0, beta_std).unwrap();
@@ -45,7 +54,7 @@ impl LinearModelBuilder {
                 (0..self.num_markers_per_branch)
                     .map(|ix| {
                         if included[ix] {
-                            beta_dist.sample(&mut rng)
+                            beta_dist.sample(&mut self.rng)
                         } else {
                             0.0
                         }
@@ -95,4 +104,13 @@ impl LinearModel {
         }
         to_host(&y_hat)
     }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn make_test_lm() {}
+
+    #[test]
+    fn test_forward_feed() {}
 }

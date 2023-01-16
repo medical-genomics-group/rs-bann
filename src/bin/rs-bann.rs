@@ -8,6 +8,7 @@ use cli::cli::{
 use log::{info, warn};
 use rand::thread_rng;
 use rand_distr::{Binomial, Distribution, Normal, Uniform};
+use rs_bann::data::{Data, Genotypes, GenotypesBuilder, PhenStats, Phenotypes};
 use rs_bann::group::{
     centered::CorrGraph, external::ExternalGrouping, gene::GeneGrouping, grouping::MarkerGrouping,
 };
@@ -18,7 +19,6 @@ use rs_bann::net::{
         branch::Branch, lasso_ard::LassoArdBranch, lasso_base::LassoBaseBranch,
         ridge_ard::RidgeArdBranch, ridge_base::RidgeBaseBranch, std_normal_branch::StdNormalBranch,
     },
-    data::{Data, Genotypes, GenotypesBuilder, PhenStats, Phenotypes},
     mcmc_cfg::MCMCCfg,
     model_type::ModelType,
     net::Net,

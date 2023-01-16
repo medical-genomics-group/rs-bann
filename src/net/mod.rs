@@ -1,7 +1,6 @@
 pub mod af_helpers;
 pub mod architectures;
 pub mod branch;
-pub mod data;
 pub mod gibbs_steps;
 pub mod mcmc_cfg;
 pub mod model_type;

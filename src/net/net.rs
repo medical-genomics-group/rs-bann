@@ -1,12 +1,12 @@
 use super::model_type::ModelType;
 use super::{
     branch::branch::{Branch, BranchCfg, HMCStepResult},
-    data::{Data, Genotypes},
     gibbs_steps::{ridge_multi_param_precision_posterior, ridge_single_param_precision_posterior},
     mcmc_cfg::MCMCCfg,
     params::{ModelHyperparameters, NetworkPrecisionHyperparameters},
     train_stats::{ReportCfg, TrainingStats},
 };
+use crate::data::{Data, Genotypes};
 use crate::to_host;
 use arrayfire::{dim4, sum_all, Array};
 use bincode::{deserialize_from, serialize_into};

@@ -1,6 +1,6 @@
 use super::super::params::BranchPrecisions;
 use super::branch::BranchCfg;
-use arrayfire::{constant, dim4, Array};
+use arrayfire::{dim4, Array};
 use rand::{distributions::Distribution, SeedableRng};
 use rand_chacha::ChaCha20Rng;
 use rand_distr::{Bernoulli, Gamma, Normal};
