@@ -823,3 +823,18 @@ def r2_ridge(train_data, test_data, alpha=1.0):
 
 def r2(y_pred, y_true):
     return 1 - np.sum((y_true - y_pred) ** 2) / np.sum((y_true - y_true.mean()) ** 2)
+
+
+def autocorr(arr):
+    """
+    Example:
+
+        ```
+        plt.figure()
+        for pix in range(trace.params.shape[1]):
+            plt.plot(autocorr(trace.params[:, pix]))    
+        ```
+    """
+    v = (arr - np.mean(arr)) / (np.std(arr) * len(arr))
+    res = np.correlate(v, v, mode='full')
+    return res[res.size // 2:]
