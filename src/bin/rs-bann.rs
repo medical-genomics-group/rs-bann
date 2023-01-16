@@ -357,7 +357,7 @@ fn simulate_xy_linear(args: SimulateXYArgs) {
     }
 
     let mut path = Path::new(&args.outdir).join(format!(
-        "{}_b{}_wh{}_ws{}_d{}_m{}_n{}_h{}_v{}",
+        "{}_b{}_wh{}_ws{}_d{}_m{}_n{}_h{}_v{}_p{}",
         args.model_type,
         args.num_branches,
         args.hidden_layer_width,
@@ -366,12 +366,13 @@ fn simulate_xy_linear(args: SimulateXYArgs) {
         args.num_markers_per_branch,
         args.num_individuals,
         args.heritability,
-        args.init_param_variance
+        args.init_param_variance,
+        args.proportion_effective
     ));
 
     if let (Some(k), Some(s)) = (args.init_gamma_shape, args.init_gamma_scale) {
         path = Path::new(&args.outdir).join(format!(
-            "{}_b{}_wh{}_ws{}_d{}_m{}_n{}_h{}_k{}_s{}",
+            "{}_b{}_wh{}_ws{}_d{}_m{}_n{}_h{}_k{}_s{}_p{}",
             args.model_type,
             args.num_branches,
             args.hidden_layer_width,
@@ -381,7 +382,8 @@ fn simulate_xy_linear(args: SimulateXYArgs) {
             args.num_individuals,
             args.heritability,
             k,
-            s
+            s,
+            args.proportion_effective
         ));
     }
 
@@ -522,7 +524,7 @@ where
     }
 
     let mut path = Path::new(&args.outdir).join(format!(
-        "{}_b{}_wh{}_ws{}_d{}_m{}_n{}_h{}_v{}",
+        "{}_b{}_wh{}_ws{}_d{}_m{}_n{}_h{}_v{}_p{}",
         args.model_type,
         args.num_branches,
         args.hidden_layer_width,
@@ -531,12 +533,13 @@ where
         args.num_markers_per_branch,
         args.num_individuals,
         args.heritability,
-        args.init_param_variance
+        args.init_param_variance,
+        args.proportion_effective
     ));
 
     if let (Some(k), Some(s)) = (args.init_gamma_shape, args.init_gamma_scale) {
         path = Path::new(&args.outdir).join(format!(
-            "{}_b{}_wh{}_ws{}_d{}_m{}_n{}_h{}_k{}_s{}",
+            "{}_b{}_wh{}_ws{}_d{}_m{}_n{}_h{}_k{}_s{}_p{}",
             args.model_type,
             args.num_branches,
             args.hidden_layer_width,
@@ -546,7 +549,8 @@ where
             args.num_individuals,
             args.heritability,
             k,
-            s
+            s,
+            args.proportion_effective
         ));
     }
 
