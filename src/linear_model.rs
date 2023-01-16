@@ -108,9 +108,49 @@ impl LinearModel {
 
 #[cfg(test)]
 mod tests {
-    #[test]
-    fn make_test_lm() {}
+    use crate::data::{Genotypes, GenotypesBuilder};
+
+    use super::{LinearModel, LinearModelBuilder};
+
+    const SEED: u64 = 42;
+    const NB: usize = 1;
+    const NMPB: usize = 5;
+    const N: usize = 10;
+
+    fn make_test_lm(prop_eff: f32, h2: f32) -> LinearModel {
+        LinearModelBuilder::new(NB, NMPB)
+            .with_seed(SEED)
+            .with_proportion_effective_markers(prop_eff)
+            .with_random_effects(h2)
+            .build()
+    }
+
+    fn make_test_gt() -> Genotypes {
+        let mut gt = GenotypesBuilder::new()
+            .with_seed(SEED)
+            .with_random_x(vec![NMPB; NB], N)
+            .build()
+            .unwrap();
+        gt.standardize();
+        gt
+    }
 
     #[test]
-    fn test_forward_feed() {}
+    fn test_predict() {
+        let lm = make_test_lm(0.2, 0.6);
+        let gt = make_test_gt();
+        let exp: Vec<f32> = vec![
+            0.24516119,
+            0.24516119,
+            -0.23230685,
+            0.1386363,
+            -0.33883172,
+            -0.23230685,
+            0.24516119,
+            0.1386363,
+            -0.33883172,
+            0.72262925,
+        ];
+        assert_eq!(exp, lm.predict(&gt));
+    }
 }

@@ -108,6 +108,8 @@ impl GenotypesBuilder {
             }
         }
         self.x = Some(x);
+        self.stds = Some(x_stds);
+        self.means = Some(x_means);
         self.num_branches = Some(num_branches);
         self.num_markers_per_branch = Some(num_markers_per_branch);
         self.num_individuals = Some(num_individuals);
