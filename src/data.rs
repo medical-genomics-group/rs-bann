@@ -85,6 +85,7 @@ impl GenotypesBuilder {
         mut self,
         num_markers_per_branch: Vec<usize>,
         num_individuals: usize,
+        mafs: Option<Vec<f32>>,
     ) -> Self {
         let num_branches = num_markers_per_branch.len();
         let mut x: Vec<Vec<f32>> = Vec::new();
@@ -96,15 +97,32 @@ impl GenotypesBuilder {
             x_means.push(vec![0.0; nmpb]);
             x_stds.push(vec![0.0; nmpb]);
             for marker_ix in 0..nmpb {
-                let maf = Uniform::from(0.0..0.5).sample(&mut self.rng);
-                x_means[branch_ix][marker_ix] = 2. * maf;
-                x_stds[branch_ix][marker_ix] = (2. * maf * (1. - maf)).sqrt();
-
-                let binom = Binomial::new(2, maf as f64).unwrap();
-                (0..num_individuals).for_each(|i| {
-                    x[branch_ix][marker_ix * num_individuals + i] =
-                        binom.sample(&mut self.rng) as f32
-                });
+                loop {
+                    let maf = if let Some(v) = &mafs {
+                        assert!(
+                            v[num_branches * branch_ix + marker_ix] != 0.0,
+                            "maf of 0 it not allowed in simulation"
+                        );
+                        v[num_branches * branch_ix + marker_ix]
+                    } else {
+                        Uniform::from(0.01..0.5).sample(&mut self.rng)
+                    };
+                    let mut col_sum: usize = 0;
+                    let binom = Binomial::new(2, maf as f64).unwrap();
+                    (0..num_individuals).for_each(|i| {
+                        x[branch_ix][marker_ix * num_individuals + i] =
+                            binom.sample(&mut self.rng) as f32;
+                        col_sum += x[branch_ix][marker_ix * num_individuals + i] as usize;
+                    });
+                    let sampled_maf = col_sum as f32 / (2.0 * num_individuals as f32);
+                    let col_mean = 2.0 * sampled_maf;
+                    let var: f32 = 2.0 * sampled_maf * (1.0 - sampled_maf);
+                    x_means[branch_ix][marker_ix] = col_mean;
+                    x_stds[branch_ix][marker_ix] = var.sqrt();
+                    if var != 0.0 {
+                        break;
+                    }
+                }
             }
         }
         self.x = Some(x);
@@ -216,6 +234,14 @@ impl Genotypes {
 
     pub fn x(&self) -> &Vec<Vec<f32>> {
         &self.x
+    }
+
+    pub fn stds(&self) -> &Option<Vec<Vec<f32>>> {
+        &self.stds
+    }
+
+    pub fn means(&self) -> &Option<Vec<Vec<f32>>> {
+        &self.means
     }
 
     pub fn num_individuals(&self) -> usize {

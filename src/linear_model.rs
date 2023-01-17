@@ -128,7 +128,7 @@ mod tests {
     fn make_test_gt() -> Genotypes {
         let mut gt = GenotypesBuilder::new()
             .with_seed(SEED)
-            .with_random_x(vec![NMPB; NB], N)
+            .with_random_x(vec![NMPB; NB], N, None)
             .build()
             .unwrap();
         gt.standardize();
@@ -140,16 +140,16 @@ mod tests {
         let lm = make_test_lm(0.2, 0.6);
         let gt = make_test_gt();
         let exp: Vec<f32> = vec![
-            0.24516119,
-            0.24516119,
-            -0.23230685,
-            0.1386363,
-            -0.33883172,
-            -0.23230685,
-            0.24516119,
-            0.1386363,
-            -0.33883172,
-            0.72262925,
+            -0.30416226,
+            -0.30416226,
+            0.0317396,
+            0.24378717,
+            0.42180836,
+            0.0317396,
+            -0.30416226,
+            0.24378717,
+            0.5007487,
+            -0.5611238,
         ];
         assert_eq!(exp, lm.predict(&gt));
     }

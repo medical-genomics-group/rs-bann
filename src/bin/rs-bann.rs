@@ -398,50 +398,27 @@ fn simulate_xy_linear(args: SimulateXYArgs) {
     let mut rng = thread_rng();
 
     info!("Generating random marker data");
-    let gt_per_branch = args.num_markers_per_branch * args.num_individuals;
-    let mut x_train: Vec<Vec<f32>> = vec![vec![0.0; gt_per_branch]; args.num_branches];
-    let mut x_test: Vec<Vec<f32>> = vec![vec![0.0; gt_per_branch]; args.num_branches];
-    let mut x_means: Vec<Vec<f32>> =
-        vec![vec![0.0; args.num_markers_per_branch]; args.num_branches];
-    let mut x_stds: Vec<Vec<f32>> = vec![vec![0.0; args.num_markers_per_branch]; args.num_branches];
-    for branch_ix in 0..args.num_branches {
-        for marker_ix in 0..args.num_markers_per_branch {
-            let maf = Uniform::from(0.0..0.5).sample(&mut rng);
-            x_means[branch_ix][marker_ix] = 2. * maf;
-            x_stds[branch_ix][marker_ix] = (2. * maf * (1. - maf)).sqrt();
-
-            let binom = Binomial::new(2, maf as f64).unwrap();
-            (0..args.num_individuals).for_each(|i| {
-                x_train[branch_ix][marker_ix * args.num_individuals + i] =
-                    binom.sample(&mut rng) as f32
-            });
-            (0..args.num_individuals).for_each(|i| {
-                x_test[branch_ix][marker_ix * args.num_individuals + i] =
-                    binom.sample(&mut rng) as f32
-            });
-        }
-    }
+    let ud = Uniform::from(0.0..0.5);
+    let mafs = (0..args.num_branches * args.num_markers_per_branch)
+        .map(|_| ud.sample(&mut rng))
+        .collect::<Vec<f32>>();
 
     let mut gen_train = GenotypesBuilder::new()
-        .with_x(
-            x_train,
+        .with_random_x(
             vec![args.num_markers_per_branch; args.num_branches],
             args.num_individuals,
+            Some(mafs.clone()),
         )
-        .with_means(x_means.clone())
-        .with_stds(x_stds.clone())
         .build()
         .unwrap();
     gen_train.standardize();
 
     let mut gen_test = GenotypesBuilder::new()
-        .with_x(
-            x_test,
+        .with_random_x(
             vec![args.num_markers_per_branch; args.num_branches],
             args.num_individuals,
+            Some(mafs),
         )
-        .with_means(x_means)
-        .with_stds(x_stds)
         .build()
         .unwrap();
     gen_test.standardize();
