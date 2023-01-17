@@ -49,11 +49,11 @@ impl LinearModelBuilder {
         let beta_dist = Normal::new(0.0, beta_std).unwrap();
 
         let mut effects = Vec::new();
-        for _ in 0..self.num_branches {
+        for bix in 0..self.num_branches {
             effects.push(
                 (0..self.num_markers_per_branch)
                     .map(|ix| {
-                        if included[ix] {
+                        if included[self.num_markers_per_branch * bix + ix] {
                             beta_dist.sample(&mut self.rng)
                         } else {
                             0.0
@@ -83,6 +83,10 @@ pub struct LinearModel {
 }
 
 impl LinearModel {
+    pub fn effects(&self) -> &Vec<Vec<f32>> {
+        &self.effects
+    }
+
     fn af_branch_effects(&self, branch_ix: usize) -> Array<f32> {
         Array::new(
             &self.effects[branch_ix],
@@ -139,7 +143,6 @@ mod tests {
     fn test_predict() {
         let lm = make_test_lm(0.2, 0.6);
         let gt = make_test_gt();
-        println!("{:?}", gt.x());
         let exp: Vec<f32> = vec![
             -0.34460923,
             -0.34460923,

@@ -431,6 +431,9 @@ fn simulate_xy_linear(args: SimulateXYArgs) {
     info!("Making phenotype data");
     // genetic values
     let g_train = lm.predict(&gen_train);
+    println!("{:?}", gen_train.x());
+    println!("{:?}", lm.effects());
+    println!("{:?}", g_train);
     let g_var_train = g_train
         .iter()
         .map(|e| *e as f64)
