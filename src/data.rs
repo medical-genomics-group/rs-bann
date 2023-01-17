@@ -116,7 +116,11 @@ impl GenotypesBuilder {
                     });
                     let sampled_maf = col_sum as f32 / (2.0 * num_individuals as f32);
                     let col_mean = 2.0 * sampled_maf;
-                    let var: f32 = 2.0 * sampled_maf * (1.0 - sampled_maf);
+                    let var: f32 = (0..num_individuals)
+                        .map(|i| x[branch_ix][marker_ix * num_individuals + i] - col_mean)
+                        .map(|e| e * e)
+                        .sum::<f32>()
+                        / num_individuals as f32;
                     x_means[branch_ix][marker_ix] = col_mean;
                     x_stds[branch_ix][marker_ix] = var.sqrt();
                     if var != 0.0 {
@@ -391,9 +395,15 @@ impl Data {
 
 #[cfg(test)]
 mod tests {
+    // use crate::data::{Genotypes, GenotypesBuilder};
     use bed_reader::{Bed, ReadOptions};
     use std::env;
     use std::path::Path;
+
+    // const SEED: u64 = 42;
+    // const NB: usize = 1;
+    // const NMPB: usize = 5;
+    // const N: usize = 10;
 
     #[test]
     fn test() {
@@ -420,4 +430,20 @@ mod tests {
         ];
         assert_eq!(val.iter().cloned().collect::<Vec<f32>>(), row_major_mat);
     }
+
+    // fn make_test_gt() -> Genotypes {
+    //     let mut gt = GenotypesBuilder::new()
+    //         .with_seed(SEED)
+    //         .with_random_x(vec![NMPB; NB], N, None)
+    //         .build()
+    //         .unwrap();
+    //     gt.standardize();
+    //     gt
+    // }
+
+    // #[test]
+    // fn test_standardization() {
+    //     let get = make_test_gt();
+
+    // }
 }
