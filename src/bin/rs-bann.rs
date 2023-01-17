@@ -454,14 +454,24 @@ fn simulate_xy_linear(args: SimulateXYArgs) {
     info!("Making phenotype data");
     // genetic values
     let g_train = lm.predict(&gen_train);
+    let g_var_train = &g_train
+        .iter()
+        .map(|e| *e as f64)
+        .collect::<Vec<f64>>()
+        .variance();
+    info!("Genetic variance in train: {}", g_var_train);
     let mut y_train = g_train.clone();
     let g_test = lm.predict(&gen_test);
+    let g_var_test = &g_test
+        .iter()
+        .map(|e| *e as f64)
+        .collect::<Vec<f64>>()
+        .variance();
+    info!("Genetic variance in test: {}", g_var_test);
     let mut y_test = g_test.clone();
 
-    let std_e_train: f32 =
-        (1.0 - (&y_train.iter().map(|e| *e as f64).collect::<Vec<f64>>()).variance()).sqrt() as f32;
-    let std_e_test: f32 =
-        (1.0 - (&y_test.iter().map(|e| *e as f64).collect::<Vec<f64>>()).variance()).sqrt() as f32;
+    let std_e_train: f32 = (1.0 - (g_var_train).sqrt()) as f32;
+    let std_e_test: f32 = (1.0 - (g_var_test).sqrt()) as f32;
 
     let std_e_norm_train = Normal::new(0.0, std_e_train).unwrap();
     (0..args.num_individuals).for_each(|i| y_train[i] += std_e_norm_train.sample(&mut rng));
