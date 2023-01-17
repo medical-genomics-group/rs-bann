@@ -431,24 +431,28 @@ fn simulate_xy_linear(args: SimulateXYArgs) {
     info!("Making phenotype data");
     // genetic values
     let g_train = lm.predict(&gen_train);
-    let g_var_train = &g_train
+    let g_var_train = g_train
         .iter()
         .map(|e| *e as f64)
         .collect::<Vec<f64>>()
-        .variance();
+        .variance() as f32;
+    let tot_var_train = g_var_train / args.heritability;
+    let e_var_train = tot_var_train - g_var_train;
     info!("Genetic variance in train: {}", g_var_train);
     let mut y_train = g_train.clone();
     let g_test = lm.predict(&gen_test);
-    let g_var_test = &g_test
+    let g_var_test = g_test
         .iter()
         .map(|e| *e as f64)
         .collect::<Vec<f64>>()
-        .variance();
+        .variance() as f32;
+    let tot_var_test = g_var_test / args.heritability;
+    let e_var_test = tot_var_test - g_var_test;
     info!("Genetic variance in test: {}", g_var_test);
     let mut y_test = g_test.clone();
 
-    let std_e_train: f32 = (1.0 - (g_var_train).sqrt()) as f32;
-    let std_e_test: f32 = (1.0 - (g_var_test).sqrt()) as f32;
+    let std_e_train: f32 = e_var_train.sqrt();
+    let std_e_test: f32 = e_var_test.sqrt();
 
     let std_e_norm_train = Normal::new(0.0, std_e_train).unwrap();
     (0..args.num_individuals).for_each(|i| y_train[i] += std_e_norm_train.sample(&mut rng));
@@ -469,14 +473,14 @@ fn simulate_xy_linear(args: SimulateXYArgs) {
     PhenStats::new(
         (&y_test.iter().map(|e| *e as f64).collect::<Vec<f64>>()).mean() as f32,
         (&y_test.iter().map(|e| *e as f64).collect::<Vec<f64>>()).variance() as f32,
-        std_e_test * std_e_test,
+        e_var_test,
     )
     .to_file(&path.join("test_phen_stats.json"));
 
     PhenStats::new(
         (&y_train.iter().map(|e| *e as f64).collect::<Vec<f64>>()).mean() as f32,
         (&y_train.iter().map(|e| *e as f64).collect::<Vec<f64>>()).variance() as f32,
-        std_e_train * std_e_train,
+        e_var_train,
     )
     .to_file(&path.join("train_phen_stats.json"));
 
