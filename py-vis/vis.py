@@ -292,8 +292,8 @@ class Data:
     def __from_json(gen, phen):
         x = []
         for bix, branch_data in enumerate(gen["x"]):
-            x.append(np.array(branch_data, order="F").reshape(
-                (gen["num_individuals"], gen["num_markers_per_branch"][bix])))
+            x.append(np.array(branch_data).reshape(
+                (gen["num_individuals"], gen["num_markers_per_branch"][bix]), order='F'))
         return Data(
             x,
             np.array(phen['y']),
