@@ -38,7 +38,7 @@ impl Branch for StdNormalBranch {
             num_markers: cfg.num_markers,
             num_layers: cfg.layer_widths.len(),
             layer_widths: cfg.layer_widths.clone(),
-            precisions: cfg.precisions.clone(),
+            precisions: BranchPrecisions::from_host(&cfg.precisions),
             params: BranchParams::from_param_vec(&cfg.params, &cfg.layer_widths, cfg.num_markers),
             rng: thread_rng(),
         }
