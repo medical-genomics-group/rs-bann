@@ -409,7 +409,7 @@ impl<B: Branch> Net<B> {
         let y_test_arr = Array::new(data.y(), dim4!(data.num_individuals() as u64, 1, 1, 1));
         let y_hat = self.predict_device(data.x(), data.num_individuals());
         let residual = y_test_arr - y_hat;
-        super::af_helpers::l2_norm(&residual)
+        crate::af_helpers::l2_norm(&residual)
     }
 
     pub fn mse(&self, data: &Data) -> f32 {
