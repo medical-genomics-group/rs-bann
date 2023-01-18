@@ -10,8 +10,10 @@ use super::{
     step_sizes::StepSizes,
     trajectory::Trajectory,
 };
-use crate::net::gibbs_steps::ridge_multi_param_precision_posterior;
-use crate::{net::params::NetworkPrecisionHyperparameters, scalar_to_host};
+use crate::net::{
+    gibbs_steps::ridge_multi_param_precision_posterior, params::BranchPrecisionsHost,
+};
+use crate::{af_helpers::scalar_to_host, net::params::NetworkPrecisionHyperparameters};
 use arrayfire::{diag_extract, dim4, dot, matmul, randu, sum, tanh, Array, MatProp};
 use log::{debug, warn};
 use rand::{prelude::ThreadRng, Rng};
@@ -32,8 +34,6 @@ pub trait Branch {
 
     fn from_cfg(cfg: &BranchCfg) -> Self;
 
-    fn to_cfg(&self) -> BranchCfg;
-
     fn set_params(&mut self, params: &BranchParams);
 
     fn params(&self) -> &BranchParams;
@@ -43,6 +43,8 @@ pub trait Branch {
     fn precisions(&self) -> &BranchPrecisions;
 
     fn num_params(&self) -> usize;
+
+    fn num_weights(&self) -> usize;
 
     fn num_layers(&self) -> usize;
 
@@ -69,6 +71,18 @@ pub trait Branch {
     fn num_markers(&self) -> usize;
 
     fn layer_widths(&self) -> &Vec<usize>;
+
+    /// Dumps all branch info into a BranchCfg object stored in host memory.
+    fn to_cfg(&self) -> BranchCfg {
+        BranchCfg {
+            num_params: self.num_params(),
+            num_weights: self.num_weights(),
+            num_markers: self.num_markers(),
+            layer_widths: self.layer_widths().clone(),
+            params: self.params().param_vec(),
+            precisions: self.precisions().to_host(),
+        }
+    }
 
     fn sample_error_precision(
         &mut self,
@@ -687,7 +701,7 @@ pub struct BranchCfg {
     pub(crate) num_markers: usize,
     pub(crate) layer_widths: Vec<usize>,
     pub(crate) params: Vec<f32>,
-    pub(crate) precisions: BranchPrecisions,
+    pub(crate) precisions: BranchPrecisionsHost,
 }
 
 impl BranchCfg {
@@ -699,7 +713,7 @@ impl BranchCfg {
         *self.params.last().expect("Branch params are empty!")
     }
 
-    pub fn precisions(&self) -> &BranchPrecisions {
+    pub fn precisions(&self) -> &BranchPrecisionsHost {
         &self.precisions
     }
 

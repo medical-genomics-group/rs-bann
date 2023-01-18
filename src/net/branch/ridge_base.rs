@@ -45,16 +45,8 @@ impl Branch for RidgeBaseBranch {
         }
     }
 
-    /// Dumps all branch info into a BranchCfg object stored in host memory.
-    fn to_cfg(&self) -> BranchCfg {
-        BranchCfg {
-            num_params: self.num_params,
-            num_weights: self.num_weights,
-            num_markers: self.num_markers,
-            layer_widths: self.layer_widths.clone(),
-            params: self.params.param_vec(),
-            precisions: self.precisions.clone(),
-        }
+    fn num_weights(&self) -> usize {
+        self.num_weights
     }
 
     fn num_markers(&self) -> usize {
