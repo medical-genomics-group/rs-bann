@@ -255,6 +255,10 @@ pub(crate) struct TrainArgs {
     /// Number of burn-in samples that will be discarded.
     #[clap(default_value_t = 0, long)]
     pub burn_in: usize,
+
+    /// Sample parameters and their precisions jointly, instead sampling the precisions in a Gibbs step.
+    #[clap(short, long)]
+    pub joint_hmc: bool,
 }
 
 impl TrainArgs {
@@ -372,6 +376,10 @@ pub(crate) struct TrainNewArgs {
     /// Number of burn-in samples that will be discarded.
     #[clap(default_value_t = 0, long)]
     pub burn_in: usize,
+
+    /// Sample parameters and their precisions jointly, instead sampling the precisions in a Gibbs step.
+    #[clap(short, long)]
+    pub joint_hmc: bool,
 }
 
 impl TrainNewArgs {

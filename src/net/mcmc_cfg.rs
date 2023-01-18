@@ -18,8 +18,11 @@ pub struct MCMCCfg {
     pub trajectories: bool,
     pub num_grad_traj: bool,
     pub num_grad: bool,
-    // use gradient descent instead of hmc
+    /// use gradient descent instead of hmc
     pub gradient_descent: bool,
+    /// sample branch parameters and their precisions jointly
+    /// instead of sampling the precisions in a gibbs step
+    pub joint_hmc: bool,
 }
 
 impl MCMCCfg {
@@ -38,6 +41,7 @@ impl MCMCCfg {
             num_grad: false,
             // use gradient descent instead of hmc
             gradient_descent: false,
+            joint_hmc: false,
         }
     }
 
