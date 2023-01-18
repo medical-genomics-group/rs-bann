@@ -1,5 +1,4 @@
 use super::{
-    super::af_helpers::sign,
     super::gibbs_steps::lasso_multi_param_precision_posterior,
     super::model_type::ModelType,
     super::params::{BranchParams, BranchPrecisions},
@@ -7,7 +6,8 @@ use super::{
     branch_cfg_builder::BranchCfgBuilder,
     step_sizes::StepSizes,
 };
-use crate::{net::params::NetworkPrecisionHyperparameters, scalar_to_host};
+use crate::af_helpers::{scalar_to_host, sign};
+use crate::net::params::NetworkPrecisionHyperparameters;
 use arrayfire::{abs, dim4, sqrt, sum_all, Array};
 use rand::prelude::ThreadRng;
 use rand::thread_rng;
@@ -272,9 +272,9 @@ mod tests {
     use super::super::{branch::Branch, branch_builder::BranchBuilder};
     use super::LassoBaseBranch;
 
+    use crate::af_helpers::to_host;
     use crate::net::branch::momenta::BranchMomenta;
     use crate::net::params::BranchParams;
-    use crate::to_host;
 
     // #[test]
     // fn test_af() {
