@@ -6,8 +6,8 @@ use super::{
     params::{ModelHyperparameters, NetworkPrecisionHyperparameters},
     train_stats::{ReportCfg, TrainingStats},
 };
+use crate::af_helpers::to_host;
 use crate::data::{Data, Genotypes};
-use crate::to_host;
 use arrayfire::{dim4, sum_all, Array};
 use bincode::{deserialize_from, serialize_into};
 use log::{debug, info};
@@ -458,7 +458,7 @@ impl<B: Branch> Net<B> {
 
 #[cfg(test)]
 mod tests {
-    use crate::to_host;
+    use crate::af_helpers::to_host;
     use arrayfire::{dim4, Array, MatProp};
 
     #[test]
