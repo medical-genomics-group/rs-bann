@@ -162,7 +162,7 @@ impl Branch for LassoArdBranch {
 
         for i in 0..self.output_layer_index() {
             log_density -= sum_all(&matmul(
-                &(abs(params.weights(i))),
+                &(abs(params.layer_weights(i))),
                 self.weight_precisions(i),
                 MatProp::TRANS,
                 MatProp::NONE,
@@ -173,7 +173,7 @@ impl Branch for LassoArdBranch {
         // output layer
         log_density -= sum_all(
             &(self.weight_precisions(self.output_layer_index())
-                * &(abs(params.weights(self.output_layer_index())))),
+                * &(abs(params.layer_weights(self.output_layer_index())))),
         )
         .0;
 
@@ -197,12 +197,12 @@ impl Branch for LassoArdBranch {
         for layer_index in 0..self.output_layer_index() {
             let prec_m = arrayfire::tile(
                 self.weight_precisions(layer_index),
-                dim4!(1, self.weights(layer_index).dims().get()[1], 1, 1),
+                dim4!(1, self.layer_weights(layer_index).dims().get()[1], 1, 1),
             );
 
             ldg_wrt_weights.push(
                 -(self.error_precision() * &d_rss_wrt_weights[layer_index]
-                    + prec_m * sign(self.weights(layer_index))),
+                    + prec_m * sign(self.layer_weights(layer_index))),
             );
         }
 
@@ -210,7 +210,7 @@ impl Branch for LassoArdBranch {
         ldg_wrt_weights.push(
             -(self.error_precision() * &d_rss_wrt_weights[self.output_layer_index()]
                 + self.weight_precisions(self.output_layer_index())
-                    * sign(self.weights(self.output_layer_index()))),
+                    * sign(self.layer_weights(self.output_layer_index()))),
         );
 
         for layer_index in 0..self.output_layer_index() {
@@ -524,7 +524,7 @@ mod tests {
 
         // correct dimensions
         for i in 0..(branch.num_layers) {
-            assert_eq!(ldg.wrt_weights[i].dims(), branch.weights(i).dims());
+            assert_eq!(ldg.wrt_weights[i].dims(), branch.layer_weights(i).dims());
         }
         for i in 0..(branch.num_layers - 1) {
             assert_eq!(ldg.wrt_biases[i].dims(), branch.biases(i).dims());
@@ -578,7 +578,7 @@ mod tests {
 
         // correct dimensions
         for i in 0..(branch.num_layers) {
-            assert_eq!(ldg.wrt_weights[i].dims(), branch.weights(i).dims());
+            assert_eq!(ldg.wrt_weights[i].dims(), branch.layer_weights(i).dims());
         }
         for i in 0..(branch.num_layers - 1) {
             assert_eq!(ldg.wrt_biases[i].dims(), branch.biases(i).dims());

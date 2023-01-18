@@ -158,7 +158,7 @@ pub trait Branch {
         res
     }
 
-    fn weights(&self, index: usize) -> &Array<f32> {
+    fn layer_weights(&self, index: usize) -> &Array<f32> {
         &self.params().weights[index]
     }
 
@@ -186,20 +186,21 @@ pub trait Branch {
     fn net_movement(&self, init_params: &BranchParams, momenta: &BranchMomenta) -> f32 {
         let mut dot_p = Array::new(&[0.0], dim4!(1, 1, 1, 1));
         for ix in 0..self.num_layers() {
-            if self.weights(ix).is_vector() {
+            if self.layer_weights(ix).is_vector() {
                 dot_p += dot(
-                    &(self.weights(ix) - init_params.weights(ix)),
+                    &(self.layer_weights(ix) - init_params.layer_weights(ix)),
                     momenta.wrt_weights(ix),
                     MatProp::NONE,
                     MatProp::NONE,
                 );
-            } else if self.weights(ix).is_scalar() {
-                dot_p += (self.weights(ix) - init_params.weights(ix)) * momenta.wrt_weights(ix);
+            } else if self.layer_weights(ix).is_scalar() {
+                dot_p += (self.layer_weights(ix) - init_params.layer_weights(ix))
+                    * momenta.wrt_weights(ix);
             } else {
                 dot_p += sum(
                     &diag_extract(
                         &matmul(
-                            &(self.weights(ix) - init_params.weights(ix)),
+                            &(self.layer_weights(ix) - init_params.layer_weights(ix)),
                             momenta.wrt_weights(ix),
                             MatProp::TRANS,
                             MatProp::NONE,
@@ -229,12 +230,12 @@ pub trait Branch {
         let mut wrt_weights = Vec::with_capacity(self.num_layers());
         let mut wrt_biases = Vec::with_capacity(self.num_layers() - 1);
         for index in 0..self.num_layers() - 1 {
-            wrt_weights.push(arrayfire::randn::<f32>(self.weights(index).dims()));
+            wrt_weights.push(arrayfire::randn::<f32>(self.layer_weights(index).dims()));
             wrt_biases.push(arrayfire::randn::<f32>(self.biases(index).dims()));
         }
         // output layer weight momentum
         wrt_weights.push(arrayfire::randn::<f32>(
-            self.weights(self.num_layers() - 1).dims(),
+            self.layer_weights(self.num_layers() - 1).dims(),
         ));
         BranchMomenta {
             wrt_weights,
@@ -242,26 +243,67 @@ pub trait Branch {
         }
     }
 
+    fn num_precisions(&self) -> usize {
+        self.precisions().num_precisions()
+    }
+
+    fn layer_weight_precisions(&self, layer_index: usize) -> &Array<f32> {
+        self.precisions().layer_weight_precisions(layer_index)
+    }
+
+    fn layer_bias_precision(&self, layer_index: usize) -> &Array<f32> {
+        self.precisions().layer_bias_precision(layer_index)
+    }
+
     fn random_step_sizes(&mut self, mcmc_cfg: &MCMCCfg) -> StepSizes {
         let const_factor = mcmc_cfg.hmc_step_size_factor;
+
+        let prop_factor = if mcmc_cfg.joint_hmc {
+            (self.num_params() as f32 + self.num_precisions() as f32).powf(-0.25) * const_factor
+        } else {
+            (self.num_params() as f32).powf(-0.25) * const_factor
+        };
+
         let mut wrt_weights = Vec::with_capacity(self.num_layers());
-        let mut wrt_biases = Vec::with_capacity(self.num_layers() - 1);
-
-        let prop_factor = (self.num_params() as f32).powf(-0.25) * const_factor;
-
         for index in 0..self.num_layers() {
-            wrt_weights.push(randu::<f32>(self.weights(index).dims()) * prop_factor);
+            wrt_weights.push(randu::<f32>(self.layer_weights(index).dims()) * prop_factor);
         }
 
+        let mut wrt_biases = Vec::with_capacity(self.num_layers() - 1);
         for index in 0..(self.num_layers() - 1) {
             wrt_biases.push(randu::<f32>(self.biases(index).dims()) * prop_factor);
         }
+
+        if !mcmc_cfg.joint_hmc {
+            return StepSizes {
+                wrt_weights,
+                wrt_biases,
+                wrt_weight_precisions: None,
+                wrt_bias_precisions: None,
+                wrt_error_precision: None,
+            };
+        }
+
+        let mut wrt_weight_precisions = Vec::new();
+        for index in 0..self.num_layers() {
+            wrt_weight_precisions
+                .push(randu::<f32>(self.layer_weight_precisions(index).dims()) * prop_factor);
+        }
+
+        let mut wrt_bias_precisions = Vec::new();
+        for index in 0..self.num_layers() {
+            wrt_bias_precisions
+                .push(randu::<f32>(self.layer_bias_precision(index).dims()) * prop_factor);
+        }
+
+        let wrt_error_precision = randu::<f32>(dim4!(1)) * prop_factor;
+
         StepSizes {
             wrt_weights,
             wrt_biases,
-            wrt_weight_precisions: None,
-            wrt_bias_precisions: None,
-            wrt_error_precision: None,
+            wrt_weight_precisions: Some(wrt_weight_precisions),
+            wrt_bias_precisions: Some(wrt_bias_precisions),
+            wrt_error_precision: Some(wrt_error_precision),
         }
     }
 
@@ -271,8 +313,8 @@ pub trait Branch {
         let mut wrt_biases = Vec::with_capacity(self.num_layers() - 1);
         for index in 0..self.num_layers() - 1 {
             wrt_weights.push(Array::new(
-                &vec![val; self.weights(index).elements()],
-                self.weights(index).dims(),
+                &vec![val; self.layer_weights(index).elements()],
+                self.layer_weights(index).dims(),
             ));
             wrt_biases.push(Array::new(
                 &vec![val; self.biases(index).elements()],
@@ -281,8 +323,8 @@ pub trait Branch {
         }
         // output layer weights
         wrt_weights.push(Array::new(
-            &vec![val; self.weights(self.num_layers() - 1).elements()],
-            self.weights(self.num_layers() - 1).dims(),
+            &vec![val; self.layer_weights(self.num_layers() - 1).elements()],
+            self.layer_weights(self.num_layers() - 1).dims(),
         ));
         StepSizes {
             wrt_weights,
@@ -311,7 +353,7 @@ pub trait Branch {
     fn mid_layer_activation(&self, layer_index: usize, input: &Array<f32>) -> Array<f32> {
         let xw = matmul(
             input,
-            self.weights(layer_index),
+            self.layer_weights(layer_index),
             MatProp::NONE,
             MatProp::NONE,
         );
@@ -326,7 +368,7 @@ pub trait Branch {
     fn output_neuron_activation(&self, input: &Array<f32>) -> Array<f32> {
         matmul(
             input,
-            self.weights(self.num_layers() - 1),
+            self.layer_weights(self.num_layers() - 1),
             MatProp::NONE,
             MatProp::NONE,
         )
@@ -347,7 +389,7 @@ pub trait Branch {
 
         error = matmul(
             &error,
-            self.weights(self.num_layers() - 1),
+            self.layer_weights(self.num_layers() - 1),
             MatProp::NONE,
             MatProp::TRANS,
         );
@@ -357,7 +399,7 @@ pub trait Branch {
             let delta: Array<f32> = (1 - arrayfire::pow(activation, &2, false)) * error;
             error = matmul(
                 &delta,
-                self.weights(layer_index),
+                self.layer_weights(layer_index),
                 MatProp::NONE,
                 MatProp::TRANS,
             );
@@ -390,7 +432,7 @@ pub trait Branch {
 
         error = matmul(
             &error,
-            self.weights(self.num_layers() - 1),
+            self.layer_weights(self.num_layers() - 1),
             MatProp::NONE,
             MatProp::TRANS,
         );
@@ -406,7 +448,7 @@ pub trait Branch {
             ));
             error = matmul(
                 &delta,
-                self.weights(layer_index),
+                self.layer_weights(layer_index),
                 MatProp::NONE,
                 MatProp::TRANS,
             );

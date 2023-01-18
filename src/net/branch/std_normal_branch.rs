@@ -103,9 +103,9 @@ impl Branch for StdNormalBranch {
             wrt_weights.push(Array::new(
                 &vec![
                     const_factor * (1. / scalar_to_host(self.weight_precisions(index))).sqrt();
-                    self.weights(index).elements()
+                    self.layer_weights(index).elements()
                 ],
-                self.weights(index).dims(),
+                self.layer_weights(index).dims(),
             ));
         }
         for index in 0..self.num_layers() - 1 {
@@ -160,7 +160,8 @@ impl Branch for StdNormalBranch {
     fn log_density(&self, params: &BranchParams, precisions: &BranchPrecisions, rss: f32) -> f32 {
         let mut log_density: f32 = scalar_to_host(&(-0.5f32 * &precisions.error_precision * rss));
         for i in 0..self.num_layers() {
-            log_density -= 0.5 * arrayfire::sum_all(&(params.weights(i) * params.weights(i))).0;
+            log_density -=
+                0.5 * arrayfire::sum_all(&(params.layer_weights(i) * params.layer_weights(i))).0;
         }
         for i in 0..self.num_layers() - 1 {
             log_density -= 0.5 * arrayfire::sum_all(&(params.biases(i) * params.biases(i))).0;
@@ -179,7 +180,7 @@ impl Branch for StdNormalBranch {
         for layer_index in 0..self.num_layers() {
             ldg_wrt_weights.push(
                 -(self.error_precision() * &d_rss_wrt_weights[layer_index]
-                    + self.weights(layer_index)),
+                    + self.layer_weights(layer_index)),
             );
         }
         for layer_index in 0..self.num_layers() - 1 {

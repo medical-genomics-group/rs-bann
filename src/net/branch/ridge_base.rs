@@ -104,9 +104,9 @@ impl Branch for RidgeBaseBranch {
             wrt_weights.push(Array::new(
                 &vec![
                     const_factor * (1. / scalar_to_host(self.weight_precisions(index))).sqrt();
-                    self.weights(index).elements()
+                    self.layer_weights(index).elements()
                 ],
-                self.weights(index).dims(),
+                self.layer_weights(index).dims(),
             ));
         }
         for index in 0..self.num_layers() - 1 {
@@ -163,7 +163,8 @@ impl Branch for RidgeBaseBranch {
         for i in 0..self.num_layers() {
             log_density -= 0.5
                 * arrayfire::sum_all(
-                    &(&precisions.weight_precisions[i] * &(params.weights(i) * params.weights(i))),
+                    &(&precisions.weight_precisions[i]
+                        * &(params.layer_weights(i) * params.layer_weights(i))),
                 )
                 .0;
         }
@@ -188,7 +189,7 @@ impl Branch for RidgeBaseBranch {
         for layer_index in 0..self.num_layers() {
             ldg_wrt_weights.push(
                 -(self.error_precision() * &d_rss_wrt_weights[layer_index]
-                    + self.weight_precisions(layer_index) * self.weights(layer_index)),
+                    + self.weight_precisions(layer_index) * self.layer_weights(layer_index)),
             );
         }
         for layer_index in 0..self.num_layers() - 1 {
@@ -468,7 +469,7 @@ mod tests {
 
         // correct dimensions
         for i in 0..(branch.num_layers) {
-            assert_eq!(ldg.wrt_weights[i].dims(), branch.weights(i).dims());
+            assert_eq!(ldg.wrt_weights[i].dims(), branch.layer_weights(i).dims());
         }
         for i in 0..(branch.num_layers - 1) {
             assert_eq!(ldg.wrt_biases[i].dims(), branch.biases(i).dims());

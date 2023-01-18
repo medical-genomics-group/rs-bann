@@ -597,7 +597,7 @@ mod tests {
         assert_eq!(branch.num_markers, 3);
         for i in 0..branch.num_layers() {
             assert_eq!(branch.layer_width(i), exp_layer_widths[i]);
-            assert_eq!(branch.weights(i).dims(), exp_weight_dims[i]);
+            assert_eq!(branch.layer_weights(i).dims(), exp_weight_dims[i]);
             if i < branch.num_layers() - 1 {
                 assert_eq!(branch.biases(i).dims(), exp_bias_dims[i]);
             }
@@ -606,7 +606,7 @@ mod tests {
         // param values
         // weights
         for i in 0..branch.num_layers() {
-            assert_eq!(to_host(branch.weights(i)), to_host(&exp_weights[i]));
+            assert_eq!(to_host(branch.layer_weights(i)), to_host(&exp_weights[i]));
         }
         // biases
         for i in 0..branch.num_layers() - 1 {

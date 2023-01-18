@@ -164,7 +164,7 @@ impl Branch for RidgeArdBranch {
         for i in 0..self.output_layer_index() {
             log_density -= 0.5
                 * sum_all(&matmul(
-                    &(params.weights(i) * params.weights(i)),
+                    &(params.layer_weights(i) * params.layer_weights(i)),
                     self.weight_precisions(i),
                     MatProp::TRANS,
                     MatProp::NONE,
@@ -176,8 +176,8 @@ impl Branch for RidgeArdBranch {
         log_density -= 0.5
             * arrayfire::sum_all(
                 &(self.weight_precisions(self.output_layer_index())
-                    * &(params.weights(self.output_layer_index())
-                        * params.weights(self.output_layer_index()))),
+                    * &(params.layer_weights(self.output_layer_index())
+                        * params.layer_weights(self.output_layer_index()))),
             )
             .0;
 
@@ -202,12 +202,12 @@ impl Branch for RidgeArdBranch {
         for layer_index in 0..self.output_layer_index() {
             let prec_m = arrayfire::tile(
                 self.weight_precisions(layer_index),
-                dim4!(1, self.weights(layer_index).dims().get()[1], 1, 1),
+                dim4!(1, self.layer_weights(layer_index).dims().get()[1], 1, 1),
             );
 
             ldg_wrt_weights.push(
                 -(self.error_precision() * &d_rss_wrt_weights[layer_index]
-                    + prec_m * self.weights(layer_index)),
+                    + prec_m * self.layer_weights(layer_index)),
             );
         }
 
@@ -215,7 +215,7 @@ impl Branch for RidgeArdBranch {
         ldg_wrt_weights.push(
             -(self.error_precision() * &d_rss_wrt_weights[self.output_layer_index()]
                 + self.weight_precisions(self.output_layer_index())
-                    * self.weights(self.output_layer_index())),
+                    * self.layer_weights(self.output_layer_index())),
         );
 
         // biases
@@ -562,7 +562,7 @@ mod tests {
 
         // correct dimensions
         for i in 0..(branch.num_layers) {
-            assert_eq!(ldg.wrt_weights[i].dims(), branch.weights(i).dims());
+            assert_eq!(ldg.wrt_weights[i].dims(), branch.layer_weights(i).dims());
         }
         for i in 0..(branch.num_layers - 1) {
             assert_eq!(ldg.wrt_biases[i].dims(), branch.biases(i).dims());
@@ -616,7 +616,7 @@ mod tests {
 
         // correct dimensions
         for i in 0..(branch.num_layers) {
-            assert_eq!(ldg.wrt_weights[i].dims(), branch.weights(i).dims());
+            assert_eq!(ldg.wrt_weights[i].dims(), branch.layer_weights(i).dims());
         }
         for i in 0..(branch.num_layers - 1) {
             assert_eq!(ldg.wrt_biases[i].dims(), branch.biases(i).dims());

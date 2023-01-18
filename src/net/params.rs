@@ -183,6 +183,14 @@ impl BranchPrecisions {
                 .map(|arr| arr.elements())
                 .sum::<usize>()
     }
+
+    pub fn layer_weight_precisions(&self, layer_index: usize) -> &Array<f32> {
+        &self.weight_precisions[layer_index]
+    }
+
+    pub fn layer_bias_precision(&self, layer_index: usize) -> &Array<f32> {
+        &self.bias_precisions[layer_index]
+    }
 }
 
 /// Weights and biases
@@ -301,7 +309,7 @@ impl BranchParams {
         }
     }
 
-    pub fn weights(&self, index: usize) -> &Array<f32> {
+    pub fn layer_weights(&self, index: usize) -> &Array<f32> {
         &self.weights[index]
     }
 
