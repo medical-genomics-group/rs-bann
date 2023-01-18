@@ -1,5 +1,4 @@
 use super::{
-    super::af_helpers::sign,
     super::gibbs_steps::lasso_multi_param_precision_posterior,
     super::model_type::ModelType,
     super::params::{BranchParams, BranchPrecisions},
@@ -7,7 +6,8 @@ use super::{
     branch_cfg_builder::BranchCfgBuilder,
     step_sizes::StepSizes,
 };
-use crate::{net::params::NetworkPrecisionHyperparameters, to_host};
+use crate::af_helpers::{sign, to_host};
+use crate::net::params::NetworkPrecisionHyperparameters;
 use arrayfire::{abs, dim4, matmul, sqrt, sum, sum_all, tile, Array, MatProp};
 use rand::prelude::ThreadRng;
 use rand::thread_rng;
@@ -299,9 +299,9 @@ mod tests {
     use super::super::{branch::Branch, branch_builder::BranchBuilder};
     use super::LassoArdBranch;
 
+    use crate::af_helpers::to_host;
     use crate::net::branch::momenta::BranchMomenta;
     use crate::net::params::BranchParams;
-    use crate::to_host;
 
     fn assert_approx_eq_slice(a: &[f32], b: &[f32], tol: f32) {
         assert_eq!(a.len(), b.len());
