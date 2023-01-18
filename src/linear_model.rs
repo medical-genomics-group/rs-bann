@@ -1,5 +1,5 @@
+use crate::af_helpers::to_host;
 use crate::data::Genotypes;
-use crate::to_host;
 use arrayfire::{dim4, matmul, Array, MatProp};
 use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
