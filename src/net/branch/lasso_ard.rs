@@ -6,7 +6,7 @@ use super::{
     branch_cfg_builder::BranchCfgBuilder,
     step_sizes::StepSizes,
 };
-use crate::af_helpers::{sign, to_host};
+use crate::af_helpers::{af_scalar, scalar_to_host, sign, to_host};
 use crate::net::params::NetworkPrecisionHyperparameters;
 use arrayfire::{abs, dim4, matmul, sqrt, sum, sum_all, tile, Array, MatProp};
 use rand::prelude::ThreadRng;
@@ -94,7 +94,7 @@ impl Branch for LassoArdBranch {
     }
 
     fn set_error_precision(&mut self, val: f32) {
-        self.precisions.error_precision = val;
+        self.precisions.error_precision = af_scalar(val);
     }
 
     // TODO: actually make some step sizes here
@@ -134,16 +134,11 @@ impl Branch for LassoArdBranch {
 
         // there is only one bias precision per layer here
         for index in 0..self.output_layer_index() {
-            wrt_biases.push(Array::new(
-                &vec![
-                    std::f32::consts::PI
-                        / (2.
-                            * &self.precisions().bias_precisions[index].sqrt()
-                            * integration_length as f32);
-                    self.biases(index).elements()
-                ],
-                self.biases(index).dims(),
-            ));
+            let step_size = std::f32::consts::PI
+                / (2.0f32
+                    * arrayfire::sqrt(&self.precisions().bias_precisions[index])
+                    * integration_length as f32);
+            wrt_biases.push(arrayfire::constant(1.0f32, self.biases(index).dims()) * step_size);
         }
 
         StepSizes {
@@ -154,7 +149,7 @@ impl Branch for LassoArdBranch {
 
     // TODO: write test
     fn log_density(&self, params: &BranchParams, precisions: &BranchPrecisions, rss: f32) -> f32 {
-        let mut log_density: f32 = -0.5 * precisions.error_precision * rss;
+        let mut log_density: f32 = scalar_to_host(&(-0.5f32 * &precisions.error_precision * rss));
 
         for i in 0..self.output_layer_index() {
             log_density -= sum_all(&matmul(
@@ -174,7 +169,7 @@ impl Branch for LassoArdBranch {
         .0;
 
         for i in 0..self.output_layer_index() {
-            log_density -= precisions.bias_precisions[i] * sum_all(&(abs(params.biases(i)))).0;
+            log_density -= sum_all(&(&precisions.bias_precisions[i] * abs(params.biases(i)))).0;
         }
 
         log_density
@@ -211,7 +206,7 @@ impl Branch for LassoArdBranch {
 
         for layer_index in 0..self.output_layer_index() {
             ldg_wrt_biases.push(
-                -self.bias_precision(layer_index) * sign(self.biases(layer_index))
+                -1.0f32 * self.bias_precision(layer_index) * sign(self.biases(layer_index))
                     - self.error_precision() * &d_rss_wrt_biases[layer_index],
             );
         }
@@ -262,23 +257,23 @@ impl Branch for LassoArdBranch {
         // output precision is sampled jointly for all branches, not here
 
         for i in 0..self.summary_layer_index() {
-            self.precisions.bias_precisions[i] = lasso_multi_param_precision_posterior(
+            self.precisions.bias_precisions[i] = af_scalar(lasso_multi_param_precision_posterior(
                 hyperparams.dense_layer_prior_shape(),
                 hyperparams.dense_layer_prior_scale(),
                 &self.params.biases[i],
                 &mut self.rng,
-            );
+            ));
         }
 
         let summary_layer_index = self.summary_layer_index();
         // sample summary layer biases with summary layer hyperparams
         self.precisions.bias_precisions[summary_layer_index] =
-            lasso_multi_param_precision_posterior(
+            af_scalar(lasso_multi_param_precision_posterior(
                 hyperparams.summary_layer_prior_shape(),
                 hyperparams.summary_layer_prior_scale(),
                 &self.params.biases[summary_layer_index],
                 &mut self.rng,
-            );
+            ));
     }
 }
 

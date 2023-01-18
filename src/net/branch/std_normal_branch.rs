@@ -5,7 +5,8 @@ use super::{
     branch_cfg_builder::BranchCfgBuilder,
     step_sizes::StepSizes,
 };
-use crate::{af_helpers::scalar_to_host, net::params::NetworkPrecisionHyperparameters};
+use crate::af_helpers::{af_scalar, scalar_to_host};
+use crate::net::params::NetworkPrecisionHyperparameters;
 use arrayfire::{sqrt, Array};
 use rand::prelude::ThreadRng;
 use rand::thread_rng;
@@ -89,7 +90,7 @@ impl Branch for StdNormalBranch {
     }
 
     fn set_error_precision(&mut self, val: f32) {
-        self.precisions.error_precision = val;
+        self.precisions.error_precision = af_scalar(val);
     }
 
     fn std_scaled_step_sizes(&self, const_factor: f32) -> StepSizes {
@@ -106,13 +107,10 @@ impl Branch for StdNormalBranch {
             ));
         }
         for index in 0..self.num_layers() - 1 {
-            wrt_biases.push(Array::new(
-                &vec![
-                    const_factor * (1. / self.bias_precision(index)).sqrt();
-                    self.biases(index).elements()
-                ],
-                self.biases(index).dims(),
-            ));
+            wrt_biases.push(
+                arrayfire::constant(1.0f32, self.biases(index).dims())
+                    * (const_factor * (1.0f32 / arrayfire::sqrt(self.bias_precision(index)))),
+            );
         }
 
         StepSizes {
@@ -135,16 +133,13 @@ impl Branch for StdNormalBranch {
         }
 
         for index in 0..self.num_layers() - 1 {
-            wrt_biases.push(Array::new(
-                &vec![
-                    std::f32::consts::PI
-                        / (2.
-                            * &self.precisions().bias_precisions[index].sqrt()
-                            * integration_length as f32);
-                    self.biases(index).elements()
-                ],
-                self.biases(index).dims(),
-            ));
+            wrt_biases.push(
+                arrayfire::constant(1.0f32, self.biases(index).dims())
+                    * (std::f32::consts::PI
+                        / (2.0f32
+                            * arrayfire::sqrt(&self.precisions().bias_precisions[index])
+                            * integration_length as f32)),
+            );
         }
 
         StepSizes {
@@ -154,7 +149,7 @@ impl Branch for StdNormalBranch {
     }
 
     fn log_density(&self, params: &BranchParams, precisions: &BranchPrecisions, rss: f32) -> f32 {
-        let mut log_density: f32 = -0.5 * precisions.error_precision * rss;
+        let mut log_density: f32 = scalar_to_host(&(-0.5f32 * &precisions.error_precision * rss));
         for i in 0..self.num_layers() {
             log_density -= 0.5 * arrayfire::sum_all(&(params.weights(i) * params.weights(i))).0;
         }

@@ -170,12 +170,12 @@ pub trait Branch {
         &self.precisions().weight_precisions[index]
     }
 
-    fn bias_precision(&self, index: usize) -> f32 {
-        self.precisions().bias_precisions[index]
+    fn bias_precision(&self, index: usize) -> &Array<f32> {
+        &self.precisions().bias_precisions[index]
     }
 
-    fn error_precision(&self) -> f32 {
-        self.precisions().error_precision
+    fn error_precision(&self) -> &Array<f32> {
+        &self.precisions().error_precision
     }
 
     fn is_accepted(&mut self, acceptance_probability: f32) -> bool {

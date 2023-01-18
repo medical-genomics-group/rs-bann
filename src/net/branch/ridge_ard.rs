@@ -6,7 +6,8 @@ use super::{
     branch_cfg_builder::BranchCfgBuilder,
     step_sizes::StepSizes,
 };
-use crate::{af_helpers::to_host, net::params::NetworkPrecisionHyperparameters};
+use crate::af_helpers::{af_scalar, scalar_to_host, to_host};
+use crate::net::params::NetworkPrecisionHyperparameters;
 use arrayfire::{dim4, matmul, sqrt, sum, sum_all, tile, Array, MatProp};
 use rand::prelude::ThreadRng;
 use rand::thread_rng;
@@ -93,7 +94,7 @@ impl Branch for RidgeArdBranch {
     }
 
     fn set_error_precision(&mut self, val: f32) {
-        self.precisions.error_precision = val;
+        self.precisions.error_precision = af_scalar(val);
     }
 
     // TODO: actually make some step sizes here
@@ -132,16 +133,13 @@ impl Branch for RidgeArdBranch {
 
         // there is only one bias precision per layer here
         for index in 0..self.output_layer_index() {
-            wrt_biases.push(Array::new(
-                &vec![
-                    std::f32::consts::PI
-                        / (2.
-                            * &self.precisions().bias_precisions[index].sqrt()
-                            * integration_length as f32);
-                    self.biases(index).elements()
-                ],
-                self.biases(index).dims(),
-            ));
+            wrt_biases.push(
+                arrayfire::constant(1.0f32, self.biases(index).dims())
+                    * (std::f32::consts::PI
+                        / (2.0f32
+                            * arrayfire::sqrt(&self.precisions().bias_precisions[index])
+                            * integration_length as f32)),
+            );
         }
 
         StepSizes {
@@ -152,7 +150,7 @@ impl Branch for RidgeArdBranch {
 
     // TODO: write test
     fn log_density(&self, params: &BranchParams, precisions: &BranchPrecisions, rss: f32) -> f32 {
-        let mut log_density: f32 = -0.5 * precisions.error_precision * rss;
+        let mut log_density: f32 = scalar_to_host(&(-0.5f32 * &precisions.error_precision * rss));
 
         for i in 0..self.output_layer_index() {
             log_density -= 0.5
@@ -175,9 +173,9 @@ impl Branch for RidgeArdBranch {
             .0;
 
         for i in 0..self.output_layer_index() {
-            log_density -= precisions.bias_precisions[i]
-                * 0.5
-                * sum_all(&(params.biases(i) * params.biases(i))).0;
+            log_density -= 0.5
+                * sum_all(&(params.biases(i) * params.biases(i) * &precisions.bias_precisions[i]))
+                    .0;
         }
         log_density
     }
@@ -214,7 +212,7 @@ impl Branch for RidgeArdBranch {
         // biases
         for layer_index in 0..self.output_layer_index() {
             ldg_wrt_biases.push(
-                -self.bias_precision(layer_index) * self.biases(layer_index)
+                -1.0f32 * self.bias_precision(layer_index) * self.biases(layer_index)
                     - self.error_precision() * &d_rss_wrt_biases[layer_index],
             );
         }
@@ -268,23 +266,23 @@ impl Branch for RidgeArdBranch {
         // output precision is sampled jointly for all branches, not here
 
         for i in 0..self.summary_layer_index() {
-            self.precisions.bias_precisions[i] = ridge_multi_param_precision_posterior(
+            self.precisions.bias_precisions[i] = af_scalar(ridge_multi_param_precision_posterior(
                 hyperparams.dense_layer_prior_shape(),
                 hyperparams.dense_layer_prior_scale(),
                 &self.params.biases[i],
                 &mut self.rng,
-            );
+            ));
         }
 
         let summary_layer_index = self.summary_layer_index();
         // sample summary layer biases with summary layer hyperparams
         self.precisions.bias_precisions[summary_layer_index] =
-            ridge_multi_param_precision_posterior(
+            af_scalar(ridge_multi_param_precision_posterior(
                 hyperparams.summary_layer_prior_shape(),
                 hyperparams.summary_layer_prior_scale(),
                 &self.params.biases[summary_layer_index],
                 &mut self.rng,
-            );
+            ));
     }
 }
 
