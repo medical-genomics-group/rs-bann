@@ -2,6 +2,7 @@ use super::branch::branch::BranchCfg;
 use super::branch::branch::BranchLogDensityGradient;
 use super::branch::momenta::BranchMomenta;
 use super::branch::step_sizes::StepSizes;
+use crate::af_helpers::to_host;
 use arrayfire::{dim4, Array};
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -106,13 +107,67 @@ impl NetworkPrecisionHyperparameters {
 }
 
 #[derive(Clone, Serialize, Deserialize)]
+pub struct BranchPrecisionsHost {
+    // One Array per layer, possibly scalars
+    pub weight_precisions: Vec<Vec<f32>>,
+    // scalars
+    pub bias_precisions: Vec<Vec<f32>>,
+    // scalar
+    pub error_precision: Vec<f32>,
+}
+
+impl BranchPrecisionsHost {
+    pub fn set_output_layer_precision(&mut self, precision: f32) {
+        *self
+            .weight_precisions
+            .last_mut()
+            .expect("Branch weight precisions is empty!") = vec![precision];
+    }
+}
+
+#[derive(Clone, Serialize, Deserialize)]
 pub struct BranchPrecisions {
+    // One Array per layer, possibly scalars
     pub weight_precisions: Vec<Array<f32>>,
-    pub bias_precisions: Vec<f32>,
-    pub error_precision: f32,
+    // scalars
+    pub bias_precisions: Vec<Array<f32>>,
+    // scalar
+    pub error_precision: Array<f32>,
 }
 
 impl BranchPrecisions {
+    pub fn from_host(host: &BranchPrecisionsHost) -> Self {
+        Self {
+            weight_precisions: host
+                .weight_precisions
+                .iter()
+                .map(|v| Array::new(v, dim4!(v.len() as u64)))
+                .collect(),
+            bias_precisions: host
+                .bias_precisions
+                .iter()
+                .map(|v| Array::new(v, dim4!(1)))
+                .collect(),
+            error_precision: Array::new(&host.error_precision, dim4!(1)),
+        }
+    }
+
+    pub fn to_host(&self) -> BranchPrecisionsHost {
+        BranchPrecisionsHost {
+            weight_precisions: self
+                .weight_precisions
+                .iter()
+                .map(|arr| to_host(arr))
+                .collect(),
+            bias_precisions: self
+                .bias_precisions
+                .iter()
+                .map(|arr| to_host(arr))
+                .collect(),
+            error_precision: to_host(&self.error_precision),
+        }
+    }
+
     pub fn set_output_layer_precision(&mut self, precision: f32) {
         *self
             .weight_precisions
@@ -249,7 +304,7 @@ impl BranchParams {
 #[cfg(test)]
 mod tests {
     use super::BranchParams;
-    use crate::to_host;
+    use crate::af_helpers::to_host;
     use arrayfire::{dim4, Array};
 
     fn test_params() -> BranchParams {
