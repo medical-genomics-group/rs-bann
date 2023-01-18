@@ -1,6 +1,5 @@
-use super::super::params::BranchPrecisions;
 use super::branch::BranchCfg;
-use arrayfire::{dim4, Array};
+use crate::net::params::BranchPrecisionsHost;
 use rand::{distributions::Distribution, SeedableRng};
 use rand_chacha::ChaCha20Rng;
 use rand_distr::{Bernoulli, Gamma, Normal};
@@ -220,8 +219,8 @@ impl BranchCfgBuilder {
 
     // iterate over weight groups and compute the precision that maximizes the likelihood
     // of the sample (i.e. the prior density)
-    fn base_weight_precisions(&self, params: &[f32]) -> Vec<Array<f32>> {
-        let mut weight_precisions = vec![Array::new(&[1.0], dim4!(1, 1, 1, 1)); self.num_layers];
+    fn base_weight_precisions(&self, params: &[f32]) -> Vec<Vec<f32>> {
+        let mut weight_precisions = vec![vec![0.0]; self.num_layers];
 
         let mut prev_width = self.num_markers;
         let mut insert_ix: usize = 0;
@@ -233,7 +232,7 @@ impl BranchCfgBuilder {
                     .iter()
                     .map(|e| e * e)
                     .sum::<f32>();
-            weight_precisions[lix] = Array::new(&[layer_precision], dim4!(1, 1, 1, 1));
+            weight_precisions[lix] = vec![layer_precision];
             insert_ix += num_weights;
             prev_width = *width;
         }
@@ -243,8 +242,8 @@ impl BranchCfgBuilder {
 
     // iterate over bias groups and compute the precision that maximizes the likelihood
     // of the sample (i.e. the prior density)
-    fn bias_precisions(&self, num_weights: usize, params: &[f32]) -> Vec<f32> {
-        let mut bias_precisions = vec![0.0; self.num_layers - 1];
+    fn bias_precisions(&self, num_weights: usize, params: &[f32]) -> Vec<Vec<f32>> {
+        let mut bias_precisions = vec![vec![0.0]; self.num_layers - 1];
 
         let mut insert_ix = num_weights;
         for (lix, width) in self.layer_widths[..self.num_layers - 1].iter().enumerate() {
@@ -254,7 +253,7 @@ impl BranchCfgBuilder {
                     .iter()
                     .map(|e| e * e)
                     .sum::<f32>();
-            bias_precisions[lix] = layer_precision;
+            bias_precisions[lix] = vec![layer_precision];
             insert_ix += num_biases;
         }
 
@@ -284,8 +283,8 @@ impl BranchCfgBuilder {
 
     // iterate over weight groups and compute the precision that maximizes the likelihood
     // of the sample (i.e. the prior density)
-    fn ard_weight_precisions(&self, params: &[f32]) -> Vec<Array<f32>> {
-        let mut weight_precisions = vec![Array::new(&[1.0], dim4!(1, 1, 1, 1)); self.num_layers];
+    fn ard_weight_precisions(&self, params: &[f32]) -> Vec<Vec<f32>> {
+        let mut weight_precisions = vec![vec![1.0]; self.num_layers];
 
         let mut prev_width = self.num_markers;
         let mut insert_ix = 0;
@@ -303,8 +302,7 @@ impl BranchCfgBuilder {
                         .map(|e| e * e)
                         .sum::<f32>();
             }
-            weight_precisions[lix] =
-                Array::new(&layer_precisions, dim4!(prev_width as u64, 1, 1, 1));
+            weight_precisions[lix] = layer_precisions;
             insert_ix += num_weights;
             prev_width = *width;
         }
@@ -362,10 +360,10 @@ impl BranchCfgBuilder {
             num_markers: self.num_markers,
             layer_widths: self.layer_widths.clone(),
             params,
-            precisions: BranchPrecisions {
+            precisions: BranchPrecisionsHost {
                 weight_precisions: Vec::new(),
                 bias_precisions,
-                error_precision: 1.0,
+                error_precision: vec![1.0],
             },
         }
     }
