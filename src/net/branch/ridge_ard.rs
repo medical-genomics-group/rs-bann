@@ -6,7 +6,7 @@ use super::{
     branch_cfg_builder::BranchCfgBuilder,
     step_sizes::StepSizes,
 };
-use crate::{net::params::NetworkPrecisionHyperparameters, to_host};
+use crate::{af_helpers::to_host, net::params::NetworkPrecisionHyperparameters};
 use arrayfire::{dim4, matmul, sqrt, sum, sum_all, tile, Array, MatProp};
 use rand::prelude::ThreadRng;
 use rand::thread_rng;
