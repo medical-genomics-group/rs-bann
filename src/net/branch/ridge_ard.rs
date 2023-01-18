@@ -307,9 +307,9 @@ mod tests {
     };
     use super::RidgeArdBranch;
 
+    use crate::af_helpers::to_host;
     use crate::net::branch::momenta::BranchMomenta;
     use crate::net::params::BranchParams;
-    use crate::to_host;
 
     fn assert_approx_eq_slice(a: &[f32], b: &[f32], tol: f32) {
         assert_eq!(a.len(), b.len());
