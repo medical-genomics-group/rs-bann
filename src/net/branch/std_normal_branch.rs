@@ -118,6 +118,9 @@ impl Branch for StdNormalBranch {
         StepSizes {
             wrt_weights,
             wrt_biases,
+            wrt_weight_precisions: None,
+            wrt_bias_precisions: None,
+            wrt_error_precision: None,
         }
     }
 
@@ -148,6 +151,9 @@ impl Branch for StdNormalBranch {
         StepSizes {
             wrt_weights,
             wrt_biases,
+            wrt_weight_precisions: None,
+            wrt_bias_precisions: None,
+            wrt_error_precision: None,
         }
     }
 

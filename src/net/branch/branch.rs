@@ -246,6 +246,7 @@ pub trait Branch {
         let const_factor = mcmc_cfg.hmc_step_size_factor;
         let mut wrt_weights = Vec::with_capacity(self.num_layers());
         let mut wrt_biases = Vec::with_capacity(self.num_layers() - 1);
+
         let prop_factor = (self.num_params() as f32).powf(-0.25) * const_factor;
 
         for index in 0..self.num_layers() {
@@ -258,6 +259,9 @@ pub trait Branch {
         StepSizes {
             wrt_weights,
             wrt_biases,
+            wrt_weight_precisions: None,
+            wrt_bias_precisions: None,
+            wrt_error_precision: None,
         }
     }
 
@@ -283,6 +287,9 @@ pub trait Branch {
         StepSizes {
             wrt_weights,
             wrt_biases,
+            wrt_weight_precisions: None,
+            wrt_bias_precisions: None,
+            wrt_error_precision: None,
         }
     }
 

@@ -5,6 +5,9 @@ use std::fmt;
 pub struct StepSizes {
     pub wrt_weights: Vec<Array<f32>>,
     pub wrt_biases: Vec<Array<f32>>,
+    pub wrt_weight_precisions: Option<Vec<Array<f32>>>,
+    pub wrt_bias_precisions: Option<Vec<Array<f32>>>,
+    pub wrt_error_precision: Option<Array<f32>>,
 }
 
 impl fmt::Debug for StepSizes {
