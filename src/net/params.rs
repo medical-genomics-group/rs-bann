@@ -174,6 +174,15 @@ impl BranchPrecisions {
             .last_mut()
             .expect("Branch weight precisions is empty!") = Array::new(&[precision], dim4!(1));
     }
+
+    pub fn num_precisions(&self) -> usize {
+        1 + self.bias_precisions.len()
+            + self
+                .weight_precisions
+                .iter()
+                .map(|arr| arr.elements())
+                .sum::<usize>()
+    }
 }
 
 /// Weights and biases
