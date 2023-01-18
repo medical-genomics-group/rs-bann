@@ -109,8 +109,7 @@ impl<B: Branch> BlockNetCfg<B> {
                 .map(|e| e * e)
                 .sum::<f32>();
         cfgs.iter_mut().for_each(|c| {
-            *c.precisions.weight_precisions.last_mut().unwrap() =
-                arrayfire::constant!(output_weight_precision; 1)
+            *c.precisions.weight_precisions.last_mut().unwrap() = vec![output_weight_precision]
         });
     }
 
