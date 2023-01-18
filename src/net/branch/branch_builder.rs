@@ -3,6 +3,7 @@ use super::lasso_ard::LassoArdBranch;
 use super::lasso_base::LassoBaseBranch;
 use super::ridge_ard::RidgeArdBranch;
 use super::ridge_base::RidgeBaseBranch;
+use crate::af_helpers::af_scalar;
 use arrayfire::{constant, dim4, Array};
 use rand::thread_rng;
 
@@ -218,9 +219,9 @@ impl BranchBuilder {
             params: BranchParams { weights, biases },
             // TODO: impl build method for setting precisions
             precisions: BranchPrecisions {
-                weight_precisions: vec![Array::new(&[1.0], dim4!(1, 1, 1, 1)); self.num_layers],
-                bias_precisions: vec![1.0; self.num_layers - 1],
-                error_precision: 1.0,
+                weight_precisions: vec![af_scalar(1.0); self.num_layers],
+                bias_precisions: vec![af_scalar(1.0); self.num_layers - 1],
+                error_precision: af_scalar(1.0),
             },
             layer_widths: self.layer_widths.clone(),
             num_layers: self.num_layers,
@@ -297,9 +298,9 @@ impl BranchBuilder {
             params: BranchParams { weights, biases },
             // TODO: impl build method for setting precisions
             precisions: BranchPrecisions {
-                weight_precisions: vec![Array::new(&[1.0], dim4!(1, 1, 1, 1)); self.num_layers],
-                bias_precisions: vec![1.0; self.num_layers - 1],
-                error_precision: 1.0,
+                weight_precisions: vec![af_scalar(1.0); self.num_layers],
+                bias_precisions: vec![af_scalar(1.0); self.num_layers - 1],
+                error_precision: af_scalar(1.0),
             },
             layer_widths: self.layer_widths.clone(),
             num_layers: self.num_layers,
@@ -377,8 +378,8 @@ impl BranchBuilder {
             // TODO: impl build method for setting precisions
             precisions: BranchPrecisions {
                 weight_precisions: widths.iter().map(|w| constant!(1.0; *w as u64)).collect(),
-                bias_precisions: vec![1.0; self.num_layers - 1],
-                error_precision: 1.0,
+                bias_precisions: vec![af_scalar(1.0); self.num_layers - 1],
+                error_precision: af_scalar(1.0),
             },
             layer_widths: self.layer_widths.clone(),
             num_layers: self.num_layers,
@@ -455,8 +456,8 @@ impl BranchBuilder {
             // TODO: impl build method for setting precisions
             precisions: BranchPrecisions {
                 weight_precisions: widths.iter().map(|w| constant!(1.0; *w as u64)).collect(),
-                bias_precisions: vec![1.0; self.num_layers - 1],
-                error_precision: 1.0,
+                bias_precisions: vec![af_scalar(1.0); self.num_layers - 1],
+                error_precision: af_scalar(1.0),
             },
             layer_widths: self.layer_widths.clone(),
             num_layers: self.num_layers,
@@ -473,7 +474,7 @@ mod tests {
     use super::super::branch::Branch;
     use super::BranchBuilder;
 
-    use crate::to_host;
+    use crate::af_helpers::to_host;
 
     #[test]
     #[should_panic(expected = "bias dim 1 does not match width of last added layer")]
