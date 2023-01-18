@@ -7,6 +7,7 @@ use super::{
     step_sizes::StepSizes,
 };
 use crate::af_helpers::{af_scalar, scalar_to_host, sign, to_host};
+use crate::net::mcmc_cfg::MCMCCfg;
 use crate::net::params::NetworkPrecisionHyperparameters;
 use arrayfire::{abs, dim4, matmul, sqrt, sum, sum_all, tile, Array, MatProp};
 use rand::prelude::ThreadRng;
@@ -98,7 +99,8 @@ impl Branch for LassoArdBranch {
     }
 
     // TODO: actually make some step sizes here
-    fn std_scaled_step_sizes(&self, _const_factor: f32) -> StepSizes {
+    fn std_scaled_step_sizes(&self, mcmc_cfg: &MCMCCfg) -> StepSizes {
+        let const_factor = mcmc_cfg.hmc_step_size_factor;
         let wrt_weights = Vec::with_capacity(self.num_layers());
         let wrt_biases = Vec::with_capacity(self.num_layers() - 1);
 
@@ -109,7 +111,8 @@ impl Branch for LassoArdBranch {
     }
 
     // TODO: this makes massive step sizes sometimes.
-    fn izmailov_step_sizes(&mut self, integration_length: usize) -> StepSizes {
+    fn izmailov_step_sizes(&mut self, mcmc_cfg: &MCMCCfg) -> StepSizes {
+        let integration_length = mcmc_cfg.hmc_integration_length;
         let mut wrt_weights: Vec<Array<f32>> = Vec::with_capacity(self.num_layers());
         let mut wrt_biases = Vec::with_capacity(self.num_layers() - 1);
 
@@ -288,6 +291,7 @@ mod tests {
 
     use crate::af_helpers::to_host;
     use crate::net::branch::momenta::BranchMomenta;
+    use crate::net::mcmc_cfg::MCMCCfg;
     use crate::net::params::BranchParams;
 
     fn assert_approx_eq_slice(a: &[f32], b: &[f32], tol: f32) {
@@ -617,16 +621,17 @@ mod tests {
     #[test]
     fn test_uniform_step_sizes() {
         let branch = make_test_branch();
-        let val = 1.0;
-        let step_sizes = branch.uniform_step_sizes(val);
+        let mut cfg = MCMCCfg::default();
+        cfg.hmc_step_size_factor = 1.0;
+        let step_sizes = branch.uniform_step_sizes(&cfg);
         for i in 0..(branch.num_layers - 1) {
             let mut obs = to_host(&step_sizes.wrt_weights[i]);
-            assert_eq!(obs, vec![val; obs.len()]);
+            assert_eq!(obs, vec![cfg.hmc_step_size_factor; obs.len()]);
             obs = to_host(&step_sizes.wrt_biases[i]);
-            assert_eq!(obs, vec![val; obs.len()]);
+            assert_eq!(obs, vec![cfg.hmc_step_size_factor; obs.len()]);
         }
         let obs = to_host(&step_sizes.wrt_weights[branch.num_layers - 1]);
-        assert_eq!(obs, vec![val; obs.len()]);
+        assert_eq!(obs, vec![cfg.hmc_step_size_factor; obs.len()]);
     }
 
     #[test]

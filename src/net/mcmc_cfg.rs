@@ -23,6 +23,24 @@ pub struct MCMCCfg {
 }
 
 impl MCMCCfg {
+    pub fn default() -> Self {
+        Self {
+            hmc_step_size_factor: 1.0,
+            hmc_max_hamiltonian_error: 10.0,
+            hmc_integration_length: 100,
+            hmc_step_size_mode: StepSizeMode::Izmailov,
+            chain_length: 100,
+            burn_in: 0,
+            outpath: "./".to_string(),
+            trace: false,
+            trajectories: false,
+            num_grad_traj: false,
+            num_grad: false,
+            // use gradient descent instead of hmc
+            gradient_descent: false,
+        }
+    }
+
     pub fn create_out(&self) {
         if !Path::new(&self.outpath).exists() {
             std::fs::create_dir_all(&self.outpath).expect("Could not create output directory!");

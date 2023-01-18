@@ -242,7 +242,8 @@ pub trait Branch {
         }
     }
 
-    fn random_step_sizes(&mut self, const_factor: f32) -> StepSizes {
+    fn random_step_sizes(&mut self, mcmc_cfg: &MCMCCfg) -> StepSizes {
+        let const_factor = mcmc_cfg.hmc_step_size_factor;
         let mut wrt_weights = Vec::with_capacity(self.num_layers());
         let mut wrt_biases = Vec::with_capacity(self.num_layers() - 1);
         let prop_factor = (self.num_params() as f32).powf(-0.25) * const_factor;
@@ -260,7 +261,8 @@ pub trait Branch {
         }
     }
 
-    fn uniform_step_sizes(&self, val: f32) -> StepSizes {
+    fn uniform_step_sizes(&self, mcmc_cfg: &MCMCCfg) -> StepSizes {
+        let val = mcmc_cfg.hmc_step_size_factor;
         let mut wrt_weights = Vec::with_capacity(self.num_layers());
         let mut wrt_biases = Vec::with_capacity(self.num_layers() - 1);
         for index in 0..self.num_layers() - 1 {
@@ -285,9 +287,9 @@ pub trait Branch {
     }
 
     /// Sets step sizes proportional to the prior standard deviation of each parameter.
-    fn std_scaled_step_sizes(&self, const_factor: f32) -> StepSizes;
+    fn std_scaled_step_sizes(&self, mcmc_cfg: &MCMCCfg) -> StepSizes;
 
-    fn izmailov_step_sizes(&mut self, integration_length: usize) -> StepSizes;
+    fn izmailov_step_sizes(&mut self, mcmc_cfg: &MCMCCfg) -> StepSizes;
 
     fn forward_feed(&self, x_train: &Array<f32>) -> Vec<Array<f32>> {
         let mut activations: Vec<Array<f32>> = Vec::with_capacity(self.num_layers() - 1);
@@ -497,6 +499,26 @@ pub trait Branch {
         })
     }
 
+    /// Takes a single parameter and hyperparameter sample using HMC.
+    /// Returns `false` if final state is rejected, `true` if accepted.
+    fn hmc_step_joint(
+        &mut self,
+        x_train: &Array<f32>,
+        y_train: &Array<f32>,
+        mcmc_cfg: &MCMCCfg,
+    ) -> HMCStepResult {
+        // TODO: add trajectory stuff
+        let mut u_turned = false;
+        let init_params = self.params().clone();
+        let init_precisions = self.precisions().clone();
+
+        // let step_sizes = match mcmc_cfg.hmc_step_size_mode {
+
+        // }
+
+        HMCStepResult::Rejected
+    }
+
     /// Takes a single parameter sample using HMC.
     /// Returns `false` if final state is rejected, `true` if accepted.
     fn hmc_step(
@@ -520,10 +542,10 @@ pub trait Branch {
         let mut u_turned = false;
         let init_params = self.params().clone();
         let step_sizes = match mcmc_cfg.hmc_step_size_mode {
-            StepSizeMode::StdScaled => self.std_scaled_step_sizes(mcmc_cfg.hmc_step_size_factor),
-            StepSizeMode::Random => self.random_step_sizes(mcmc_cfg.hmc_step_size_factor),
-            StepSizeMode::Uniform => self.uniform_step_sizes(mcmc_cfg.hmc_step_size_factor),
-            StepSizeMode::Izmailov => self.izmailov_step_sizes(mcmc_cfg.hmc_integration_length),
+            StepSizeMode::StdScaled => self.std_scaled_step_sizes(mcmc_cfg),
+            StepSizeMode::Random => self.random_step_sizes(mcmc_cfg),
+            StepSizeMode::Uniform => self.uniform_step_sizes(mcmc_cfg),
+            StepSizeMode::Izmailov => self.izmailov_step_sizes(mcmc_cfg),
         };
         // debug!("Using step sizes: {:?}", step_sizes);
         let mut momenta = self.sample_momenta();

@@ -6,6 +6,7 @@ use super::{
     step_sizes::StepSizes,
 };
 use crate::af_helpers::{af_scalar, scalar_to_host};
+use crate::net::mcmc_cfg::MCMCCfg;
 use crate::net::params::NetworkPrecisionHyperparameters;
 use arrayfire::{sqrt, Array};
 use rand::prelude::ThreadRng;
@@ -93,7 +94,8 @@ impl Branch for StdNormalBranch {
         self.precisions.error_precision = af_scalar(val);
     }
 
-    fn std_scaled_step_sizes(&self, const_factor: f32) -> StepSizes {
+    fn std_scaled_step_sizes(&self, mcmc_cfg: &MCMCCfg) -> StepSizes {
+        let const_factor = mcmc_cfg.hmc_step_size_factor;
         let mut wrt_weights = Vec::with_capacity(self.num_layers());
         let mut wrt_biases = Vec::with_capacity(self.num_layers() - 1);
 
@@ -119,7 +121,8 @@ impl Branch for StdNormalBranch {
         }
     }
 
-    fn izmailov_step_sizes(&mut self, integration_length: usize) -> StepSizes {
+    fn izmailov_step_sizes(&mut self, mcmc_cfg: &MCMCCfg) -> StepSizes {
+        let integration_length = mcmc_cfg.hmc_integration_length;
         let mut wrt_weights: Vec<Array<f32>> = Vec::with_capacity(self.num_layers());
         let mut wrt_biases = Vec::with_capacity(self.num_layers() - 1);
 
