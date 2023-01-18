@@ -1,6 +1,6 @@
 //! Sampling from the precision posterior distributions.
 
-use super::af_helpers::{l1_norm, l2_norm};
+use crate::af_helpers::{l1_norm, l2_norm};
 use arrayfire::Array;
 use rand::rngs::ThreadRng;
 use rand_distr::{Distribution, Gamma};
