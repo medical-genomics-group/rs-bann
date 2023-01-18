@@ -276,9 +276,9 @@ mod tests {
     use super::super::{branch::Branch, branch_builder::BranchBuilder};
     use super::RidgeBaseBranch;
 
+    use crate::af_helpers::to_host;
     use crate::net::branch::momenta::BranchMomenta;
     use crate::net::params::BranchParams;
-    use crate::to_host;
 
     // #[test]
     // fn test_af() {
