@@ -1,4 +1,4 @@
-use super::gradient::BranchLogDensityGradient;
+use super::gradient::{BranchLogDensityGradient, BranchLogDensityGradientJoint};
 use super::step_sizes::StepSizes;
 use arrayfire::Array;
 
@@ -12,22 +12,38 @@ pub struct BranchMomentaJoint {
 }
 
 impl BranchMomentaJoint {
-    pub fn half_step(&mut self, step_sizes: &StepSizes, grad: &BranchLogDensityGradient) {
-        for i in 0..self.wrt_weights.len() {
-            self.wrt_weights[i] += 0.5 * &step_sizes.wrt_weights[i] * &grad.wrt_weights[i];
-        }
-        for i in 0..self.wrt_biases.len() {
-            self.wrt_biases[i] += &step_sizes.wrt_biases[i] * 0.5 * &grad.wrt_biases[i];
-        }
+    pub fn half_step(&mut self, step_sizes: &StepSizes, grad: &BranchLogDensityGradientJoint) {
+        self.step(step_sizes, grad, 0.5)
     }
 
-    pub fn full_step(&mut self, step_sizes: &StepSizes, grad: &BranchLogDensityGradient) {
+    pub fn full_step(&mut self, step_sizes: &StepSizes, grad: &BranchLogDensityGradientJoint) {
+        self.step(step_sizes, grad, 1.0)
+    }
+
+    fn step(
+        &mut self,
+        step_sizes: &StepSizes,
+        grad: &BranchLogDensityGradientJoint,
+        fraction: f32,
+    ) {
         for i in 0..self.wrt_weights.len() {
-            self.wrt_weights[i] += &step_sizes.wrt_weights[i] * &grad.wrt_weights[i];
+            self.wrt_weights[i] += fraction * &step_sizes.wrt_weights[i] * &grad.wrt_weights[i];
         }
         for i in 0..self.wrt_biases.len() {
-            self.wrt_biases[i] += &step_sizes.wrt_biases[i] * &grad.wrt_biases[i];
+            self.wrt_biases[i] += &step_sizes.wrt_biases[i] * fraction * &grad.wrt_biases[i];
         }
+        for i in 0..self.wrt_weight_precisions.len() {
+            self.wrt_biases[i] += &step_sizes.wrt_weight_precisions.as_ref().unwrap()[i]
+                * fraction
+                * &grad.wrt_weight_precisions[i];
+        }
+        for i in 0..self.wrt_bias_precisions.len() {
+            self.wrt_biases[i] += &step_sizes.wrt_bias_precisions.as_ref().unwrap()[i]
+                * fraction
+                * &grad.wrt_bias_precisions[i];
+        }
+        self.wrt_error_precision +=
+            step_sizes.wrt_error_precision.as_ref().unwrap() * fraction * &grad.wrt_error_precision;
     }
 
     // This is K(p) = p^T p / 2
@@ -72,20 +88,19 @@ pub struct BranchMomenta {
 
 impl BranchMomenta {
     pub fn half_step(&mut self, step_sizes: &StepSizes, grad: &BranchLogDensityGradient) {
-        for i in 0..self.wrt_weights.len() {
-            self.wrt_weights[i] += 0.5 * &step_sizes.wrt_weights[i] * &grad.wrt_weights[i];
-        }
-        for i in 0..self.wrt_biases.len() {
-            self.wrt_biases[i] += &step_sizes.wrt_biases[i] * 0.5 * &grad.wrt_biases[i];
-        }
+        self.step(step_sizes, grad, 0.5)
     }
 
     pub fn full_step(&mut self, step_sizes: &StepSizes, grad: &BranchLogDensityGradient) {
+        self.step(step_sizes, grad, 1.0)
+    }
+
+    pub fn step(&mut self, step_sizes: &StepSizes, grad: &BranchLogDensityGradient, fraction: f32) {
         for i in 0..self.wrt_weights.len() {
-            self.wrt_weights[i] += &step_sizes.wrt_weights[i] * &grad.wrt_weights[i];
+            self.wrt_weights[i] += fraction * &step_sizes.wrt_weights[i] * &grad.wrt_weights[i];
         }
         for i in 0..self.wrt_biases.len() {
-            self.wrt_biases[i] += &step_sizes.wrt_biases[i] * &grad.wrt_biases[i];
+            self.wrt_biases[i] += &step_sizes.wrt_biases[i] * fraction * &grad.wrt_biases[i];
         }
     }
 

@@ -1,5 +1,15 @@
 use arrayfire::{dim4, Array};
 
+/// Gradients of the log density w.r.t. the network parameters and precisions
+#[derive(Clone)]
+pub struct BranchLogDensityGradientJoint {
+    pub wrt_weights: Vec<Array<f32>>,
+    pub wrt_biases: Vec<Array<f32>>,
+    pub wrt_weight_precisions: Vec<Array<f32>>,
+    pub wrt_bias_precisions: Vec<Array<f32>>,
+    pub wrt_error_precision: Array<f32>,
+}
+
 /// Gradients of the log density w.r.t. the network parameters.
 #[derive(Clone)]
 pub struct BranchLogDensityGradient {
