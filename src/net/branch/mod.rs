@@ -4,7 +4,7 @@ pub mod branch_cfg_builder;
 pub mod gradient;
 pub mod lasso_ard;
 pub mod lasso_base;
-pub(crate) mod momenta;
+pub(crate) mod momentum;
 pub mod ridge_ard;
 pub mod ridge_base;
 pub mod std_normal_branch;

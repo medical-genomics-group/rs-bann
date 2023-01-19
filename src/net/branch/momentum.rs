@@ -2,8 +2,10 @@ use super::gradient::{BranchLogDensityGradient, BranchLogDensityGradientJoint};
 use super::step_sizes::StepSizes;
 use arrayfire::Array;
 
-/// Momenta w.r.t. weights, bias and precision dimensions
-pub struct BranchMomentaJoint {
+pub trait Momentum {}
+
+/// Momentum w.r.t. weights, bias and precision dimensions
+pub struct BranchMomentumJoint {
     pub wrt_weights: Vec<Array<f32>>,
     pub wrt_biases: Vec<Array<f32>>,
     pub wrt_weight_precisions: Vec<Array<f32>>,
@@ -11,7 +13,7 @@ pub struct BranchMomentaJoint {
     pub wrt_error_precision: Array<f32>,
 }
 
-impl BranchMomentaJoint {
+impl BranchMomentumJoint {
     pub fn half_step(&mut self, step_sizes: &StepSizes, grad: &BranchLogDensityGradientJoint) {
         self.step(step_sizes, grad, 0.5)
     }
@@ -92,14 +94,14 @@ impl BranchMomentaJoint {
     }
 }
 
-/// Momenta w.r.t. weights and bias dimensions
+/// Momentum w.r.t. weights and bias dimensions
 #[derive(Clone)]
-pub struct BranchMomenta {
+pub struct BranchMomentum {
     pub wrt_weights: Vec<Array<f32>>,
     pub wrt_biases: Vec<Array<f32>>,
 }
 
-impl BranchMomenta {
+impl BranchMomentum {
     pub fn half_step(&mut self, step_sizes: &StepSizes, grad: &BranchLogDensityGradient) {
         self.step(step_sizes, grad, 0.5)
     }

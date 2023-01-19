@@ -1,5 +1,5 @@
 use super::gradient::BranchLogDensityGradient;
-use super::momenta::BranchMomentaJoint;
+use super::momentum::BranchMomentumJoint;
 use super::{
     super::{
         mcmc_cfg::{MCMCCfg, StepSizeMode},
@@ -8,7 +8,7 @@ use super::{
         params::BranchPrecisions,
     },
     branch_cfg_builder::BranchCfgBuilder,
-    momenta::BranchMomenta,
+    momentum::BranchMomentum,
     step_sizes::StepSizes,
     trajectory::Trajectory,
 };
@@ -185,7 +185,7 @@ pub trait Branch {
     }
 
     /// Quantify change of distance from starting point
-    fn net_movement(&self, init_params: &BranchParams, momenta: &BranchMomenta) -> f32 {
+    fn net_movement(&self, init_params: &BranchParams, momenta: &BranchMomentum) -> f32 {
         let mut dot_p = Array::new(&[0.0], dim4!(1, 1, 1, 1));
         for ix in 0..self.num_layers() {
             if self.layer_weights(ix).is_vector() {
@@ -224,11 +224,11 @@ pub trait Branch {
         scalar_to_host(&dot_p)
     }
 
-    fn is_u_turn(&self, init_params: &BranchParams, momenta: &BranchMomenta) -> bool {
+    fn is_u_turn(&self, init_params: &BranchParams, momenta: &BranchMomentum) -> bool {
         self.net_movement(init_params, momenta) < 0.0
     }
 
-    fn sample_momenta(&self) -> BranchMomenta {
+    fn sample_momenta(&self) -> BranchMomentum {
         let mut wrt_weights = Vec::with_capacity(self.num_layers());
         let mut wrt_biases = Vec::with_capacity(self.num_layers() - 1);
         for index in 0..self.num_layers() - 1 {
@@ -239,13 +239,13 @@ pub trait Branch {
         wrt_weights.push(arrayfire::randn::<f32>(
             self.layer_weights(self.num_layers() - 1).dims(),
         ));
-        BranchMomenta {
+        BranchMomentum {
             wrt_weights,
             wrt_biases,
         }
     }
 
-    fn sample_joint_momenta(&self) -> BranchMomentaJoint {
+    fn sample_joint_momenta(&self) -> BranchMomentumJoint {
         let mut wrt_weights = Vec::with_capacity(self.num_layers());
         let mut wrt_biases = Vec::with_capacity(self.num_layers() - 1);
         let mut wrt_weight_precisions = Vec::with_capacity(self.num_layers());
@@ -264,7 +264,7 @@ pub trait Branch {
         wrt_weights.push(arrayfire::randn::<f32>(
             self.layer_weights(self.num_layers() - 1).dims(),
         ));
-        BranchMomentaJoint {
+        BranchMomentumJoint {
             wrt_weights,
             wrt_biases,
             wrt_weight_precisions,
@@ -498,7 +498,7 @@ pub trait Branch {
     }
 
     // this is -H = (-U(q)) + (-K(p))
-    fn neg_hamiltonian(&self, momenta: &BranchMomenta, x: &Array<f32>, y: &Array<f32>) -> f32 {
+    fn neg_hamiltonian(&self, momenta: &BranchMomentum, x: &Array<f32>, y: &Array<f32>) -> f32 {
         self.log_density(self.params(), self.precisions(), self.rss(x, y)) - momenta.log_density()
     }
 
@@ -525,7 +525,7 @@ pub trait Branch {
 
     fn accept_or_reject_hmc_state(
         &mut self,
-        momenta: &BranchMomenta,
+        momenta: &BranchMomentum,
         x_train: &Array<f32>,
         y_train: &Array<f32>,
         init_neg_hamiltonian: f32,
@@ -607,6 +607,8 @@ pub trait Branch {
         };
 
         let mut momenta = self.sample_joint_momenta();
+
+        let init_neg_hamiltonian = self.neg_hamiltonian(&momenta, x_train, y_train);
 
         HMCStepResult::Rejected
     }

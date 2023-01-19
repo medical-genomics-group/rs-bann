@@ -271,7 +271,7 @@ mod tests {
     use super::LassoBaseBranch;
 
     use crate::af_helpers::to_host;
-    use crate::net::branch::momenta::BranchMomenta;
+    use crate::net::branch::momentum::BranchMomentum;
     use crate::net::params::BranchParams;
 
     // #[test]
@@ -320,7 +320,7 @@ mod tests {
         BranchParams { weights, biases }
     }
 
-    fn make_test_uniform_momenta(c: f32) -> BranchMomenta {
+    fn make_test_uniform_momenta(c: f32) -> BranchMomentum {
         let wrt_weights = [
             Array::new(&[c; 6], dim4![3, 2, 1, 1]),
             Array::new(&[c; 2], dim4![2, 1, 1, 1]),
@@ -332,7 +332,7 @@ mod tests {
             Array::new(&[c], dim4![1, 1, 1, 1]),
         ]
         .to_vec();
-        BranchMomenta {
+        BranchMomentum {
             wrt_weights,
             wrt_biases,
         }

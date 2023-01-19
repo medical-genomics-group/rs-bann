@@ -1,6 +1,6 @@
 use super::branch::branch::BranchCfg;
 use super::branch::gradient::BranchLogDensityGradient;
-use super::branch::momenta::BranchMomenta;
+use super::branch::momentum::BranchMomentum;
 use super::branch::step_sizes::StepSizes;
 use crate::af_helpers::to_host;
 use arrayfire::{dim4, Array};
@@ -291,7 +291,7 @@ impl BranchParams {
         res
     }
 
-    pub fn full_step(&mut self, step_sizes: &StepSizes, mom: &BranchMomenta) {
+    pub fn full_step(&mut self, step_sizes: &StepSizes, mom: &BranchMomentum) {
         for i in 0..self.weights.len() {
             self.weights[i] += &step_sizes.wrt_weights[i] * &mom.wrt_weights[i];
         }
