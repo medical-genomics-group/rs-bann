@@ -1364,8 +1364,6 @@ dependencies = [
  "rand_chacha",
  "rand_distr",
  "rayon",
- "rs-bedvec",
- "rs-hmc",
  "serde",
  "serde_json",
  "simple_logger",
@@ -1373,31 +1371,6 @@ dependencies = [
  "strum",
  "strum_macros",
  "thiserror",
-]
-
-[[package]]
-name = "rs-bedvec"
-version = "0.1.0"
-source = "git+https://github.com/nickmachnik/bedvec.git#7e57197d6a123d7ad68c15cba698db1e047bb818"
-dependencies = [
- "blas-src",
- "ndarray",
- "openblas-src",
- "rand",
- "rayon",
-]
-
-[[package]]
-name = "rs-hmc"
-version = "0.1.0"
-source = "git+https://github.com/nickmachnik/rs-hmc.git#c0303836cdfb44f5fbbeb2d9b0b53a20455db3e7"
-dependencies = [
- "approx 0.5.1",
- "blas-src",
- "ndarray",
- "openblas-src",
- "rand",
- "rand_distr",
 ]
 
 [[package]]

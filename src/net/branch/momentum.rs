@@ -2,7 +2,9 @@ use super::gradient::{BranchLogDensityGradient, BranchLogDensityGradientJoint};
 use super::step_sizes::StepSizes;
 use arrayfire::Array;
 
-pub trait Momentum {}
+pub trait Momentum {
+    fn log_density(&self) -> f32;
+}
 
 /// Momentum w.r.t. weights, bias and precision dimensions
 pub struct BranchMomentumJoint {
@@ -48,8 +50,30 @@ impl BranchMomentumJoint {
             step_sizes.wrt_error_precision.as_ref().unwrap() * fraction * &grad.wrt_error_precision;
     }
 
+    pub fn wrt_weights(&self, index: usize) -> &Array<f32> {
+        &self.wrt_weights[index]
+    }
+
+    pub fn wrt_biases(&self, index: usize) -> &Array<f32> {
+        &self.wrt_biases[index]
+    }
+
+    pub fn wrt_weight_precisions(&self, index: usize) -> &Array<f32> {
+        &self.wrt_weight_precisions[index]
+    }
+
+    pub fn wrt_bias_precisions(&self, index: usize) -> &Array<f32> {
+        &self.wrt_bias_precisions[index]
+    }
+
+    pub fn wrt_error_precision(&self) -> &Array<f32> {
+        &self.wrt_error_precision
+    }
+}
+
+impl Momentum for BranchMomentumJoint {
     // This is K(p) = p^T p / 2
-    pub fn log_density(&self) -> f32 {
+    fn log_density(&self) -> f32 {
         let mut log_density: f32 = 0.;
         for i in 0..self.wrt_weights.len() {
             log_density += arrayfire::sum_all(&(&self.wrt_weights[i] * &self.wrt_weights[i])).0;
@@ -71,26 +95,6 @@ impl BranchMomentumJoint {
         log_density +=
             arrayfire::sum_all(&(&self.wrt_error_precision * &self.wrt_error_precision)).0;
         0.5 * log_density
-    }
-
-    pub fn wrt_weights(&self, index: usize) -> &Array<f32> {
-        &self.wrt_weights[index]
-    }
-
-    pub fn wrt_biases(&self, index: usize) -> &Array<f32> {
-        &self.wrt_biases[index]
-    }
-
-    pub fn wrt_weight_precisions(&self, index: usize) -> &Array<f32> {
-        &self.wrt_weight_precisions[index]
-    }
-
-    pub fn wrt_bias_precisions(&self, index: usize) -> &Array<f32> {
-        &self.wrt_bias_precisions[index]
-    }
-
-    pub fn wrt_error_precision(&self) -> &Array<f32> {
-        &self.wrt_error_precision
     }
 }
 
@@ -119,8 +123,18 @@ impl BranchMomentum {
         }
     }
 
+    pub fn wrt_weights(&self, index: usize) -> &Array<f32> {
+        &self.wrt_weights[index]
+    }
+
+    pub fn wrt_biases(&self, index: usize) -> &Array<f32> {
+        &self.wrt_biases[index]
+    }
+}
+
+impl Momentum for BranchMomentum {
     // This is K(p) = p^T p / 2
-    pub fn log_density(&self) -> f32 {
+    fn log_density(&self) -> f32 {
         let mut log_density: f32 = 0.;
         for i in 0..self.wrt_weights.len() {
             log_density += arrayfire::sum_all(&(&self.wrt_weights[i] * &self.wrt_weights[i])).0;
@@ -129,13 +143,5 @@ impl BranchMomentum {
             log_density += arrayfire::sum_all(&(&self.wrt_biases[i] * &self.wrt_biases[i])).0;
         }
         0.5 * log_density
-    }
-
-    pub fn wrt_weights(&self, index: usize) -> &Array<f32> {
-        &self.wrt_weights[index]
-    }
-
-    pub fn wrt_biases(&self, index: usize) -> &Array<f32> {
-        &self.wrt_biases[index]
     }
 }

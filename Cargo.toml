@@ -15,8 +15,6 @@ strum_macros = "0.24"
 thiserror = "1.0"
 bed-reader = "0.2.28"
 arrayfire = { version = "*", features = ["afserde"] }
-rs-bedvec = { git = "https://github.com/nickmachnik/bedvec.git" }
-rs-hmc = { git = "https://github.com/nickmachnik/rs-hmc.git" }
 rayon = "1.5"
 statrs = "0.15"
 rand = "0.8.4"

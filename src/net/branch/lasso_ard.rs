@@ -4,7 +4,7 @@ use super::{
     super::params::{BranchParams, BranchPrecisions},
     branch::{Branch, BranchCfg},
     branch_cfg_builder::BranchCfgBuilder,
-    gradient::BranchLogDensityGradient,
+    gradient::{BranchLogDensityGradient, BranchLogDensityGradientJoint},
     step_sizes::StepSizes,
 };
 use crate::af_helpers::{af_scalar, scalar_to_host, sign, to_host};
@@ -224,6 +224,49 @@ impl Branch for LassoArdBranch {
         BranchLogDensityGradient {
             wrt_weights: ldg_wrt_weights,
             wrt_biases: ldg_wrt_biases,
+        }
+    }
+
+    fn log_density_gradient_joint(
+        &self,
+        x_train: &Array<f32>,
+        y_train: &Array<f32>,
+        hyperparams: &NetworkPrecisionHyperparameters,
+    ) -> BranchLogDensityGradientJoint {
+        let (d_rss_wrt_weights, d_rss_wrt_biases) = self.backpropagate(x_train, y_train);
+        let mut ldg_wrt_weights: Vec<Array<f32>> = Vec::with_capacity(self.num_layers);
+        let mut ldg_wrt_biases: Vec<Array<f32>> = Vec::with_capacity(self.num_layers - 1);
+
+        // ard layer weights
+        for layer_index in 0..self.output_layer_index() {
+            let prec_m = arrayfire::tile(
+                self.weight_precisions(layer_index),
+                dim4!(1, self.layer_weights(layer_index).dims().get()[1], 1, 1),
+            );
+
+            ldg_wrt_weights.push(
+                -(self.error_precision() * &d_rss_wrt_weights[layer_index]
+                    + prec_m * sign(self.layer_weights(layer_index))),
+            );
+        }
+
+        // output layer is base
+        ldg_wrt_weights.push(
+            -(self.error_precision() * &d_rss_wrt_weights[self.output_layer_index()]
+                + self.weight_precisions(self.output_layer_index())
+                    * sign(self.layer_weights(self.output_layer_index()))),
+        );
+
+        for layer_index in 0..self.output_layer_index() {
+            ldg_wrt_biases.push(
+                -1.0f32 * self.bias_precision(layer_index) * sign(self.biases(layer_index))
+                    - self.error_precision() * &d_rss_wrt_biases[layer_index],
+            );
+        }
+
+        let mut ldg_wrt_weight_precisions: Vec<Array<f32>> = Vec::with_capacity(self.num_layers);
+        for layer_index in 0..self.num_layers() {
+            self.weight_precisions(layer_index)
         }
     }
 

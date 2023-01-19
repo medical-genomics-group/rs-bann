@@ -1,5 +1,5 @@
-use super::gradient::BranchLogDensityGradient;
-use super::momentum::BranchMomentumJoint;
+use super::gradient::{BranchLogDensityGradient, BranchLogDensityGradientJoint};
+use super::momentum::{BranchMomentumJoint, Momentum};
 use super::{
     super::{
         mcmc_cfg::{MCMCCfg, StepSizeMode},
@@ -115,6 +115,13 @@ pub trait Branch {
         y_train: &Array<f32>,
     ) -> BranchLogDensityGradient;
 
+    fn log_density_gradient_joint(
+        &self,
+        x_train: &Array<f32>,
+        y_train: &Array<f32>,
+        hyperparams: &NetworkPrecisionHyperparameters,
+    ) -> BranchLogDensityGradientJoint;
+
     // This should be -U(q), e.g. log P(D | Theta)P(Theta)
     fn log_density(&self, params: &BranchParams, precisions: &BranchPrecisions, rss: f32) -> f32;
 
@@ -185,25 +192,25 @@ pub trait Branch {
     }
 
     /// Quantify change of distance from starting point
-    fn net_movement(&self, init_params: &BranchParams, momenta: &BranchMomentum) -> f32 {
+    fn net_movement(&self, init_params: &BranchParams, momentum: &BranchMomentum) -> f32 {
         let mut dot_p = Array::new(&[0.0], dim4!(1, 1, 1, 1));
         for ix in 0..self.num_layers() {
             if self.layer_weights(ix).is_vector() {
                 dot_p += dot(
                     &(self.layer_weights(ix) - init_params.layer_weights(ix)),
-                    momenta.wrt_weights(ix),
+                    momentum.wrt_weights(ix),
                     MatProp::NONE,
                     MatProp::NONE,
                 );
             } else if self.layer_weights(ix).is_scalar() {
                 dot_p += (self.layer_weights(ix) - init_params.layer_weights(ix))
-                    * momenta.wrt_weights(ix);
+                    * momentum.wrt_weights(ix);
             } else {
                 dot_p += sum(
                     &diag_extract(
                         &matmul(
                             &(self.layer_weights(ix) - init_params.layer_weights(ix)),
-                            momenta.wrt_weights(ix),
+                            momentum.wrt_weights(ix),
                             MatProp::TRANS,
                             MatProp::NONE,
                         ),
@@ -216,7 +223,7 @@ pub trait Branch {
         for ix in 0..(self.num_layers() - 1) {
             dot_p += matmul(
                 &(self.biases(ix) - init_params.biases(ix)),
-                momenta.wrt_biases(ix),
+                momentum.wrt_biases(ix),
                 MatProp::NONE,
                 MatProp::TRANS,
             );
@@ -224,11 +231,11 @@ pub trait Branch {
         scalar_to_host(&dot_p)
     }
 
-    fn is_u_turn(&self, init_params: &BranchParams, momenta: &BranchMomentum) -> bool {
-        self.net_movement(init_params, momenta) < 0.0
+    fn is_u_turn(&self, init_params: &BranchParams, momentum: &BranchMomentum) -> bool {
+        self.net_movement(init_params, momentum) < 0.0
     }
 
-    fn sample_momenta(&self) -> BranchMomentum {
+    fn sample_momentum(&self) -> BranchMomentum {
         let mut wrt_weights = Vec::with_capacity(self.num_layers());
         let mut wrt_biases = Vec::with_capacity(self.num_layers() - 1);
         for index in 0..self.num_layers() - 1 {
@@ -245,7 +252,7 @@ pub trait Branch {
         }
     }
 
-    fn sample_joint_momenta(&self) -> BranchMomentumJoint {
+    fn sample_joint_momentum(&self) -> BranchMomentumJoint {
         let mut wrt_weights = Vec::with_capacity(self.num_layers());
         let mut wrt_biases = Vec::with_capacity(self.num_layers() - 1);
         let mut wrt_weight_precisions = Vec::with_capacity(self.num_layers());
@@ -498,8 +505,11 @@ pub trait Branch {
     }
 
     // this is -H = (-U(q)) + (-K(p))
-    fn neg_hamiltonian(&self, momenta: &BranchMomentum, x: &Array<f32>, y: &Array<f32>) -> f32 {
-        self.log_density(self.params(), self.precisions(), self.rss(x, y)) - momenta.log_density()
+    fn neg_hamiltonian<T>(&self, momentum: &T, x: &Array<f32>, y: &Array<f32>) -> f32
+    where
+        T: Momentum,
+    {
+        self.log_density(self.params(), self.precisions(), self.rss(x, y)) - momentum.log_density()
     }
 
     fn rss(&self, x: &Array<f32>, y: &Array<f32>) -> f32 {
@@ -525,7 +535,7 @@ pub trait Branch {
 
     fn accept_or_reject_hmc_state(
         &mut self,
-        momenta: &BranchMomentum,
+        momentum: &BranchMomentum,
         x_train: &Array<f32>,
         y_train: &Array<f32>,
         init_neg_hamiltonian: f32,
@@ -542,7 +552,7 @@ pub trait Branch {
             log_density,
         };
 
-        let final_neg_hamiltonian = log_density - momenta.log_density();
+        let final_neg_hamiltonian = log_density - momentum.log_density();
         let log_acc_probability = final_neg_hamiltonian - init_neg_hamiltonian;
         let acc_probability = if log_acc_probability >= 0. {
             1.
@@ -585,30 +595,30 @@ pub trait Branch {
         x_train: &Array<f32>,
         y_train: &Array<f32>,
         mcmc_cfg: &MCMCCfg,
+        hyperparams: &NetworkPrecisionHyperparameters,
     ) -> HMCStepResult {
-        // TODO: add trajectory stuff
+        if mcmc_cfg.trajectories {
+            warn!("Joint sampling does not support returning trajectories yet.");
+        }
+        if mcmc_cfg.num_grad {
+            warn!("Joint sampling does not support numerical gradients yet. Using analytical gradients instead.");
+        }
+        // std scaled and izmailov might violate detailed balance for joint sampling,
+        // I should check that
+        match mcmc_cfg.hmc_step_size_mode {
+            StepSizeMode::Izmailov => warn!("Join sampling does not support Izmailov step sizes yet. Using random step sizes instead."),
+            StepSizeMode::StdScaled => warn!("Join sampling does not support StdScaled step sizes yet. Using random step sizes instead."),
+            StepSizeMode::Uniform => warn!("Join sampling does not support Uniform step sizes yet. Using random step sizes instead."),
+            _ => {}
+        }
+
         let mut u_turned = false;
         let init_params = self.params().clone();
         let init_precisions = self.precisions().clone();
-
-        // std scaled and izmailov might violate detailed balance for joint sampling,
-        // I should check that
-        let step_sizes = match mcmc_cfg.hmc_step_size_mode {
-            StepSizeMode::StdScaled => {
-                unimplemented!("Only Random step sizes are implemented for joint sampling.")
-            }
-            StepSizeMode::Random => self.random_step_sizes(mcmc_cfg),
-            StepSizeMode::Uniform => {
-                unimplemented!("Only Random step sizes are implemented for joint sampling.")
-            }
-            StepSizeMode::Izmailov => {
-                unimplemented!("Only Random step sizes are implemented for joint sampling.")
-            }
-        };
-
-        let mut momenta = self.sample_joint_momenta();
-
-        let init_neg_hamiltonian = self.neg_hamiltonian(&momenta, x_train, y_train);
+        let step_sizes = self.random_step_sizes(mcmc_cfg);
+        let mut momentum = self.sample_joint_momentum();
+        let init_neg_hamiltonian = self.neg_hamiltonian(&momentum, x_train, y_train);
+        let mut ldg = self.log_density_gradient(x_train, y_train);
 
         HMCStepResult::Rejected
     }
@@ -642,12 +652,12 @@ pub trait Branch {
             StepSizeMode::Izmailov => self.izmailov_step_sizes(mcmc_cfg),
         };
 
-        let mut momenta = self.sample_momenta();
+        let mut momentum = self.sample_momentum();
         debug!(
             "branch log density before step: {:.4}",
             self.log_density(self.params(), self.precisions(), self.rss(x_train, y_train))
         );
-        let init_neg_hamiltonian = self.neg_hamiltonian(&momenta, x_train, y_train);
+        let init_neg_hamiltonian = self.neg_hamiltonian(&momentum, x_train, y_train);
 
         if mcmc_cfg.trajectories {
             traj.add_hamiltonian(init_neg_hamiltonian);
@@ -663,8 +673,8 @@ pub trait Branch {
 
         // leapfrog
         for _step in 0..(mcmc_cfg.hmc_integration_length) {
-            momenta.half_step(&step_sizes, &ldg);
-            self.params_mut().full_step(&step_sizes, &momenta);
+            momentum.half_step(&step_sizes, &ldg);
+            self.params_mut().full_step(&step_sizes, &momentum);
 
             ldg = if mcmc_cfg.num_grad {
                 self.numerical_log_density_gradient(x_train, y_train)
@@ -672,11 +682,11 @@ pub trait Branch {
                 self.log_density_gradient(x_train, y_train)
             };
 
-            momenta.half_step(&step_sizes, &ldg);
+            momentum.half_step(&step_sizes, &ldg);
 
             // diagnostics and logging
 
-            let curr_neg_hamiltonian = self.neg_hamiltonian(&momenta, x_train, y_train);
+            let curr_neg_hamiltonian = self.neg_hamiltonian(&momentum, x_train, y_train);
 
             if mcmc_cfg.trajectories {
                 traj.add_params(self.params().param_vec());
@@ -704,7 +714,7 @@ pub trait Branch {
                 return HMCStepResult::RejectedEarly;
             }
 
-            if !u_turned && self.is_u_turn(&init_params, &momenta) {
+            if !u_turned && self.is_u_turn(&init_params, &momentum) {
                 warn!("U turn in HMC trajectory at step {}", _step);
                 u_turned = true;
             }
@@ -731,7 +741,7 @@ pub trait Branch {
         //     );
         // }
 
-        match self.accept_or_reject_hmc_state(&momenta, x_train, y_train, init_neg_hamiltonian) {
+        match self.accept_or_reject_hmc_state(&momentum, x_train, y_train, init_neg_hamiltonian) {
             res @ HMCStepResult::Rejected => {
                 self.set_params(&init_params);
                 res
