@@ -1,4 +1,5 @@
 use super::gradient::BranchLogDensityGradient;
+use super::momenta::BranchMomentaJoint;
 use super::{
     super::{
         mcmc_cfg::{MCMCCfg, StepSizeMode},
@@ -241,6 +242,34 @@ pub trait Branch {
         BranchMomenta {
             wrt_weights,
             wrt_biases,
+        }
+    }
+
+    fn sample_joint_momenta(&self) -> BranchMomentaJoint {
+        let mut wrt_weights = Vec::with_capacity(self.num_layers());
+        let mut wrt_biases = Vec::with_capacity(self.num_layers() - 1);
+        let mut wrt_weight_precisions = Vec::with_capacity(self.num_layers());
+        let mut wrt_bias_precisions = Vec::with_capacity(self.num_layers() - 1);
+        for index in 0..self.num_layers() - 1 {
+            wrt_weights.push(arrayfire::randn::<f32>(self.layer_weights(index).dims()));
+            wrt_weight_precisions.push(arrayfire::randn::<f32>(
+                self.layer_weight_precisions(index).dims(),
+            ));
+            wrt_biases.push(arrayfire::randn::<f32>(self.biases(index).dims()));
+            wrt_bias_precisions.push(arrayfire::randn::<f32>(
+                self.layer_bias_precision(index).dims(),
+            ));
+        }
+        // output layer weight momentum
+        wrt_weights.push(arrayfire::randn::<f32>(
+            self.layer_weights(self.num_layers() - 1).dims(),
+        ));
+        BranchMomentaJoint {
+            wrt_weights,
+            wrt_biases,
+            wrt_weight_precisions,
+            wrt_bias_precisions,
+            wrt_error_precision: arrayfire::randn::<f32>(dim4!(1, 1, 1, 1)),
         }
     }
 
@@ -576,6 +605,8 @@ pub trait Branch {
                 unimplemented!("Only Random step sizes are implemented for joint sampling.")
             }
         };
+
+        let mut momenta = self.sample_joint_momenta();
 
         HMCStepResult::Rejected
     }
