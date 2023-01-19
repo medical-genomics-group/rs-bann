@@ -1,5 +1,5 @@
 use super::branch::branch::BranchCfg;
-use super::branch::branch::BranchLogDensityGradient;
+use super::branch::gradient::BranchLogDensityGradient;
 use super::branch::momenta::BranchMomenta;
 use super::branch::step_sizes::StepSizes;
 use crate::af_helpers::to_host;

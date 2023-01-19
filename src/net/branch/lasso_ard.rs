@@ -2,8 +2,9 @@ use super::{
     super::gibbs_steps::lasso_multi_param_precision_posterior,
     super::model_type::ModelType,
     super::params::{BranchParams, BranchPrecisions},
-    branch::{Branch, BranchCfg, BranchLogDensityGradient},
+    branch::{Branch, BranchCfg},
     branch_cfg_builder::BranchCfgBuilder,
+    gradient::BranchLogDensityGradient,
     step_sizes::StepSizes,
 };
 use crate::af_helpers::{af_scalar, scalar_to_host, sign, to_host};
