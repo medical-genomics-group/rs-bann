@@ -101,7 +101,7 @@ impl Branch for LassoArdBranch {
 
     // TODO: actually make some step sizes here
     fn std_scaled_step_sizes(&self, mcmc_cfg: &MCMCCfg) -> StepSizes {
-        let const_factor = mcmc_cfg.hmc_step_size_factor;
+        let _const_factor = mcmc_cfg.hmc_step_size_factor;
         let wrt_weights = Vec::with_capacity(self.num_layers());
         let wrt_biases = Vec::with_capacity(self.num_layers() - 1);
 
