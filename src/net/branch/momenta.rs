@@ -55,6 +55,19 @@ impl BranchMomentaJoint {
         for i in 0..self.wrt_biases.len() {
             log_density += arrayfire::sum_all(&(&self.wrt_biases[i] * &self.wrt_biases[i])).0;
         }
+        for i in 0..self.wrt_weight_precisions.len() {
+            log_density += arrayfire::sum_all(
+                &(&self.wrt_weight_precisions[i] * &self.wrt_weight_precisions[i]),
+            )
+            .0;
+        }
+        for i in 0..self.wrt_bias_precisions.len() {
+            log_density +=
+                arrayfire::sum_all(&(&self.wrt_bias_precisions[i] * &self.wrt_bias_precisions[i]))
+                    .0;
+        }
+        log_density +=
+            arrayfire::sum_all(&(&self.wrt_error_precision * &self.wrt_error_precision)).0;
         0.5 * log_density
     }
 
