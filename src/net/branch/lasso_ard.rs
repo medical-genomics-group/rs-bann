@@ -169,6 +169,46 @@ impl Branch for LassoArdBranch {
         }
     }
 
+    fn log_density_joint(
+        &self,
+        params: &BranchParams,
+        precisions: &BranchPrecisions,
+        rss: f32,
+        hyperparams: &NetworkPrecisionHyperparameters,
+        num_individuals: usize,
+    ) -> f32 {
+        let mut log_density: Array<f32> = af_scalar(0.0);
+
+        // rss / error precision terms
+        log_density += hyperparams.output_layer_prior_shape()
+            + (num_individuals as f32 - 2.0) / 2.0 * arrayfire::log(&precisions.error_precision);
+        log_density -=
+            precisions.error_precision * (rss / 2.0 + 1.0 / hyperparams.output_layer_prior_scale());
+
+        // weight terms
+        for i in 0..self.num_layers() {
+            let (shape, scale) = hyperparams.layer_prior_hyperparams(i, self.num_layers());
+            log_density -= arrayfire::dot(
+                &(l1_norm_rows(params.layer_weights(i)) + scale),
+                &precisions.layer_weight_precisions(i),
+                MatProp::NONE,
+                MatProp::NONE,
+            );
+            let nrows = params.layer_weights(i).dims().get()[0];
+            let ncols = params.layer_weights(i).dims().get()[1];
+            log_density += arrayfire::dot(
+                &((shape + ncols as f32 - 1.0f32) * arrayfire::constant(1.0f32, dim4!(nrows))),
+                &arrayfire::log(&precisions.layer_weight_precisions(i)),
+                MatProp::NONE,
+                MatProp::NONE,
+            );
+        }
+
+        // bias terms
+
+        scalar_to_host(&log_density)
+    }
+
     // TODO: write test
     fn log_density(&self, params: &BranchParams, precisions: &BranchPrecisions, rss: f32) -> f32 {
         let mut log_density: f32 = scalar_to_host(&(-0.5f32 * &precisions.error_precision * rss));
@@ -176,7 +216,7 @@ impl Branch for LassoArdBranch {
         for i in 0..self.output_layer_index() {
             log_density -= sum_all(&matmul(
                 &(abs(params.layer_weights(i))),
-                self.weight_precisions(i),
+                &precisions.weight_precisions[i],
                 MatProp::TRANS,
                 MatProp::NONE,
             ))
@@ -185,7 +225,7 @@ impl Branch for LassoArdBranch {
 
         // output layer
         log_density -= sum_all(
-            &(self.weight_precisions(self.output_layer_index())
+            &(precisions.weight_precisions[self.output_layer_index()]
                 * &(abs(params.layer_weights(self.output_layer_index())))),
         )
         .0;

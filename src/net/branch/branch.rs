@@ -14,6 +14,7 @@ use super::{
     trajectory::Trajectory,
 };
 use crate::af_helpers::{l1_norm, sign};
+use crate::net::params::BranchHyperparameters;
 use crate::net::{
     gibbs_steps::ridge_multi_param_precision_posterior, params::BranchPrecisionsHost,
 };
@@ -86,6 +87,18 @@ pub trait Branch {
     ) -> Vec<Array<f32>>;
 
     fn log_density_gradient_wrt_weights(&self) -> Vec<Array<f32>>;
+
+    // This should be -U(q), e.g. log P(D | Theta)P(Theta)
+    fn log_density(&self, params: &BranchParams, precisions: &BranchPrecisions, rss: f32) -> f32;
+
+    fn log_density_joint(
+        &self,
+        params: &BranchParams,
+        precisions: &BranchPrecisions,
+        rss: f32,
+        hyperparams: &NetworkPrecisionHyperparameters,
+        num_individuals: usize,
+    ) -> f32;
 
     fn last_rss(&self) -> &Array<f32> {
         self.training_state().rss()
@@ -217,9 +230,6 @@ pub trait Branch {
                 .log_density_gradient_wrt_error_precision(y_train, hyperparams),
         }
     }
-
-    // This should be -U(q), e.g. log P(D | Theta)P(Theta)
-    fn log_density(&self, params: &BranchParams, precisions: &BranchPrecisions, rss: f32) -> f32;
 
     // DO NOT run this in production code, this is extremely slow.
     //
