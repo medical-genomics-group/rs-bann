@@ -4,10 +4,10 @@ use super::{
     super::params::{BranchParams, BranchPrecisions},
     branch::{Branch, BranchCfg},
     branch_cfg_builder::BranchCfgBuilder,
-    gradient::BranchLogDensityGradient,
     step_sizes::StepSizes,
+    training_state::TrainingState,
 };
-use crate::af_helpers::{af_scalar, scalar_to_host, to_host};
+use crate::af_helpers::{af_scalar, scalar_to_host, sum_of_squares_rows, to_host};
 use crate::net::mcmc_cfg::MCMCCfg;
 use crate::net::params::NetworkPrecisionHyperparameters;
 use arrayfire::{dim4, matmul, sqrt, sum, sum_all, tile, Array, MatProp};
@@ -24,6 +24,7 @@ pub struct RidgeArdBranch {
     pub(crate) layer_widths: Vec<usize>,
     pub(crate) num_layers: usize,
     pub(crate) rng: ThreadRng,
+    pub(crate) training_state: TrainingState,
 }
 
 // Weights in this branch are grouped by the node they
@@ -48,7 +49,16 @@ impl Branch for RidgeArdBranch {
             precisions: BranchPrecisions::from_host(&cfg.precisions),
             params: BranchParams::from_param_vec(&cfg.params, &cfg.layer_widths, cfg.num_markers),
             rng: thread_rng(),
+            training_state: TrainingState::default(),
         }
+    }
+
+    fn training_state(&self) -> &TrainingState {
+        &self.training_state
+    }
+
+    fn training_state_mut(&mut self) -> &mut TrainingState {
+        &mut self.training_state
     }
 
     fn num_weights(&self) -> usize {
@@ -141,7 +151,7 @@ impl Branch for RidgeArdBranch {
         // there is only one bias precision per layer here
         for index in 0..self.output_layer_index() {
             wrt_biases.push(
-                arrayfire::constant(1.0f32, self.biases(index).dims())
+                arrayfire::constant(1.0f32, self.layer_biases(index).dims())
                     * (std::f32::consts::PI
                         / (2.0f32
                             * arrayfire::sqrt(&self.precisions().bias_precisions[index])
@@ -184,21 +194,18 @@ impl Branch for RidgeArdBranch {
 
         for i in 0..self.output_layer_index() {
             log_density -= 0.5
-                * sum_all(&(params.biases(i) * params.biases(i) * &precisions.bias_precisions[i]))
-                    .0;
+                * sum_all(
+                    &(params.layer_biases(i)
+                        * params.layer_biases(i)
+                        * &precisions.bias_precisions[i]),
+                )
+                .0;
         }
         log_density
     }
 
-    fn log_density_gradient(
-        &self,
-        x_train: &Array<f32>,
-        y_train: &Array<f32>,
-    ) -> BranchLogDensityGradient {
-        let (d_rss_wrt_weights, d_rss_wrt_biases) = self.backpropagate(x_train, y_train);
+    fn log_density_gradient_wrt_weights(&self) -> Vec<Array<f32>> {
         let mut ldg_wrt_weights: Vec<Array<f32>> = Vec::with_capacity(self.num_layers);
-        let mut ldg_wrt_biases: Vec<Array<f32>> = Vec::with_capacity(self.num_layers - 1);
-
         // ard layer weights
         for layer_index in 0..self.output_layer_index() {
             let prec_m = arrayfire::tile(
@@ -207,30 +214,37 @@ impl Branch for RidgeArdBranch {
             );
 
             ldg_wrt_weights.push(
-                -(self.error_precision() * &d_rss_wrt_weights[layer_index]
+                -(self.error_precision() * self.layer_d_rss_wrt_weights(layer_index)
                     + prec_m * self.layer_weights(layer_index)),
             );
         }
 
         // output layer is base
         ldg_wrt_weights.push(
-            -(self.error_precision() * &d_rss_wrt_weights[self.output_layer_index()]
+            -(self.error_precision() * self.layer_d_rss_wrt_weights(self.output_layer_index())
                 + self.weight_precisions(self.output_layer_index())
                     * self.layer_weights(self.output_layer_index())),
         );
 
-        // biases
-        for layer_index in 0..self.output_layer_index() {
-            ldg_wrt_biases.push(
-                -1.0f32 * self.bias_precision(layer_index) * self.biases(layer_index)
-                    - self.error_precision() * &d_rss_wrt_biases[layer_index],
+        ldg_wrt_weights
+    }
+
+    fn log_density_gradient_wrt_weight_precisions(
+        &self,
+        hyperparams: &NetworkPrecisionHyperparameters,
+    ) -> Vec<Array<f32>> {
+        let mut ldg_wrt_weight_precisions: Vec<Array<f32>> = Vec::with_capacity(self.num_layers);
+        for layer_index in 0..self.num_layers() {
+            let precisions: &Array<f32> = self.weight_precisions(layer_index);
+            let params: &Array<f32> = self.layer_weights(layer_index);
+            let (shape, scale) = hyperparams.layer_prior_hyperparams(layer_index, self.num_layers);
+            ldg_wrt_weight_precisions.push(
+                (2.0f32 * shape + precisions.elements() as f32 - 2.0) / (2.0f32 * precisions)
+                    - (1.0f32 / scale)
+                    - sum_of_squares_rows(params),
             );
         }
-
-        BranchLogDensityGradient {
-            wrt_weights: ldg_wrt_weights,
-            wrt_biases: ldg_wrt_biases,
-        }
+        ldg_wrt_weight_precisions
     }
 
     fn precision_posterior_host(
@@ -536,7 +550,7 @@ mod tests {
     fn test_log_density_gradient_by_cfg() {
         let num_individuals = 4;
         let num_markers = 3;
-        let branch = make_test_branch_by_cfg();
+        let mut branch = make_test_branch_by_cfg();
         let x_train: Array<f32> = Array::new(
             &[1., 0., 0., 2., 1., 1., 2., 0., 0., 2., 0., 1.],
             dim4![num_individuals, num_markers, 1, 1],
@@ -549,7 +563,7 @@ mod tests {
     fn test_log_density_gradient() {
         let num_individuals = 4;
         let num_markers = 3;
-        let branch = make_test_branch();
+        let mut branch = make_test_branch();
         let x_train: Array<f32> = Array::new(
             &[1., 0., 0., 2., 1., 1., 2., 0., 0., 2., 0., 1.],
             dim4![num_individuals, num_markers, 1, 1],
@@ -566,7 +580,7 @@ mod tests {
             assert_eq!(ldg.wrt_weights[i].dims(), branch.layer_weights(i).dims());
         }
         for i in 0..(branch.num_layers - 1) {
-            assert_eq!(ldg.wrt_biases[i].dims(), branch.biases(i).dims());
+            assert_eq!(ldg.wrt_biases[i].dims(), branch.layer_biases(i).dims());
         }
 
         let exp_ldg_wrt_w = [
@@ -620,7 +634,7 @@ mod tests {
             assert_eq!(ldg.wrt_weights[i].dims(), branch.layer_weights(i).dims());
         }
         for i in 0..(branch.num_layers - 1) {
-            assert_eq!(ldg.wrt_biases[i].dims(), branch.biases(i).dims());
+            assert_eq!(ldg.wrt_biases[i].dims(), branch.layer_biases(i).dims());
         }
 
         let exp_ldg_wrt_w = [

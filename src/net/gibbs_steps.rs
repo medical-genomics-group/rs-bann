@@ -1,6 +1,6 @@
 //! Sampling from the precision posterior distributions.
 
-use crate::af_helpers::{l1_norm, l2_norm};
+use crate::af_helpers::{l1_norm, sum_of_squares};
 use arrayfire::Array;
 use rand::rngs::ThreadRng;
 use rand_distr::{Distribution, Gamma};
@@ -64,7 +64,7 @@ pub(crate) fn ridge_multi_param_precision_posterior(
 ) -> f32 {
     let num_params = param_vals.elements();
     let posterior_shape = prior_shape + num_params as f32 / 2.;
-    let posterior_scale = 2. * prior_scale / (2. + prior_scale * l2_norm(param_vals));
+    let posterior_scale = 2. * prior_scale / (2. + prior_scale * sum_of_squares(param_vals));
     Gamma::new(posterior_shape, posterior_scale)
         .unwrap()
         .sample(rng)

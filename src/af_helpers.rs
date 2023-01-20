@@ -7,7 +7,7 @@ pub(crate) fn af_scalar(val: f32) -> Array<f32> {
     Array::new(&vec![val], dim4!(1, 1, 1, 1))
 }
 
-pub(crate) fn l2_norm(arr: &Array<f32>) -> f32 {
+pub(crate) fn sum_of_squares(arr: &Array<f32>) -> f32 {
     let mut sum_of_squares = vec![0.0];
     arrayfire::dot(
         &arrayfire::flat(arr),
@@ -19,8 +19,17 @@ pub(crate) fn l2_norm(arr: &Array<f32>) -> f32 {
     sum_of_squares[0]
 }
 
+pub(crate) fn sum_of_squares_rows(arr: &Array<f32>) -> Array<f32> {
+    arrayfire::sum(&(arr * arr), 1)
+}
+
 pub(crate) fn l1_norm(arr: &Array<f32>) -> f32 {
     arrayfire::sum_all(&arrayfire::abs(arr)).0
+}
+
+/// Compute l1 norm of rows in matrix
+pub(crate) fn l1_norm_rows(arr: &Array<f32>) -> Array<f32> {
+    arrayfire::sum(&arrayfire::abs(arr), 1)
 }
 
 pub(crate) fn sign(arr: &Array<f32>) -> Array<f32> {

@@ -81,6 +81,26 @@ pub struct NetworkPrecisionHyperparameters {
 }
 
 impl NetworkPrecisionHyperparameters {
+    /// (shape, scale) of dense, summary or output layer, depending on index
+    pub fn layer_prior_hyperparams(&self, layer_index: usize, num_layers: usize) -> (f32, f32) {
+        if layer_index == num_layers - 1 {
+            (
+                self.output_layer_prior_shape(),
+                self.output_layer_prior_scale(),
+            )
+        } else if layer_index == num_layers - 2 {
+            (
+                self.summary_layer_prior_shape(),
+                self.summary_layer_prior_scale(),
+            )
+        } else {
+            (
+                self.dense_layer_prior_scale(),
+                self.dense_layer_prior_shape(),
+            )
+        }
+    }
+
     pub fn dense_layer_prior_shape(&self) -> f32 {
         self.dense.shape
     }
@@ -313,7 +333,7 @@ impl BranchParams {
         &self.weights[index]
     }
 
-    pub fn biases(&self, index: usize) -> &Array<f32> {
+    pub fn layer_biases(&self, index: usize) -> &Array<f32> {
         &self.biases[index]
     }
 }

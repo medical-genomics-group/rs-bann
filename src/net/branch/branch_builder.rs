@@ -3,6 +3,7 @@ use super::lasso_ard::LassoArdBranch;
 use super::lasso_base::LassoBaseBranch;
 use super::ridge_ard::RidgeArdBranch;
 use super::ridge_base::RidgeBaseBranch;
+use super::training_state::TrainingState;
 use crate::af_helpers::af_scalar;
 use arrayfire::{constant, dim4, Array};
 use rand::thread_rng;
@@ -226,6 +227,7 @@ impl BranchBuilder {
             layer_widths: self.layer_widths.clone(),
             num_layers: self.num_layers,
             rng: thread_rng(),
+            training_state: TrainingState::default(),
         }
     }
 
@@ -305,6 +307,7 @@ impl BranchBuilder {
             layer_widths: self.layer_widths.clone(),
             num_layers: self.num_layers,
             rng: thread_rng(),
+            training_state: TrainingState::default(),
         }
     }
 
@@ -384,6 +387,7 @@ impl BranchBuilder {
             layer_widths: self.layer_widths.clone(),
             num_layers: self.num_layers,
             rng: thread_rng(),
+            training_state: TrainingState::default(),
         }
     }
 
@@ -462,6 +466,7 @@ impl BranchBuilder {
             layer_widths: self.layer_widths.clone(),
             num_layers: self.num_layers,
             rng: thread_rng(),
+            training_state: TrainingState::default(),
         }
     }
 }
@@ -599,7 +604,7 @@ mod tests {
             assert_eq!(branch.layer_width(i), exp_layer_widths[i]);
             assert_eq!(branch.layer_weights(i).dims(), exp_weight_dims[i]);
             if i < branch.num_layers() - 1 {
-                assert_eq!(branch.biases(i).dims(), exp_bias_dims[i]);
+                assert_eq!(branch.layer_biases(i).dims(), exp_bias_dims[i]);
             }
         }
 
@@ -610,7 +615,7 @@ mod tests {
         }
         // biases
         for i in 0..branch.num_layers() - 1 {
-            assert_eq!(to_host(branch.biases(i)), to_host(&exp_biases[i]));
+            assert_eq!(to_host(branch.layer_biases(i)), to_host(&exp_biases[i]));
         }
     }
 }

@@ -1,5 +1,6 @@
 use super::gradient::{BranchLogDensityGradient, BranchLogDensityGradientJoint};
 use super::momentum::{BranchMomentumJoint, Momentum};
+use super::training_state::TrainingState;
 use super::{
     super::{
         mcmc_cfg::{MCMCCfg, StepSizeMode},
@@ -12,6 +13,7 @@ use super::{
     step_sizes::StepSizes,
     trajectory::Trajectory,
 };
+use crate::af_helpers::{l1_norm, sign};
 use crate::net::{
     gibbs_steps::ridge_multi_param_precision_posterior, params::BranchPrecisionsHost,
 };
@@ -54,6 +56,10 @@ pub trait Branch {
 
     fn set_error_precision(&mut self, val: f32);
 
+    fn training_state(&self) -> &TrainingState;
+
+    fn training_state_mut(&mut self) -> &mut TrainingState;
+
     fn precision_posterior_host(
         // k
         prior_shape: f32,
@@ -73,6 +79,37 @@ pub trait Branch {
     fn num_markers(&self) -> usize;
 
     fn layer_widths(&self) -> &Vec<usize>;
+
+    fn log_density_gradient_wrt_weight_precisions(
+        &self,
+        hyperparams: &NetworkPrecisionHyperparameters,
+    ) -> Vec<Array<f32>>;
+
+    fn log_density_gradient_wrt_weights(&self) -> Vec<Array<f32>>;
+
+    fn last_rss(&self) -> &Array<f32> {
+        self.training_state().rss()
+    }
+
+    fn set_last_rss(&mut self, rss: &Array<f32>) {
+        self.training_state_mut().set_rss(rss);
+    }
+
+    fn d_rss_wrt_weights(&self) -> &Vec<Array<f32>> {
+        self.training_state().d_rss_wrt_weights()
+    }
+
+    fn d_rss_wrt_biases(&self) -> &Vec<Array<f32>> {
+        self.training_state().d_rss_wrt_biases()
+    }
+
+    fn layer_d_rss_wrt_weights(&self, layer_index: usize) -> &Array<f32> {
+        &self.training_state().d_rss_wrt_weights()[layer_index]
+    }
+
+    fn layer_d_rss_wrt_biases(&self, layer_index: usize) -> &Array<f32> {
+        &self.training_state().d_rss_wrt_biases()[layer_index]
+    }
 
     /// Dumps all branch info into a BranchCfg object stored in host memory.
     fn to_cfg(&self) -> BranchCfg {
@@ -109,18 +146,77 @@ pub trait Branch {
         self.num_layers() - 1
     }
 
-    fn log_density_gradient(
+    fn log_density_gradient_wrt_biases(&self) -> Vec<Array<f32>> {
+        let mut ldg_wrt_biases: Vec<Array<f32>> = Vec::with_capacity(self.num_layers() - 1);
+
+        for layer_index in 0..self.output_layer_index() {
+            ldg_wrt_biases.push(
+                -1.0f32 * self.bias_precision(layer_index) * self.layer_biases(layer_index)
+                    - self.error_precision() * self.layer_d_rss_wrt_biases(layer_index),
+            );
+        }
+
+        ldg_wrt_biases
+    }
+
+    /// Gradient w.r.t precision params of lasso regularized biases
+    fn log_density_gradient_wrt_bias_precisions(
         &self,
+        hyperparams: &NetworkPrecisionHyperparameters,
+    ) -> Vec<Array<f32>> {
+        let mut ldg_wrt_bias_precisions: Vec<Array<f32>> =
+            Vec::with_capacity(self.num_layers() - 1);
+        for layer_index in 0..self.num_layers() - 1 {
+            let precision = self.bias_precision(layer_index);
+            let params = self.layer_biases(layer_index);
+            let (shape, scale) =
+                hyperparams.layer_prior_hyperparams(layer_index, self.num_layers());
+            ldg_wrt_bias_precisions.push((shape / precision) - (1.0 / scale) - l1_norm(params));
+        }
+        ldg_wrt_bias_precisions
+    }
+
+    fn log_density_gradient_wrt_error_precision(
+        &self,
+        y_train: &Array<f32>,
+        hyperparams: &NetworkPrecisionHyperparameters,
+    ) -> Array<f32> {
+        (2.0 * hyperparams.output_layer_prior_shape() + y_train.elements() as f32 - 2.0)
+            / (2.0f32 * self.error_precision())
+            - 1.0f32 / hyperparams.output_layer_prior_scale()
+            - self.last_rss() / 2.0f32
+    }
+
+    fn log_density_gradient(
+        &mut self,
         x_train: &Array<f32>,
         y_train: &Array<f32>,
-    ) -> BranchLogDensityGradient;
+    ) -> BranchLogDensityGradient {
+        self.backpropagate(x_train, y_train);
+
+        BranchLogDensityGradient {
+            wrt_weights: self.log_density_gradient_wrt_weights(),
+            wrt_biases: self.log_density_gradient_wrt_biases(),
+        }
+    }
 
     fn log_density_gradient_joint(
-        &self,
+        &mut self,
         x_train: &Array<f32>,
         y_train: &Array<f32>,
         hyperparams: &NetworkPrecisionHyperparameters,
-    ) -> BranchLogDensityGradientJoint;
+    ) -> BranchLogDensityGradientJoint {
+        let ldg_wrt_params = self.log_density_gradient(x_train, y_train);
+
+        BranchLogDensityGradientJoint {
+            wrt_weights: ldg_wrt_params.wrt_weights,
+            wrt_biases: ldg_wrt_params.wrt_biases,
+            wrt_weight_precisions: self.log_density_gradient_wrt_weight_precisions(hyperparams),
+            wrt_bias_precisions: self.log_density_gradient_wrt_bias_precisions(hyperparams),
+            wrt_error_precision: self
+                .log_density_gradient_wrt_error_precision(y_train, hyperparams),
+        }
+    }
 
     // This should be -U(q), e.g. log P(D | Theta)P(Theta)
     fn log_density(&self, params: &BranchParams, precisions: &BranchPrecisions, rss: f32) -> f32;
@@ -171,7 +267,7 @@ pub trait Branch {
         &self.params().weights[index]
     }
 
-    fn biases(&self, index: usize) -> &Array<f32> {
+    fn layer_biases(&self, index: usize) -> &Array<f32> {
         &self.params().biases[index]
     }
 
@@ -222,7 +318,7 @@ pub trait Branch {
         }
         for ix in 0..(self.num_layers() - 1) {
             dot_p += matmul(
-                &(self.biases(ix) - init_params.biases(ix)),
+                &(self.layer_biases(ix) - init_params.layer_biases(ix)),
                 momentum.wrt_biases(ix),
                 MatProp::NONE,
                 MatProp::TRANS,
@@ -240,7 +336,7 @@ pub trait Branch {
         let mut wrt_biases = Vec::with_capacity(self.num_layers() - 1);
         for index in 0..self.num_layers() - 1 {
             wrt_weights.push(arrayfire::randn::<f32>(self.layer_weights(index).dims()));
-            wrt_biases.push(arrayfire::randn::<f32>(self.biases(index).dims()));
+            wrt_biases.push(arrayfire::randn::<f32>(self.layer_biases(index).dims()));
         }
         // output layer weight momentum
         wrt_weights.push(arrayfire::randn::<f32>(
@@ -262,7 +358,7 @@ pub trait Branch {
             wrt_weight_precisions.push(arrayfire::randn::<f32>(
                 self.layer_weight_precisions(index).dims(),
             ));
-            wrt_biases.push(arrayfire::randn::<f32>(self.biases(index).dims()));
+            wrt_biases.push(arrayfire::randn::<f32>(self.layer_biases(index).dims()));
             wrt_bias_precisions.push(arrayfire::randn::<f32>(
                 self.layer_bias_precision(index).dims(),
             ));
@@ -308,7 +404,7 @@ pub trait Branch {
 
         let mut wrt_biases = Vec::with_capacity(self.num_layers() - 1);
         for index in 0..(self.num_layers() - 1) {
-            wrt_biases.push(randu::<f32>(self.biases(index).dims()) * prop_factor);
+            wrt_biases.push(randu::<f32>(self.layer_biases(index).dims()) * prop_factor);
         }
 
         if !mcmc_cfg.joint_hmc {
@@ -354,8 +450,8 @@ pub trait Branch {
                 self.layer_weights(index).dims(),
             ));
             wrt_biases.push(Array::new(
-                &vec![val; self.biases(index).elements()],
-                self.biases(index).dims(),
+                &vec![val; self.layer_biases(index).elements()],
+                self.layer_biases(index).dims(),
             ));
         }
         // output layer weights
@@ -396,7 +492,7 @@ pub trait Branch {
         );
         // TODO: tiling here everytime seems a bit inefficient, might be better to just store tiled versions of the biases?
         let bias_m = &arrayfire::tile(
-            self.biases(layer_index),
+            self.layer_biases(layer_index),
             dim4!(input.dims().get()[0], 1, 1, 1),
         );
         tanh(&(xw + bias_m))
@@ -444,11 +540,7 @@ pub trait Branch {
         error
     }
 
-    fn backpropagate(
-        &self,
-        x_train: &Array<f32>,
-        y_train: &Array<f32>,
-    ) -> (Vec<Array<f32>>, Vec<Array<f32>>) {
+    fn backpropagate(&mut self, x_train: &Array<f32>, y_train: &Array<f32>) {
         // forward propagate to get signals
         let activations = self.forward_feed(x_train);
 
@@ -459,6 +551,13 @@ pub trait Branch {
 
         // TODO: factor of 2 might be necessary here?
         let mut error = activation - y_train;
+
+        self.set_last_rss(&arrayfire::dot(
+            &error,
+            &error,
+            MatProp::NONE,
+            MatProp::NONE,
+        ));
 
         weights_gradient.push(arrayfire::matmul(
             &activations[self.num_layers() - 2],
@@ -501,7 +600,10 @@ pub trait Branch {
         bias_gradient.reverse();
         weights_gradient.reverse();
 
-        (weights_gradient, bias_gradient)
+        self.training_state_mut()
+            .set_d_rss_wrt_weights(&weights_gradient);
+        self.training_state_mut()
+            .set_d_rss_wrt_biases(&bias_gradient);
     }
 
     // this is -H = (-U(q)) + (-K(p))

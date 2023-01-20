@@ -3,8 +3,8 @@ use super::{
     super::params::{BranchParams, BranchPrecisions},
     branch::{Branch, BranchCfg},
     branch_cfg_builder::BranchCfgBuilder,
-    gradient::BranchLogDensityGradient,
     step_sizes::StepSizes,
+    training_state::TrainingState,
 };
 use crate::af_helpers::{af_scalar, scalar_to_host};
 use crate::net::mcmc_cfg::MCMCCfg;
@@ -22,6 +22,7 @@ pub struct StdNormalBranch {
     pub(crate) layer_widths: Vec<usize>,
     pub(crate) num_layers: usize,
     pub(crate) rng: ThreadRng,
+    pub(crate) training_state: TrainingState,
 }
 
 impl Branch for StdNormalBranch {
@@ -44,7 +45,16 @@ impl Branch for StdNormalBranch {
             precisions: BranchPrecisions::from_host(&cfg.precisions),
             params: BranchParams::from_param_vec(&cfg.params, &cfg.layer_widths, cfg.num_markers),
             rng: thread_rng(),
+            training_state: TrainingState::default(),
         }
+    }
+
+    fn training_state(&self) -> &TrainingState {
+        &self.training_state
+    }
+
+    fn training_state_mut(&mut self) -> &mut TrainingState {
+        &mut self.training_state
     }
 
     fn num_weights(&self) -> usize {
@@ -111,7 +121,7 @@ impl Branch for StdNormalBranch {
         }
         for index in 0..self.num_layers() - 1 {
             wrt_biases.push(
-                arrayfire::constant(1.0f32, self.biases(index).dims())
+                arrayfire::constant(1.0f32, self.layer_biases(index).dims())
                     * (const_factor * (1.0f32 / arrayfire::sqrt(self.bias_precision(index)))),
             );
         }
@@ -141,7 +151,7 @@ impl Branch for StdNormalBranch {
 
         for index in 0..self.num_layers() - 1 {
             wrt_biases.push(
-                arrayfire::constant(1.0f32, self.biases(index).dims())
+                arrayfire::constant(1.0f32, self.layer_biases(index).dims())
                     * (std::f32::consts::PI
                         / (2.0f32
                             * arrayfire::sqrt(&self.precisions().bias_precisions[index])
@@ -165,36 +175,28 @@ impl Branch for StdNormalBranch {
                 0.5 * arrayfire::sum_all(&(params.layer_weights(i) * params.layer_weights(i))).0;
         }
         for i in 0..self.num_layers() - 1 {
-            log_density -= 0.5 * arrayfire::sum_all(&(params.biases(i) * params.biases(i))).0;
+            log_density -=
+                0.5 * arrayfire::sum_all(&(params.layer_biases(i) * params.layer_biases(i))).0;
         }
         log_density
     }
 
-    fn log_density_gradient(
-        &self,
-        x_train: &Array<f32>,
-        y_train: &Array<f32>,
-    ) -> BranchLogDensityGradient {
-        let (d_rss_wrt_weights, d_rss_wrt_biases) = self.backpropagate(x_train, y_train);
+    fn log_density_gradient_wrt_weights(&self) -> Vec<Array<f32>> {
         let mut ldg_wrt_weights: Vec<Array<f32>> = Vec::with_capacity(self.num_layers);
-        let mut ldg_wrt_biases: Vec<Array<f32>> = Vec::with_capacity(self.num_layers - 1);
         for layer_index in 0..self.num_layers() {
             ldg_wrt_weights.push(
-                -(self.error_precision() * &d_rss_wrt_weights[layer_index]
+                -(self.error_precision() * self.layer_d_rss_wrt_weights(layer_index)
                     + self.layer_weights(layer_index)),
             );
         }
-        for layer_index in 0..self.num_layers() - 1 {
-            ldg_wrt_biases.push(
-                -1f32 * self.biases(layer_index)
-                    - self.error_precision() * &d_rss_wrt_biases[layer_index],
-            );
-        }
+        ldg_wrt_weights
+    }
 
-        BranchLogDensityGradient {
-            wrt_weights: ldg_wrt_weights,
-            wrt_biases: ldg_wrt_biases,
-        }
+    fn log_density_gradient_wrt_weight_precisions(
+        &self,
+        _hyperparams: &NetworkPrecisionHyperparameters,
+    ) -> Vec<Array<f32>> {
+        unimplemented!("Joint sampling is not implemented for std normal priors, since the precisions are fixed to 1.0");
     }
 
     fn precision_posterior_host(
