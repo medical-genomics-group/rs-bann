@@ -9,4 +9,5 @@ pub mod ridge_ard;
 pub mod ridge_base;
 pub mod std_normal_branch;
 pub(crate) mod step_sizes;
+pub(crate) mod training_state;
 pub(crate) mod trajectory;
