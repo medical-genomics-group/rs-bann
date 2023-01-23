@@ -57,20 +57,22 @@ pub struct PrecisionHyperparameters {
 }
 
 impl PrecisionHyperparameters {
-    pub fn default() -> Self {
-        Self {
-            shape: 1.0,
-            scale: 1.0,
-        }
-    }
-
     pub fn new(shape: f32, scale: f32) -> Self {
         Self { shape, scale }
     }
 }
 
+impl Default for PrecisionHyperparameters {
+    fn default() -> Self {
+        Self {
+            shape: 1.0,
+            scale: 1.0,
+        }
+    }
+}
+
 /// All hyperparameters of precision prior distributions for the model.
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Default)]
 pub struct NetworkPrecisionHyperparameters {
     /// Hyperparams of precisions in the dense layers
     pub dense: PrecisionHyperparameters,

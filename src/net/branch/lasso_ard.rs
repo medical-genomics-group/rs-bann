@@ -359,10 +359,10 @@ mod tests {
     use super::super::{branch::Branch, branch_builder::BranchBuilder};
     use super::LassoArdBranch;
 
-    use crate::af_helpers::to_host;
+    use crate::af_helpers::{scalar_to_host, to_host};
     use crate::net::branch::momentum::BranchMomentum;
     use crate::net::mcmc_cfg::MCMCCfg;
-    use crate::net::params::BranchParams;
+    use crate::net::params::{BranchParams, NetworkPrecisionHyperparameters};
 
     fn assert_approx_eq_slice(a: &[f32], b: &[f32], tol: f32) {
         assert_eq!(a.len(), b.len());
@@ -569,6 +569,54 @@ mod tests {
     //         assert_eq!(to_host(&bias_gradient[i]), to_host(&exp_bias_grad[i]));
     //     }
     // }
+
+    #[test]
+    fn test_log_density_joint() {
+        let num_individuals = 4;
+        let num_markers = 3;
+        let branch = make_test_branch();
+        let x_train: Array<f32> = Array::new(
+            &[1., 0., 0., 2., 1., 1., 2., 0., 0., 2., 0., 1.],
+            dim4![num_individuals, num_markers, 1, 1],
+        );
+        let y_train: Array<f32> = Array::new(&[0.0, 2.0, 1.0, 1.5], dim4![4, 1, 1, 1]);
+        let hyperparams = NetworkPrecisionHyperparameters::default();
+
+        let rss = branch.rss(&x_train, &y_train);
+        assert_eq!(rss, 5.248245);
+
+        let ld_wrt_e = branch.log_density_joint_wrt_rss(
+            branch.precisions(),
+            rss,
+            &hyperparams,
+            num_individuals as usize,
+        );
+
+        assert_eq!(scalar_to_host(&ld_wrt_e), -3.62412235);
+
+        let ld_wrt_w = branch.log_density_joint_wrt_weights(
+            branch.params(),
+            branch.precisions(),
+            &hyperparams,
+        );
+
+        assert_eq!(scalar_to_host(&ld_wrt_w), -23.0);
+
+        let ld_wrt_b =
+            branch.log_density_joint_wrt_biases(branch.params(), branch.precisions(), &hyperparams);
+
+        assert_eq!(scalar_to_host(&ld_wrt_b), -5.0);
+
+        let ld = branch.log_density_joint(
+            branch.params(),
+            branch.precisions(),
+            rss,
+            &hyperparams,
+            num_individuals as usize,
+        );
+
+        assert_eq!(ld, -31.62412235);
+    }
 
     #[test]
     fn test_log_density_gradient() {

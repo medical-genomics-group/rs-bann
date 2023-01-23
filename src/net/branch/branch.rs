@@ -172,8 +172,9 @@ pub trait Branch {
         let mut log_density: Array<f32> = af_scalar(0.0);
 
         // rss / error precision terms
-        log_density += hyperparams.output_layer_prior_shape()
-            + (num_individuals as f32 - 2.0) / 2.0 * arrayfire::log(&precisions.error_precision);
+        log_density += (hyperparams.output_layer_prior_shape()
+            + (num_individuals as f32 - 2.0) / 2.0)
+            * arrayfire::log(&precisions.error_precision);
         log_density -= &precisions.error_precision
             * (rss / 2.0 + 1.0 / hyperparams.output_layer_prior_scale());
 
