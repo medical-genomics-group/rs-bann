@@ -248,6 +248,8 @@ impl<B: Branch> Net<B> {
                 // update error precision
                 let step_res = if mcmc_cfg.gradient_descent {
                     branch.gradient_descent(&x, &residual, mcmc_cfg)
+                } else if mcmc_cfg.joint_hmc {
+                    branch.hmc_step_joint(&x, &residual, mcmc_cfg, &self.hyperparams)
                 } else {
                     branch.hmc_step(&x, &residual, mcmc_cfg)
                 };
