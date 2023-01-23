@@ -49,12 +49,12 @@ impl BranchMomentumJoint {
             self.wrt_biases[i] += &step_sizes.wrt_biases[i] * fraction * &grad.wrt_biases[i];
         }
         for i in 0..self.wrt_weight_precisions.len() {
-            self.wrt_biases[i] += &step_sizes.wrt_weight_precisions.as_ref().unwrap()[i]
+            self.wrt_weight_precisions[i] += &step_sizes.wrt_weight_precisions.as_ref().unwrap()[i]
                 * fraction
                 * &grad.wrt_weight_precisions[i];
         }
         for i in 0..self.wrt_bias_precisions.len() {
-            self.wrt_biases[i] += &step_sizes.wrt_bias_precisions.as_ref().unwrap()[i]
+            self.wrt_bias_precisions[i] += &step_sizes.wrt_bias_precisions.as_ref().unwrap()[i]
                 * fraction
                 * &grad.wrt_bias_precisions[i];
         }
