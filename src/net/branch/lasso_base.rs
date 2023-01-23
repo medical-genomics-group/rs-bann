@@ -90,6 +90,10 @@ impl Branch for LassoBaseBranch {
         &mut self.params
     }
 
+    fn set_precisions(&mut self, precisions: &BranchPrecisions) {
+        self.precisions = precisions.clone();
+    }
+
     fn set_params(&mut self, params: &BranchParams) {
         self.params = params.clone();
     }

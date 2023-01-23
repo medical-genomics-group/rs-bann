@@ -78,6 +78,10 @@ impl Branch for RidgeBaseBranch {
         &mut self.precisions
     }
 
+    fn set_precisions(&mut self, precisions: &BranchPrecisions) {
+        self.precisions = precisions.clone();
+    }
+
     fn num_layers(&self) -> usize {
         self.num_layers
     }
