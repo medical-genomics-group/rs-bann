@@ -441,6 +441,9 @@ pub trait Branch {
         wrt_weights.push(arrayfire::randn::<f32>(
             self.layer_weights(self.num_layers() - 1).dims(),
         ));
+        wrt_weight_precisions.push(arrayfire::randn::<f32>(
+            self.layer_weight_precisions(self.num_layers() - 1).dims(),
+        ));
         BranchMomentumJoint {
             wrt_weights,
             wrt_biases,
