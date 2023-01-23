@@ -223,7 +223,6 @@ impl BranchPrecisions {
             self.bias_precisions[i] +=
                 &step_sizes.wrt_bias_precisions.as_ref().unwrap()[i] * &mom.wrt_bias_precisions[i];
         }
-        // don't forget error precision
         self.error_precision +=
             step_sizes.wrt_error_precision.as_ref().unwrap() * &mom.wrt_error_precision;
     }
