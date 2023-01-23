@@ -498,7 +498,7 @@ pub trait Branch {
         }
 
         let mut wrt_bias_precisions = Vec::new();
-        for index in 0..self.num_layers() {
+        for index in 0..(self.num_layers() - 1) {
             wrt_bias_precisions
                 .push(randu::<f32>(self.layer_bias_precision(index).dims()) * prop_factor);
         }
