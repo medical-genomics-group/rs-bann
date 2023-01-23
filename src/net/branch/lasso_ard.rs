@@ -7,8 +7,8 @@ use super::{
     step_sizes::StepSizes,
     training_state::TrainingState,
 };
-use crate::af_helpers::l1_norm_rows;
 use crate::af_helpers::{af_scalar, scalar_to_host, sign, to_host};
+use crate::af_helpers::{l1_norm, l1_norm_rows};
 use crate::net::mcmc_cfg::MCMCCfg;
 use crate::net::params::NetworkPrecisionHyperparameters;
 use arrayfire::{abs, dim4, matmul, sqrt, sum, sum_all, tile, Array, MatProp};
@@ -169,27 +169,19 @@ impl Branch for LassoArdBranch {
         }
     }
 
-    fn log_density_joint(
+    fn log_density_joint_wrt_weights(
         &self,
         params: &BranchParams,
         precisions: &BranchPrecisions,
-        rss: f32,
         hyperparams: &NetworkPrecisionHyperparameters,
-        num_individuals: usize,
-    ) -> f32 {
+    ) -> Array<f32> {
         let mut log_density: Array<f32> = af_scalar(0.0);
-
-        // rss / error precision terms
-        log_density += hyperparams.output_layer_prior_shape()
-            + (num_individuals as f32 - 2.0) / 2.0 * arrayfire::log(&precisions.error_precision);
-        log_density -=
-            precisions.error_precision * (rss / 2.0 + 1.0 / hyperparams.output_layer_prior_scale());
 
         // weight terms
         for i in 0..self.num_layers() {
             let (shape, scale) = hyperparams.layer_prior_hyperparams(i, self.num_layers());
             log_density -= arrayfire::dot(
-                &(l1_norm_rows(params.layer_weights(i)) + scale),
+                &(l1_norm_rows(params.layer_weights(i)) + 1.0 / scale),
                 &precisions.layer_weight_precisions(i),
                 MatProp::NONE,
                 MatProp::NONE,
@@ -204,9 +196,7 @@ impl Branch for LassoArdBranch {
             );
         }
 
-        // bias terms
-
-        scalar_to_host(&log_density)
+        log_density
     }
 
     // TODO: write test
@@ -225,7 +215,7 @@ impl Branch for LassoArdBranch {
 
         // output layer
         log_density -= sum_all(
-            &(precisions.weight_precisions[self.output_layer_index()]
+            &(&precisions.weight_precisions[self.output_layer_index()]
                 * &(abs(params.layer_weights(self.output_layer_index())))),
         )
         .0;

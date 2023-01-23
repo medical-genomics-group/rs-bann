@@ -13,8 +13,7 @@ use super::{
     step_sizes::StepSizes,
     trajectory::Trajectory,
 };
-use crate::af_helpers::{l1_norm, sign};
-use crate::net::params::BranchHyperparameters;
+use crate::af_helpers::{af_scalar, sum_of_squares};
 use crate::net::{
     gibbs_steps::ridge_multi_param_precision_posterior, params::BranchPrecisionsHost,
 };
@@ -91,15 +90,6 @@ pub trait Branch {
     // This should be -U(q), e.g. log P(D | Theta)P(Theta)
     fn log_density(&self, params: &BranchParams, precisions: &BranchPrecisions, rss: f32) -> f32;
 
-    fn log_density_joint(
-        &self,
-        params: &BranchParams,
-        precisions: &BranchPrecisions,
-        rss: f32,
-        hyperparams: &NetworkPrecisionHyperparameters,
-        num_individuals: usize,
-    ) -> f32;
-
     fn last_rss(&self) -> &Array<f32> {
         self.training_state().rss()
     }
@@ -159,6 +149,71 @@ pub trait Branch {
         self.num_layers() - 1
     }
 
+    /// Portion of log density attributable to weights and their precisions
+    fn log_density_joint_wrt_weights(
+        &self,
+        params: &BranchParams,
+        precisions: &BranchPrecisions,
+        hyperparams: &NetworkPrecisionHyperparameters,
+    ) -> Array<f32>;
+
+    /// Portion of log density attributable to rss and the error precision
+    fn log_density_joint_wrt_rss(
+        &self,
+        precisions: &BranchPrecisions,
+        rss: f32,
+        hyperparams: &NetworkPrecisionHyperparameters,
+        num_individuals: usize,
+    ) -> Array<f32> {
+        let mut log_density: Array<f32> = af_scalar(0.0);
+
+        // rss / error precision terms
+        log_density += hyperparams.output_layer_prior_shape()
+            + (num_individuals as f32 - 2.0) / 2.0 * arrayfire::log(&precisions.error_precision);
+        log_density -= &precisions.error_precision
+            * (rss / 2.0 + 1.0 / hyperparams.output_layer_prior_scale());
+
+        log_density
+    }
+
+    /// Portion of log density attributable to l2 regularized biases and their precisions
+    fn log_density_joint_wrt_biases(
+        &self,
+        params: &BranchParams,
+        precisions: &BranchPrecisions,
+        hyperparams: &NetworkPrecisionHyperparameters,
+    ) -> Array<f32> {
+        let mut log_density: Array<f32> = af_scalar(0.0);
+
+        for i in 0..self.num_layers() - 1 {
+            // w.r.t. biases
+            let (shape, scale) = hyperparams.layer_prior_hyperparams(i, self.num_layers());
+            log_density -= precisions.layer_bias_precision(i)
+                * (sum_of_squares(params.layer_biases(i)) / 2.0 + 1.0 / scale);
+            let nvar = params.layer_biases(i).elements();
+            log_density += (shape + (2.0 * nvar as f32 - 2.0f32) / 2.0)
+                * arrayfire::log(precisions.layer_bias_precision(i));
+        }
+
+        log_density
+    }
+
+    fn log_density_joint(
+        &self,
+        params: &BranchParams,
+        precisions: &BranchPrecisions,
+        rss: f32,
+        hyperparams: &NetworkPrecisionHyperparameters,
+        num_individuals: usize,
+    ) -> f32 {
+        let wrt_w = self.log_density_joint_wrt_weights(params, precisions, hyperparams);
+        let wrt_e = self.log_density_joint_wrt_rss(precisions, rss, hyperparams, num_individuals);
+        let wrt_b = self.log_density_joint_wrt_biases(params, precisions, hyperparams);
+
+        scalar_to_host(&(wrt_w + wrt_b + wrt_e))
+    }
+
+    /// Gradient w.r.t l2 regularized biases
     fn log_density_gradient_wrt_biases(&self) -> Vec<Array<f32>> {
         let mut ldg_wrt_biases: Vec<Array<f32>> = Vec::with_capacity(self.num_layers() - 1);
 
@@ -172,7 +227,7 @@ pub trait Branch {
         ldg_wrt_biases
     }
 
-    /// Gradient w.r.t precision params of lasso regularized biases
+    /// Gradient w.r.t precision params of l2 regularized biases
     fn log_density_gradient_wrt_bias_precisions(
         &self,
         hyperparams: &NetworkPrecisionHyperparameters,
@@ -182,9 +237,14 @@ pub trait Branch {
         for layer_index in 0..self.num_layers() - 1 {
             let precision = self.bias_precision(layer_index);
             let params = self.layer_biases(layer_index);
+            let nvar = params.elements();
             let (shape, scale) =
                 hyperparams.layer_prior_hyperparams(layer_index, self.num_layers());
-            ldg_wrt_bias_precisions.push((shape / precision) - (1.0 / scale) - l1_norm(params));
+            ldg_wrt_bias_precisions.push(
+                (2.0 * shape + (2.0 * nvar as f32 - 2.0) / (2.0f32 * precision))
+                    - (1.0f32 / scale)
+                    - sum_of_squares(params) / 2.0f32,
+            );
         }
         ldg_wrt_bias_precisions
     }

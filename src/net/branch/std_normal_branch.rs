@@ -168,6 +168,15 @@ impl Branch for StdNormalBranch {
         }
     }
 
+    fn log_density_joint_wrt_weights(
+        &self,
+        _params: &BranchParams,
+        _precisions: &BranchPrecisions,
+        _hyperparams: &NetworkPrecisionHyperparameters,
+    ) -> Array<f32> {
+        unimplemented!("Joint sampling is not implemented for std normal priors, since the precisions are fixed to 1.0");
+    }
+
     fn log_density(&self, params: &BranchParams, precisions: &BranchPrecisions, rss: f32) -> f32 {
         let mut log_density: f32 = scalar_to_host(&(-0.5f32 * &precisions.error_precision * rss));
         for i in 0..self.num_layers() {

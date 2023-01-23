@@ -169,6 +169,27 @@ impl Branch for RidgeBaseBranch {
         }
     }
 
+    fn log_density_joint_wrt_weights(
+        &self,
+        params: &BranchParams,
+        precisions: &BranchPrecisions,
+        hyperparams: &NetworkPrecisionHyperparameters,
+    ) -> Array<f32> {
+        let mut log_density: Array<f32> = af_scalar(0.0);
+
+        // weight terms
+        for i in 0..self.num_layers() {
+            let (shape, scale) = hyperparams.layer_prior_hyperparams(i, self.num_layers());
+            log_density -= (sum_of_squares(params.layer_weights(i)) / 2.0f32 + 1.0f32 / scale)
+                * precisions.layer_weight_precisions(i);
+            let nvar = params.layer_weights(i).elements();
+            log_density += (shape + (2.0 * nvar as f32 - 2.0f32) / 2.0)
+                * arrayfire::log(&precisions.layer_weight_precisions(i));
+        }
+
+        log_density
+    }
+
     fn log_density(&self, params: &BranchParams, precisions: &BranchPrecisions, rss: f32) -> f32 {
         let mut log_density: f32 = scalar_to_host(&(-0.5f32 * &precisions.error_precision * rss));
         for i in 0..self.num_layers() {

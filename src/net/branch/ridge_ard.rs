@@ -7,7 +7,7 @@ use super::{
     step_sizes::StepSizes,
     training_state::TrainingState,
 };
-use crate::af_helpers::{af_scalar, scalar_to_host, sum_of_squares_rows, to_host};
+use crate::af_helpers::{af_scalar, scalar_to_host, sum_of_squares, sum_of_squares_rows, to_host};
 use crate::net::mcmc_cfg::MCMCCfg;
 use crate::net::params::NetworkPrecisionHyperparameters;
 use arrayfire::{dim4, matmul, sqrt, sum, sum_all, tile, Array, MatProp};
@@ -166,6 +166,37 @@ impl Branch for RidgeArdBranch {
             wrt_bias_precisions: None,
             wrt_error_precision: None,
         }
+    }
+
+    fn log_density_joint_wrt_weights(
+        &self,
+        params: &BranchParams,
+        precisions: &BranchPrecisions,
+        hyperparams: &NetworkPrecisionHyperparameters,
+    ) -> Array<f32> {
+        let mut log_density: Array<f32> = af_scalar(0.0);
+
+        // weight terms
+        for i in 0..self.num_layers() {
+            let (shape, scale) = hyperparams.layer_prior_hyperparams(i, self.num_layers());
+            log_density -= arrayfire::dot(
+                &(sum_of_squares_rows(params.layer_weights(i)) / 2.0f32 + 1.0f32 / scale),
+                &precisions.layer_weight_precisions(i),
+                MatProp::NONE,
+                MatProp::NONE,
+            );
+            let nrows = params.layer_weights(i).dims().get()[0];
+            let ncols = params.layer_weights(i).dims().get()[1];
+            log_density += arrayfire::dot(
+                &((shape + (ncols as f32 - 2.0f32) / 2.0)
+                    * arrayfire::constant(1.0f32, dim4!(nrows))),
+                &arrayfire::log(&precisions.layer_weight_precisions(i)),
+                MatProp::NONE,
+                MatProp::NONE,
+            );
+        }
+
+        log_density
     }
 
     // TODO: write test
