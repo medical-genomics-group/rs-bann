@@ -40,6 +40,8 @@ pub trait Branch {
 
     fn set_params(&mut self, params: &BranchParams);
 
+    fn set_precisions(&mut self, precisions: &BranchPrecisions);
+
     fn params(&self) -> &BranchParams;
 
     fn params_mut(&mut self) -> &mut BranchParams;
@@ -707,13 +709,16 @@ pub trait Branch {
         (y_pred, log_density)
     }
 
-    fn accept_or_reject_hmc_state(
+    fn accept_or_reject_hmc_state<T>(
         &mut self,
-        momentum: &BranchMomentum,
+        momentum: &T,
         x_train: &Array<f32>,
         y_train: &Array<f32>,
         init_neg_hamiltonian: f32,
-    ) -> HMCStepResult {
+    ) -> HMCStepResult
+    where
+        T: Momentum,
+    {
         // this is self.neg_hamiltonian unpacked. Doing this in order to save
         // one forward pass.
         let y_pred = self.predict(x_train);
@@ -786,7 +791,6 @@ pub trait Branch {
             _ => {}
         }
 
-        let mut u_turned = false;
         let init_params = self.params().clone();
         let init_precisions = self.precisions().clone();
         let step_sizes = self.random_step_sizes(mcmc_cfg);
@@ -799,9 +803,34 @@ pub trait Branch {
             momentum.half_step(&step_sizes, &ldg);
             self.params_mut().full_step(&step_sizes, &momentum);
             self.precisions_mut().full_step(&step_sizes, &momentum);
+            ldg = self.log_density_gradient_joint(x_train, y_train, hyperparams);
+            momentum.half_step(&step_sizes, &ldg);
+
+            // diagnostics and logging
+
+            let curr_neg_hamiltonian = self.neg_hamiltonian(&momentum, x_train, y_train);
+
+            if (curr_neg_hamiltonian - init_neg_hamiltonian).abs()
+                > mcmc_cfg.hmc_max_hamiltonian_error
+            {
+                debug!(
+                    "step: {}; hamiltonian error threshold crossed: terminating",
+                    _step
+                );
+
+                self.set_params(&init_params);
+                self.set_precisions(&init_precisions);
+                return HMCStepResult::RejectedEarly;
+            }
         }
 
-        HMCStepResult::Rejected
+        match self.accept_or_reject_hmc_state(&momentum, x_train, y_train, init_neg_hamiltonian) {
+            res @ HMCStepResult::Rejected => {
+                self.set_params(&init_params);
+                res
+            }
+            res => res,
+        }
     }
 
     /// Takes a single parameter sample using HMC.
@@ -905,22 +934,6 @@ pub trait Branch {
             to_writer(traj_file.as_mut().unwrap(), &traj).unwrap();
             traj_file.as_mut().unwrap().write_all(b"\n").unwrap();
         }
-
-        // debug!("final gradients");
-        // for lix in 0..ldg.wrt_weights.len() {
-        //     debug!(
-        //         "layer: {:}; weight grad: {:?}",
-        //         lix,
-        //         to_host(&ldg.wrt_weights[lix])
-        //     );
-        // }
-        // for lix in 0..ldg.wrt_biases.len() {
-        //     debug!(
-        //         "layer: {:}; bias grad: {:?}",
-        //         lix,
-        //         to_host(&ldg.wrt_biases[lix])
-        //     );
-        // }
 
         match self.accept_or_reject_hmc_state(&momentum, x_train, y_train, init_neg_hamiltonian) {
             res @ HMCStepResult::Rejected => {
