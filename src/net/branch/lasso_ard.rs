@@ -7,8 +7,8 @@ use super::{
     step_sizes::StepSizes,
     training_state::TrainingState,
 };
-use crate::af_helpers::l1_norm_rows;
 use crate::af_helpers::{af_scalar, scalar_to_host, sign, to_host};
+use crate::af_helpers::{l1_norm, l1_norm_rows};
 use crate::net::mcmc_cfg::MCMCCfg;
 use crate::net::params::NetworkPrecisionHyperparameters;
 use arrayfire::{abs, dim4, matmul, sqrt, sum, sum_all, tile, Array, MatProp};
@@ -266,7 +266,7 @@ impl Branch for LassoArdBranch {
         hyperparams: &NetworkPrecisionHyperparameters,
     ) -> Vec<Array<f32>> {
         let mut ldg_wrt_weight_precisions: Vec<Array<f32>> = Vec::with_capacity(self.num_layers);
-        for layer_index in 0..self.num_layers() {
+        for layer_index in 0..self.output_layer_index() {
             let precisions: &Array<f32> = self.weight_precisions(layer_index);
             let params: &Array<f32> = self.layer_weights(layer_index);
             let (shape, scale) = hyperparams.layer_prior_hyperparams(layer_index, self.num_layers);
@@ -276,6 +276,17 @@ impl Branch for LassoArdBranch {
                     - l1_norm_rows(params),
             );
         }
+
+        let layer_index = self.output_layer_index();
+        let precisions: &Array<f32> = self.weight_precisions(layer_index);
+        let params: &Array<f32> = self.layer_weights(layer_index);
+        let (shape, scale) = hyperparams.layer_prior_hyperparams(layer_index, self.num_layers);
+        ldg_wrt_weight_precisions.push(
+            (shape + precisions.elements() as f32 - 1.0) / (precisions)
+                - (1.0f32 / scale)
+                - l1_norm(params),
+        );
+
         ldg_wrt_weight_precisions
     }
 
