@@ -1,5 +1,5 @@
 use super::branch::gradient::BranchLogDensityGradient;
-use super::branch::momentum::BranchMomentum;
+use super::branch::momentum::{BranchMomentum, BranchMomentumJoint};
 use super::branch::step_sizes::StepSizes;
 use super::branch::{branch::BranchCfg, momentum::Momentum};
 use crate::af_helpers::to_host;
@@ -126,6 +126,7 @@ impl NetworkPrecisionHyperparameters {
     }
 }
 
+/// Precision parameters stored on Host.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct BranchPrecisionsHost {
     // One Array per layer, possibly scalars
@@ -145,6 +146,7 @@ impl BranchPrecisionsHost {
     }
 }
 
+/// Precision parameters stored on Device.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct BranchPrecisions {
     // One Array per layer, possibly scalars
@@ -210,6 +212,20 @@ impl BranchPrecisions {
 
     pub fn layer_bias_precision(&self, layer_index: usize) -> &Array<f32> {
         &self.bias_precisions[layer_index]
+    }
+
+    pub fn full_step(&mut self, step_sizes: &StepSizes, mom: &BranchMomentumJoint) {
+        for i in 0..self.weight_precisions.len() {
+            self.weight_precisions[i] += &step_sizes.wrt_weight_precisions.as_ref().unwrap()[i]
+                * &mom.wrt_weight_precisions[i];
+        }
+        for i in 0..self.bias_precisions.len() {
+            self.bias_precisions[i] +=
+                &step_sizes.wrt_bias_precisions.as_ref().unwrap()[i] * &mom.wrt_bias_precisions[i];
+        }
+        // don't forget error precision
+        self.error_precision +=
+            step_sizes.wrt_error_precision.as_ref().unwrap() * &mom.wrt_error_precision;
     }
 }
 
