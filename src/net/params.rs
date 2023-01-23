@@ -1,7 +1,7 @@
-use super::branch::branch::BranchCfg;
 use super::branch::gradient::BranchLogDensityGradient;
 use super::branch::momentum::BranchMomentum;
 use super::branch::step_sizes::StepSizes;
+use super::branch::{branch::BranchCfg, momentum::Momentum};
 use crate::af_helpers::to_host;
 use arrayfire::{dim4, Array};
 use serde::{Deserialize, Serialize};
@@ -311,12 +311,15 @@ impl BranchParams {
         res
     }
 
-    pub fn full_step(&mut self, step_sizes: &StepSizes, mom: &BranchMomentum) {
+    pub fn full_step<T>(&mut self, step_sizes: &StepSizes, mom: &T)
+    where
+        T: Momentum,
+    {
         for i in 0..self.weights.len() {
-            self.weights[i] += &step_sizes.wrt_weights[i] * &mom.wrt_weights[i];
+            self.weights[i] += &step_sizes.wrt_weights[i] * mom.wrt_layer_weights(i);
         }
         for i in 0..self.biases.len() {
-            self.biases[i] += &step_sizes.wrt_biases[i] * &mom.wrt_biases[i];
+            self.biases[i] += &step_sizes.wrt_biases[i] * mom.wrt_layer_biases(i);
         }
     }
 

@@ -4,6 +4,18 @@ use arrayfire::Array;
 
 pub trait Momentum {
     fn log_density(&self) -> f32;
+
+    fn wrt_weights(&self) -> &Vec<Array<f32>>;
+
+    fn wrt_biases(&self) -> &Vec<Array<f32>>;
+
+    fn wrt_layer_weights(&self, layer_ix: usize) -> &Array<f32> {
+        &self.wrt_weights()[layer_ix]
+    }
+
+    fn wrt_layer_biases(&self, layer_ix: usize) -> &Array<f32> {
+        &self.wrt_biases()[layer_ix]
+    }
 }
 
 /// Momentum w.r.t. weights, bias and precision dimensions
@@ -50,14 +62,6 @@ impl BranchMomentumJoint {
             step_sizes.wrt_error_precision.as_ref().unwrap() * fraction * &grad.wrt_error_precision;
     }
 
-    pub fn wrt_weights(&self, index: usize) -> &Array<f32> {
-        &self.wrt_weights[index]
-    }
-
-    pub fn wrt_biases(&self, index: usize) -> &Array<f32> {
-        &self.wrt_biases[index]
-    }
-
     pub fn wrt_weight_precisions(&self, index: usize) -> &Array<f32> {
         &self.wrt_weight_precisions[index]
     }
@@ -95,6 +99,14 @@ impl Momentum for BranchMomentumJoint {
         log_density +=
             arrayfire::sum_all(&(&self.wrt_error_precision * &self.wrt_error_precision)).0;
         0.5 * log_density
+    }
+
+    fn wrt_weights(&self) -> &Vec<Array<f32>> {
+        &self.wrt_weights
+    }
+
+    fn wrt_biases(&self) -> &Vec<Array<f32>> {
+        &self.wrt_biases
     }
 }
 
@@ -143,5 +155,13 @@ impl Momentum for BranchMomentum {
             log_density += arrayfire::sum_all(&(&self.wrt_biases[i] * &self.wrt_biases[i])).0;
         }
         0.5 * log_density
+    }
+
+    fn wrt_weights(&self) -> &Vec<Array<f32>> {
+        &self.wrt_weights
+    }
+
+    fn wrt_biases(&self) -> &Vec<Array<f32>> {
+        &self.wrt_biases
     }
 }

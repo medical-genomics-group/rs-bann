@@ -74,6 +74,10 @@ impl Branch for LassoBaseBranch {
         &self.precisions
     }
 
+    fn precisions_mut(&mut self) -> &mut BranchPrecisions {
+        &mut self.precisions
+    }
+
     fn num_layers(&self) -> usize {
         self.num_layers
     }
@@ -206,7 +210,7 @@ impl Branch for LassoBaseBranch {
 
     fn log_density_gradient_wrt_weights(&self) -> Vec<Array<f32>> {
         let mut ldg_wrt_weights: Vec<Array<f32>> = Vec::with_capacity(self.num_layers);
-        let mut ldg_wrt_biases: Vec<Array<f32>> = Vec::with_capacity(self.num_layers - 1);
+
         for layer_index in 0..self.num_layers() {
             ldg_wrt_weights.push(
                 -(self.error_precision() * self.layer_d_rss_wrt_weights(layer_index)

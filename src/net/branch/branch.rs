@@ -46,6 +46,8 @@ pub trait Branch {
 
     fn precisions(&self) -> &BranchPrecisions;
 
+    fn precisions_mut(&mut self) -> &mut BranchPrecisions;
+
     fn num_params(&self) -> usize;
 
     fn num_weights(&self) -> usize;
@@ -790,7 +792,14 @@ pub trait Branch {
         let step_sizes = self.random_step_sizes(mcmc_cfg);
         let mut momentum = self.sample_joint_momentum();
         let init_neg_hamiltonian = self.neg_hamiltonian(&momentum, x_train, y_train);
-        let mut ldg = self.log_density_gradient(x_train, y_train);
+        let mut ldg = self.log_density_gradient_joint(x_train, y_train, hyperparams);
+
+        // leapfrog
+        for _step in 0..(mcmc_cfg.hmc_integration_length) {
+            momentum.half_step(&step_sizes, &ldg);
+            self.params_mut().full_step(&step_sizes, &momentum);
+            self.precisions_mut().full_step(&step_sizes, &momentum);
+        }
 
         HMCStepResult::Rejected
     }

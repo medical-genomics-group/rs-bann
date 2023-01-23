@@ -74,6 +74,10 @@ impl Branch for RidgeBaseBranch {
         &self.precisions
     }
 
+    fn precisions_mut(&mut self) -> &mut BranchPrecisions {
+        &mut self.precisions
+    }
+
     fn num_layers(&self) -> usize {
         self.num_layers
     }
