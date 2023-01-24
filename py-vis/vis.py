@@ -33,7 +33,7 @@ class ModelCfg:
 @dataclass
 class Trajectory:
     params: np.array
-    precision: np.array
+    precisions: np.array
     grad: np.array
     num_grad: np.array
     hamiltonian: np.array
