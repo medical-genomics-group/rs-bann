@@ -281,7 +281,7 @@ impl Branch for RidgeArdBranch {
             ldg_wrt_weight_precisions.push(
                 (2.0f32 * shape + precisions.elements() as f32 - 2.0) / (2.0f32 * precisions)
                     - (1.0f32 / scale)
-                    - sum_of_squares_rows(params),
+                    - sum_of_squares_rows(params) / 2.0f32,
             );
         }
 
@@ -292,7 +292,7 @@ impl Branch for RidgeArdBranch {
         ldg_wrt_weight_precisions.push(
             (2.0f32 * shape + precisions.elements() as f32 - 2.0) / (2.0f32 * precisions)
                 - (1.0f32 / scale)
-                - sum_of_squares(params),
+                - sum_of_squares(params) / 2.0f32,
         );
 
         ldg_wrt_weight_precisions
@@ -364,6 +364,7 @@ impl Branch for RidgeArdBranch {
 #[cfg(test)]
 mod tests {
     use crate::net::mcmc_cfg::MCMCCfg;
+    use crate::net::params::{NetworkPrecisionHyperparameters, PrecisionHyperparameters};
     use arrayfire::{dim4, sum, Array};
     use assert_approx_eq::assert_approx_eq;
     // use arrayfire::{af_print, randu};
@@ -373,7 +374,7 @@ mod tests {
     };
     use super::RidgeArdBranch;
 
-    use crate::af_helpers::to_host;
+    use crate::af_helpers::{scalar_to_host, to_host};
     use crate::net::branch::momentum::BranchMomentum;
     use crate::net::params::BranchParams;
 
@@ -438,6 +439,29 @@ mod tests {
         bld.add_hidden_layer(2);
 
         RidgeArdBranch::from_cfg(&RidgeArdBranch::build_cfg(bld))
+    }
+
+    fn make_test_branch_with_precision(precision: f32) -> RidgeArdBranch {
+        let exp_weights = [
+            Array::new(&[0., 1., 2., 3., 4., 5.], dim4![3, 2, 1, 1]),
+            Array::new(&[1., 2.], dim4![2, 1, 1, 1]),
+            Array::new(&[2.], dim4![1, 1, 1, 1]),
+        ];
+        let exp_biases = [
+            Array::new(&[0., 1.], dim4![1, 2, 1, 1]),
+            Array::new(&[2.], dim4![1, 1, 1, 1]),
+        ];
+
+        BranchBuilder::new()
+            .with_num_markers(3)
+            .add_hidden_layer(2)
+            .add_layer_biases(&exp_biases[0])
+            .add_layer_weights(&exp_weights[0])
+            .add_summary_weights(&exp_weights[1])
+            .add_summary_bias(&exp_biases[1])
+            .add_output_weight(&exp_weights[2])
+            .with_initial_precision_value(precision)
+            .build_ridge_ard()
     }
 
     fn make_test_uniform_params(c: f32) -> BranchParams {
@@ -541,61 +565,129 @@ mod tests {
         );
     }
 
-    // TODO: this test is flaky, depending on the hardware it is run on. Should use approx
-    // comparisons instead.
-    // #[test]
-    // fn test_backpropagation() {
-    //     let num_individuals = 4;
-    //     let num_markers = 3;
-    //     let branch = make_test_branch();
-    //     let x_train: Array<f32> = Array::new(
-    //         &[1., 0., 0., 2., 1., 1., 2., 0., 0., 2., 0., 1.],
-    //         dim4![num_individuals, num_markers, 1, 1],
-    //     );
-    //     let y_train: Array<f32> = Array::new(&[0.0, 2.0, 1.0, 1.5], dim4![4, 1, 1, 1]);
-    //     let (weights_gradient, bias_gradient) = branch.backpropagate(&x_train, &y_train);
+    #[test]
+    fn test_log_density_joint() {
+        let num_individuals = 4;
+        let num_markers = 3;
+        let branch = make_test_branch_with_precision(2.0);
+        let x_train: Array<f32> = Array::new(
+            &[1., 0., 0., 2., 1., 1., 2., 0., 0., 2., 0., 1.],
+            dim4![num_individuals, num_markers, 1, 1],
+        );
+        let y_train: Array<f32> = Array::new(&[0.0, 2.0, 1.0, 1.5], dim4![4, 1, 1, 1]);
+        let hyperparams = NetworkPrecisionHyperparameters {
+            dense: PrecisionHyperparameters::new(3.0, 2.0),
+            summary: PrecisionHyperparameters::new(3.0, 2.0),
+            output: PrecisionHyperparameters::new(4.0, 5.0),
+        };
 
-    //     // correct number of gradients
-    //     assert_eq!(weights_gradient.len(), branch.num_layers);
-    //     assert_eq!(bias_gradient.len(), branch.num_layers - 1);
+        let rss = branch.rss(&x_train, &y_train);
+        assert_eq!(rss, 5.248245);
 
-    //     // correct dimensions of gradients
-    //     for i in 0..(branch.num_layers) {
-    //         assert_eq!(weights_gradient[i].dims(), branch.weights(i).dims());
-    //     }
-    //     for i in 0..(branch.num_layers - 1) {
-    //         assert_eq!(bias_gradient[i].dims(), branch.biases(i).dims());
-    //     }
+        let ld_wrt_e = branch.log_density_joint_wrt_rss(
+            branch.precisions(),
+            rss,
+            &hyperparams,
+            num_individuals as usize,
+        );
 
-    //     let exp_weight_grad = [
-    //         Array::new(
-    //             &[
-    //                 0.0005189283,
-    //                 0.00054650265,
-    //                 1.37817915e-5,
-    //                 1.1157868e-9,
-    //                 1.3018558e-9,
-    //                 0.0,
-    //             ],
-    //             dim4![3, 2, 1, 1],
-    //         ),
-    //         Array::new(&[0.0014552199, 0.0017552056], dim4![2, 1, 1, 1]),
-    //         Array::new(&[3.4986966], dim4![1, 1, 1, 1]),
-    //     ];
+        assert_eq!(scalar_to_host(&ld_wrt_e), -2.182509);
 
-    //     let exp_bias_grad = [
-    //         Array::new(&[0.00053271546, 1.2088213e-9], dim4![2, 1, 1, 1]),
-    //         Array::new(&[0.0017552058], dim4![1, 1, 1, 1]),
-    //     ];
+        let ld_wrt_w = branch.log_density_joint_wrt_weights(
+            branch.params(),
+            branch.precisions(),
+            &hyperparams,
+        );
 
-    //     // correct values of gradient
-    //     for i in 0..(branch.num_layers) {
-    //         assert_eq!(to_host(&weights_gradient[i]), to_host(&exp_weight_grad[i]));
-    //     }
-    //     for i in 0..(branch.num_layers - 1) {
-    //         assert_eq!(to_host(&bias_gradient[i]), to_host(&exp_bias_grad[i]));
-    //     }
-    // }
+        assert_eq!(scalar_to_host(&ld_wrt_w), -57.269928);
+
+        let ld_wrt_b =
+            branch.log_density_joint_wrt_biases(branch.params(), branch.precisions(), &hyperparams);
+
+        assert_eq!(scalar_to_host(&ld_wrt_b), -3.1876905);
+
+        let ld = branch.log_density_joint(
+            branch.params(),
+            branch.precisions(),
+            rss,
+            &hyperparams,
+            num_individuals as usize,
+        );
+
+        assert_eq!(ld, -62.64013);
+    }
+
+    #[test]
+    fn test_log_density_gradient_joint() {
+        let num_individuals = 4;
+        let num_markers = 3;
+        let mut branch = make_test_branch_with_precision(2.0);
+        let x_train: Array<f32> = Array::new(
+            &[1., 0., 0., 2., 1., 1., 2., 0., 0., 2., 0., 1.],
+            dim4![num_individuals, num_markers, 1, 1],
+        );
+        let y_train: Array<f32> = Array::new(&[0.0, 2.0, 1.0, 1.5], dim4![4, 1, 1, 1]);
+        let hyperparams = NetworkPrecisionHyperparameters {
+            dense: PrecisionHyperparameters::new(3.0, 2.0),
+            summary: PrecisionHyperparameters::new(3.0, 2.0),
+            output: PrecisionHyperparameters::new(4.0, 5.0),
+        };
+        let ldg = branch.log_density_gradient_joint(&x_train, &y_train, &hyperparams);
+
+        let exp_ldg_wrt_w = [
+            Array::new(
+                &[
+                    -0.0010378566,
+                    -2.00109287e+00,
+                    -4.00002756e+00,
+                    -6.00000000e+00,
+                    -8.00000000e+00,
+                    -1.00000000e+01,
+                ],
+                dim4![3, 2, 1, 1],
+            ),
+            Array::new(&[-2.0029104, -4.0035105], dim4!(2, 1, 1, 1)),
+            Array::new(&[-10.997393], dim4!(1, 1, 1, 1)),
+        ];
+
+        for i in 0..(branch.num_layers) {
+            assert_eq!(to_host(&ldg.wrt_weights[i]), to_host(&exp_ldg_wrt_w[i]));
+        }
+
+        let exp_ldg_wrt_b = [
+            Array::new(&[-0.0010654309, -2.00000000e+00], dim4!(2, 1, 1, 1)),
+            Array::new(&[-4.0035105], dim4!(1, 1, 1, 1)),
+        ];
+
+        for i in 0..(branch.num_layers - 1) {
+            assert_eq!(to_host(&ldg.wrt_biases[i]), to_host(&exp_ldg_wrt_b[i]));
+        }
+
+        // wrt error precision
+        assert_eq!(scalar_to_host(&ldg.wrt_error_precision), -0.32412243);
+
+        let exp_ldg_wrt_w_prec = [
+            Array::new(&[-3.25, -7.25, -13.25], dim4!(3)),
+            Array::new(&[0.5, -1.0], dim4!(2)),
+            Array::new(&[-0.45000005], dim4!(1)),
+        ];
+
+        for i in 0..(branch.num_layers) {
+            assert_eq!(
+                to_host(&ldg.wrt_weight_precisions[i]),
+                to_host(&exp_ldg_wrt_w_prec[i])
+            );
+        }
+
+        let exp_ldg_wrt_b_prec = [0.5, -1.25];
+
+        for i in 0..(branch.num_layers - 1) {
+            assert_eq!(
+                scalar_to_host(&ldg.wrt_bias_precisions[i]),
+                exp_ldg_wrt_b_prec[i]
+            );
+        }
+    }
 
     #[test]
     fn test_log_density_gradient_by_cfg() {

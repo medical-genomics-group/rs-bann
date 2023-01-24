@@ -246,7 +246,7 @@ pub trait Branch {
             let (shape, scale) =
                 hyperparams.layer_prior_hyperparams(layer_index, self.num_layers());
             ldg_wrt_bias_precisions.push(
-                (2.0 * shape + (2.0 * nvar as f32 - 2.0) / (2.0f32 * precision))
+                (2.0 * shape + (nvar as f32 - 2.0)) / (2.0f32 * precision)
                     - (1.0f32 / scale)
                     - sum_of_squares(params) / 2.0f32,
             );
