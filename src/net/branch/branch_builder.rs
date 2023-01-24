@@ -18,6 +18,7 @@ pub struct BranchBuilder {
     initial_random_range: f32,
     biases: Vec<Option<Array<f32>>>,
     weights: Vec<Option<Array<f32>>>,
+    initial_precision_value: Option<f32>,
 }
 
 impl Default for BranchBuilder {
@@ -39,6 +40,7 @@ impl BranchBuilder {
             initial_random_range: 0.05,
             biases: vec![],
             weights: vec![],
+            initial_precision_value: None,
         }
     }
 
@@ -152,6 +154,11 @@ impl BranchBuilder {
         self
     }
 
+    pub fn with_initial_precision_value(&mut self, value: f32) -> &mut Self {
+        self.initial_precision_value = Some(value);
+        self
+    }
+
     pub fn build_ridge_base(&mut self) -> RidgeBaseBranch {
         let mut widths: Vec<usize> = vec![self.num_markers];
         // summary and output node
@@ -213,6 +220,8 @@ impl BranchBuilder {
             }
         }
 
+        let prec = self.initial_precision_value.unwrap_or(1.0);
+
         RidgeBaseBranch {
             num_params: self.num_params,
             num_weights: self.num_weights(),
@@ -220,9 +229,9 @@ impl BranchBuilder {
             params: BranchParams { weights, biases },
             // TODO: impl build method for setting precisions
             precisions: BranchPrecisions {
-                weight_precisions: vec![af_scalar(1.0); self.num_layers],
-                bias_precisions: vec![af_scalar(1.0); self.num_layers - 1],
-                error_precision: af_scalar(1.0),
+                weight_precisions: vec![af_scalar(prec); self.num_layers],
+                bias_precisions: vec![af_scalar(prec); self.num_layers - 1],
+                error_precision: af_scalar(prec),
             },
             layer_widths: self.layer_widths.clone(),
             num_layers: self.num_layers,
@@ -293,6 +302,8 @@ impl BranchBuilder {
             }
         }
 
+        let prec = self.initial_precision_value.unwrap_or(1.0);
+
         LassoBaseBranch {
             num_params: self.num_params,
             num_weights: self.num_weights(),
@@ -300,9 +311,9 @@ impl BranchBuilder {
             params: BranchParams { weights, biases },
             // TODO: impl build method for setting precisions
             precisions: BranchPrecisions {
-                weight_precisions: vec![af_scalar(1.0); self.num_layers],
-                bias_precisions: vec![af_scalar(1.0); self.num_layers - 1],
-                error_precision: af_scalar(1.0),
+                weight_precisions: vec![af_scalar(prec); self.num_layers],
+                bias_precisions: vec![af_scalar(prec); self.num_layers - 1],
+                error_precision: af_scalar(prec),
             },
             layer_widths: self.layer_widths.clone(),
             num_layers: self.num_layers,
@@ -373,6 +384,8 @@ impl BranchBuilder {
             }
         }
 
+        let prec = self.initial_precision_value.unwrap_or(1.0);
+
         LassoArdBranch {
             num_params: self.num_params,
             num_weights: self.num_weights(),
@@ -380,9 +393,9 @@ impl BranchBuilder {
             params: BranchParams { weights, biases },
             // TODO: impl build method for setting precisions
             precisions: BranchPrecisions {
-                weight_precisions: widths.iter().map(|w| constant!(1.0; *w as u64)).collect(),
-                bias_precisions: vec![af_scalar(1.0); self.num_layers - 1],
-                error_precision: af_scalar(1.0),
+                weight_precisions: widths.iter().map(|w| constant!(prec; *w as u64)).collect(),
+                bias_precisions: vec![af_scalar(prec); self.num_layers - 1],
+                error_precision: af_scalar(prec),
             },
             layer_widths: self.layer_widths.clone(),
             num_layers: self.num_layers,
@@ -452,6 +465,8 @@ impl BranchBuilder {
             }
         }
 
+        let prec = self.initial_precision_value.unwrap_or(1.0);
+
         RidgeArdBranch {
             num_params: self.num_params,
             num_weights: self.num_weights(),
@@ -459,9 +474,9 @@ impl BranchBuilder {
             params: BranchParams { weights, biases },
             // TODO: impl build method for setting precisions
             precisions: BranchPrecisions {
-                weight_precisions: widths.iter().map(|w| constant!(1.0; *w as u64)).collect(),
-                bias_precisions: vec![af_scalar(1.0); self.num_layers - 1],
-                error_precision: af_scalar(1.0),
+                weight_precisions: widths.iter().map(|w| constant!(prec; *w as u64)).collect(),
+                bias_precisions: vec![af_scalar(prec); self.num_layers - 1],
+                error_precision: af_scalar(prec),
             },
             layer_widths: self.layer_widths.clone(),
             num_layers: self.num_layers,

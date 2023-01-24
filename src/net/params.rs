@@ -97,8 +97,8 @@ impl NetworkPrecisionHyperparameters {
             )
         } else {
             (
-                self.dense_layer_prior_scale(),
                 self.dense_layer_prior_shape(),
+                self.dense_layer_prior_scale(),
             )
         }
     }

@@ -196,7 +196,7 @@ pub trait Branch {
             log_density -= precisions.layer_bias_precision(i)
                 * (sum_of_squares(params.layer_biases(i)) / 2.0 + 1.0 / scale);
             let nvar = params.layer_biases(i).elements();
-            log_density += (shape + (2.0 * nvar as f32 - 2.0f32) / 2.0)
+            log_density += (shape + (nvar as f32 - 2.0f32) / 2.0)
                 * arrayfire::log(precisions.layer_bias_precision(i));
         }
 

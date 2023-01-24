@@ -362,7 +362,9 @@ mod tests {
     use crate::af_helpers::{scalar_to_host, to_host};
     use crate::net::branch::momentum::BranchMomentum;
     use crate::net::mcmc_cfg::MCMCCfg;
-    use crate::net::params::{BranchParams, NetworkPrecisionHyperparameters};
+    use crate::net::params::{
+        BranchParams, NetworkPrecisionHyperparameters, PrecisionHyperparameters,
+    };
 
     fn assert_approx_eq_slice(a: &[f32], b: &[f32], tol: f32) {
         assert_eq!(a.len(), b.len());
@@ -427,6 +429,29 @@ mod tests {
             .add_summary_weights(&exp_weights[1])
             .add_summary_bias(&exp_biases[1])
             .add_output_weight(&exp_weights[2])
+            .build_lasso_ard()
+    }
+
+    fn make_test_branch_with_precision(precision: f32) -> LassoArdBranch {
+        let exp_weights = [
+            Array::new(&[0., 1., 2., 3., 4., 5.], dim4![3, 2, 1, 1]),
+            Array::new(&[1., 2.], dim4![2, 1, 1, 1]),
+            Array::new(&[2.], dim4![1, 1, 1, 1]),
+        ];
+        let exp_biases = [
+            Array::new(&[0., 1.], dim4![1, 2, 1, 1]),
+            Array::new(&[2.], dim4![1, 1, 1, 1]),
+        ];
+
+        BranchBuilder::new()
+            .with_num_markers(3)
+            .add_hidden_layer(2)
+            .add_layer_biases(&exp_biases[0])
+            .add_layer_weights(&exp_weights[0])
+            .add_summary_weights(&exp_weights[1])
+            .add_summary_bias(&exp_biases[1])
+            .add_output_weight(&exp_weights[2])
+            .with_initial_precision_value(precision)
             .build_lasso_ard()
     }
 
@@ -574,13 +599,17 @@ mod tests {
     fn test_log_density_joint() {
         let num_individuals = 4;
         let num_markers = 3;
-        let branch = make_test_branch();
+        let branch = make_test_branch_with_precision(2.0);
         let x_train: Array<f32> = Array::new(
             &[1., 0., 0., 2., 1., 1., 2., 0., 0., 2., 0., 1.],
             dim4![num_individuals, num_markers, 1, 1],
         );
         let y_train: Array<f32> = Array::new(&[0.0, 2.0, 1.0, 1.5], dim4![4, 1, 1, 1]);
-        let hyperparams = NetworkPrecisionHyperparameters::default();
+        let hyperparams = NetworkPrecisionHyperparameters {
+            dense: PrecisionHyperparameters::new(3.0, 2.0),
+            summary: PrecisionHyperparameters::new(3.0, 2.0),
+            output: PrecisionHyperparameters::new(4.0, 5.0),
+        };
 
         let rss = branch.rss(&x_train, &y_train);
         assert_eq!(rss, 5.248245);
@@ -592,7 +621,7 @@ mod tests {
             num_individuals as usize,
         );
 
-        assert_eq!(scalar_to_host(&ld_wrt_e), -3.62412235);
+        assert_eq!(scalar_to_host(&ld_wrt_e), -2.182509);
 
         let ld_wrt_w = branch.log_density_joint_wrt_weights(
             branch.params(),
@@ -600,12 +629,12 @@ mod tests {
             &hyperparams,
         );
 
-        assert_eq!(scalar_to_host(&ld_wrt_w), -23.0);
+        assert_eq!(scalar_to_host(&ld_wrt_w), -30.150766);
 
         let ld_wrt_b =
             branch.log_density_joint_wrt_biases(branch.params(), branch.precisions(), &hyperparams);
 
-        assert_eq!(scalar_to_host(&ld_wrt_b), -5.0);
+        assert_eq!(scalar_to_host(&ld_wrt_b), -3.1876905);
 
         let ld = branch.log_density_joint(
             branch.params(),
@@ -615,7 +644,7 @@ mod tests {
             num_individuals as usize,
         );
 
-        assert_eq!(ld, -31.62412235);
+        assert_eq!(ld, -35.520966);
     }
 
     #[test]
