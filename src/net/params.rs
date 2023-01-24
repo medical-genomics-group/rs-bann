@@ -192,6 +192,36 @@ impl BranchPrecisions {
         }
     }
 
+    pub fn param_vec(&self) -> Vec<f32> {
+        let mut host_vec = Vec::new();
+        host_vec.resize(self.num_params(), 0.);
+        let mut insert_ix: usize = 0;
+        for i in 0..self.weight_precisions.len() {
+            let len = self.weight_precisions[i].elements();
+            self.weight_precisions[i].host(&mut host_vec[insert_ix..insert_ix + len]);
+            insert_ix += len;
+        }
+        for i in 0..self.bias_precisions.len() {
+            let len = self.bias_precisions[i].elements();
+            self.bias_precisions[i].host(&mut host_vec[insert_ix..insert_ix + len]);
+            insert_ix += len;
+        }
+        self.error_precision
+            .host(&mut host_vec[insert_ix..insert_ix + 1]);
+        host_vec
+    }
+
+    fn num_params(&self) -> usize {
+        let mut res: usize = 1;
+        for i in 0..self.weight_precisions.len() {
+            res += self.weight_precisions[i].elements();
+        }
+        for i in 0..self.bias_precisions.len() {
+            res += self.bias_precisions[i].elements();
+        }
+        res
+    }
+
     pub fn set_output_layer_precision(&mut self, precision: f32) {
         *self
             .weight_precisions

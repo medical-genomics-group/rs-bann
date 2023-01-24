@@ -780,8 +780,16 @@ pub trait Branch {
         mcmc_cfg: &MCMCCfg,
         hyperparams: &NetworkPrecisionHyperparameters,
     ) -> HMCStepResult {
+        let mut traj_file = None;
+        let mut traj = Trajectory::new();
         if mcmc_cfg.trajectories {
-            warn!("Joint sampling does not support returning trajectories yet.");
+            traj_file = Some(BufWriter::new(
+                File::options()
+                    .append(true)
+                    .create(true)
+                    .open(mcmc_cfg.trajectories_path())
+                    .unwrap(),
+            ));
         }
         if mcmc_cfg.num_grad {
             warn!("Joint sampling does not support numerical gradients yet. Using analytical gradients instead.");
@@ -802,6 +810,10 @@ pub trait Branch {
         let init_neg_hamiltonian = self.neg_hamiltonian(&momentum, x_train, y_train);
         let mut ldg = self.log_density_gradient_joint(x_train, y_train, hyperparams);
 
+        if mcmc_cfg.trajectories {
+            traj.add_hamiltonian(init_neg_hamiltonian);
+        }
+
         // leapfrog
         for _step in 0..(mcmc_cfg.hmc_integration_length) {
             momentum.half_step(&step_sizes, &ldg);
@@ -814,6 +826,17 @@ pub trait Branch {
 
             let curr_neg_hamiltonian = self.neg_hamiltonian(&momentum, x_train, y_train);
 
+            if mcmc_cfg.trajectories {
+                traj.add_params(self.params().param_vec());
+                traj.add_precisions(self.precisions().param_vec());
+                traj.add_ldg(ldg.param_vec());
+                traj.add_hamiltonian(curr_neg_hamiltonian);
+                if mcmc_cfg.num_grad_traj {
+                    // not implemented
+                    // traj.add_num_ldg(self.numerical_ldg(x_train, y_train));
+                }
+            }
+
             if (curr_neg_hamiltonian - init_neg_hamiltonian).abs()
                 > mcmc_cfg.hmc_max_hamiltonian_error
             {
@@ -822,10 +845,20 @@ pub trait Branch {
                     _step
                 );
 
+                if mcmc_cfg.trajectories {
+                    to_writer(traj_file.as_mut().unwrap(), &traj).unwrap();
+                    traj_file.as_mut().unwrap().write_all(b"\n").unwrap();
+                }
+
                 self.set_params(&init_params);
                 self.set_precisions(&init_precisions);
                 return HMCStepResult::RejectedEarly;
             }
+        }
+
+        if mcmc_cfg.trajectories {
+            to_writer(traj_file.as_mut().unwrap(), &traj).unwrap();
+            traj_file.as_mut().unwrap().write_all(b"\n").unwrap();
         }
 
         match self.accept_or_reject_hmc_state(&momentum, x_train, y_train, init_neg_hamiltonian) {

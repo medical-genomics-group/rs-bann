@@ -10,6 +10,54 @@ pub struct BranchLogDensityGradientJoint {
     pub wrt_error_precision: Array<f32>,
 }
 
+impl BranchLogDensityGradientJoint {
+    fn num_params(&self) -> usize {
+        let mut res: usize = 1;
+        for i in 0..self.wrt_weights.len() {
+            res += self.wrt_weights[i].elements();
+        }
+        for i in 0..self.wrt_biases.len() {
+            res += self.wrt_biases[i].elements();
+        }
+        for i in 0..self.wrt_weight_precisions.len() {
+            res += self.wrt_weight_precisions[i].elements();
+        }
+        for i in 0..self.wrt_bias_precisions.len() {
+            res += self.wrt_bias_precisions[i].elements();
+        }
+        res
+    }
+
+    pub(crate) fn param_vec(&self) -> Vec<f32> {
+        let mut host_vec = Vec::new();
+        host_vec.resize(self.num_params(), 0.);
+        let mut insert_ix: usize = 0;
+        for i in 0..self.wrt_weights.len() {
+            let len = self.wrt_weights[i].elements();
+            self.wrt_weights[i].host(&mut host_vec[insert_ix..insert_ix + len]);
+            insert_ix += len;
+        }
+        for i in 0..self.wrt_biases.len() {
+            let len = self.wrt_biases[i].elements();
+            self.wrt_biases[i].host(&mut host_vec[insert_ix..insert_ix + len]);
+            insert_ix += len;
+        }
+        for i in 0..self.wrt_weight_precisions.len() {
+            let len = self.wrt_weight_precisions[i].elements();
+            self.wrt_weight_precisions[i].host(&mut host_vec[insert_ix..insert_ix + len]);
+            insert_ix += len;
+        }
+        for i in 0..self.wrt_bias_precisions.len() {
+            let len = self.wrt_bias_precisions[i].elements();
+            self.wrt_bias_precisions[i].host(&mut host_vec[insert_ix..insert_ix + len]);
+            insert_ix += len;
+        }
+        self.wrt_error_precision
+            .host(&mut host_vec[insert_ix..insert_ix + 1]);
+        host_vec
+    }
+}
+
 /// Gradients of the log density w.r.t. the network parameters.
 #[derive(Clone)]
 pub struct BranchLogDensityGradient {
