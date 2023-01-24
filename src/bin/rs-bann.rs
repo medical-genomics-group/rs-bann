@@ -753,7 +753,7 @@ where
         }
     }
 
-    let outdir = format!(
+    let mut outdir = format!(
         "{}_w{}_d{}_cl{}_il{}_{}_dpk{}_dps{}_spk{}_sps{}_opk{}_ops{}",
         args.model_type,
         args.hidden_layer_width,
@@ -768,6 +768,10 @@ where
         args.opk,
         args.ops,
     );
+
+    if args.joint_hmc {
+        outdir.push_str("_joint");
+    }
 
     let mcmc_cfg = MCMCCfg {
         hmc_step_size_factor: args.step_size,
@@ -849,13 +853,17 @@ where
 
     let model_path = Path::new(&args.model_file);
 
-    let outdir = format!(
+    let mut outdir = format!(
         "{}_cl{}_il{}_{}",
         model_path.file_stem().unwrap().to_string_lossy(),
         args.chain_length,
         args.integration_length,
         args.step_size_mode,
     );
+
+    if args.joint_hmc {
+        outdir.push_str("_joint");
+    }
 
     let mcmc_cfg = MCMCCfg {
         hmc_step_size_factor: args.step_size,
