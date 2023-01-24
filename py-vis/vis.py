@@ -33,6 +33,7 @@ class ModelCfg:
 @dataclass
 class Trajectory:
     params: np.array
+    precision: np.array
     grad: np.array
     num_grad: np.array
     hamiltonian: np.array
@@ -351,6 +352,7 @@ def load_json_traj(wdir: str, branch_ix=0):
             res.append(
                 Trajectory(
                     np.asarray(l["params"]),
+                    np.asarray(l["precisions"]),
                     np.asarray(l["ldg"]),
                     np.asarray(l["num_ldg"]),
                     np.asarray(l["hamiltonian"]),
