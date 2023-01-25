@@ -207,30 +207,21 @@ impl Branch for LassoArdBranch {
         log_density
     }
 
-    // TODO: write test
-    fn log_density(&self, params: &BranchParams, precisions: &BranchPrecisions, rss: f32) -> f32 {
-        let mut log_density: f32 = scalar_to_host(&(-0.5f32 * &precisions.error_precision * rss));
+    fn log_density_wrt_weights(
+        &self,
+        params: &BranchParams,
+        precisions: &BranchPrecisions,
+    ) -> Array<f32> {
+        let mut log_density: Array<f32> = af_scalar(0.0);
 
-        for i in 0..self.output_layer_index() {
-            log_density -= sum_all(&matmul(
-                &(abs(params.layer_weights(i))),
-                &precisions.weight_precisions[i],
-                MatProp::TRANS,
+        // weight terms
+        for i in 0..self.num_layers() {
+            log_density -= arrayfire::dot(
+                &(l1_norm_rows(params.layer_weights(i))),
+                &precisions.layer_weight_precisions(i),
                 MatProp::NONE,
-            ))
-            .0;
-        }
-
-        // output layer
-        log_density -= sum_all(
-            &(&precisions.weight_precisions[self.output_layer_index()]
-                * &(abs(params.layer_weights(self.output_layer_index())))),
-        )
-        .0;
-
-        for i in 0..self.output_layer_index() {
-            log_density -=
-                sum_all(&(&precisions.bias_precisions[i] * abs(params.layer_biases(i)))).0;
+                MatProp::NONE,
+            );
         }
 
         log_density
@@ -752,8 +743,8 @@ mod tests {
         ];
 
         let exp_ldg_wrt_b = [
-            Array::new(&[-1.0005327, -1.0000000011007801], dim4![2, 1, 1, 1]),
-            Array::new(&[-1.0017552], dim4![1, 1, 1, 1]),
+            Array::new(&[-0.00053271546, -1.0000000011007801], dim4![2, 1, 1, 1]),
+            Array::new(&[-2.0017552], dim4![1, 1, 1, 1]),
         ];
 
         // correct values

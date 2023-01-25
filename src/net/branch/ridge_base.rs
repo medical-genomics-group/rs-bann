@@ -198,25 +198,19 @@ impl Branch for RidgeBaseBranch {
         log_density
     }
 
-    fn log_density(&self, params: &BranchParams, precisions: &BranchPrecisions, rss: f32) -> f32 {
-        let mut log_density: f32 = scalar_to_host(&(-0.5f32 * &precisions.error_precision * rss));
+    fn log_density_wrt_weights(
+        &self,
+        params: &BranchParams,
+        precisions: &BranchPrecisions,
+    ) -> Array<f32> {
+        let mut log_density: Array<f32> = af_scalar(0.0);
+
+        // weight terms
         for i in 0..self.num_layers() {
-            log_density -= 0.5
-                * arrayfire::sum_all(
-                    &(&precisions.weight_precisions[i]
-                        * &(params.layer_weights(i) * params.layer_weights(i))),
-                )
-                .0;
+            log_density -= sum_of_squares(params.layer_weights(i)) / 2.0
+                * precisions.layer_weight_precisions(i);
         }
-        for i in 0..self.num_layers() - 1 {
-            log_density -= 0.5
-                * arrayfire::sum_all(
-                    &(params.layer_biases(i)
-                        * params.layer_biases(i)
-                        * &precisions.bias_precisions[i]),
-                )
-                .0;
-        }
+
         log_density
     }
 

@@ -6,7 +6,7 @@ use super::{
     step_sizes::StepSizes,
     training_state::TrainingState,
 };
-use crate::af_helpers::{af_scalar, scalar_to_host};
+use crate::af_helpers::{af_scalar, scalar_to_host, sum_of_squares};
 use crate::net::mcmc_cfg::MCMCCfg;
 use crate::net::params::NetworkPrecisionHyperparameters;
 use arrayfire::{sqrt, Array};
@@ -183,6 +183,21 @@ impl Branch for StdNormalBranch {
         _hyperparams: &NetworkPrecisionHyperparameters,
     ) -> Array<f32> {
         unimplemented!("Joint sampling is not implemented for std normal priors, since the precisions are fixed to 1.0");
+    }
+
+    fn log_density_wrt_weights(
+        &self,
+        params: &BranchParams,
+        _precisions: &BranchPrecisions,
+    ) -> Array<f32> {
+        let mut log_density: Array<f32> = af_scalar(0.0);
+
+        // weight terms
+        for i in 0..self.num_layers() {
+            log_density -= af_scalar(sum_of_squares(params.layer_weights(i)) / 2.0);
+        }
+
+        log_density
     }
 
     fn log_density(&self, params: &BranchParams, precisions: &BranchPrecisions, rss: f32) -> f32 {

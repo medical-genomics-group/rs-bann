@@ -207,39 +207,23 @@ impl Branch for RidgeArdBranch {
         log_density
     }
 
-    // TODO: write test
-    fn log_density(&self, params: &BranchParams, precisions: &BranchPrecisions, rss: f32) -> f32 {
-        let mut log_density: f32 = scalar_to_host(&(-0.5f32 * &precisions.error_precision * rss));
+    fn log_density_wrt_weights(
+        &self,
+        params: &BranchParams,
+        precisions: &BranchPrecisions,
+    ) -> Array<f32> {
+        let mut log_density: Array<f32> = af_scalar(0.0);
 
-        for i in 0..self.output_layer_index() {
-            log_density -= 0.5
-                * sum_all(&matmul(
-                    &(params.layer_weights(i) * params.layer_weights(i)),
-                    self.weight_precisions(i),
-                    MatProp::TRANS,
-                    MatProp::NONE,
-                ))
-                .0;
+        // weight terms
+        for i in 0..self.num_layers() {
+            log_density -= arrayfire::dot(
+                &(0.5f32 * &sum_of_squares_rows(params.layer_weights(i))),
+                &precisions.layer_weight_precisions(i),
+                MatProp::NONE,
+                MatProp::NONE,
+            );
         }
 
-        // output layer
-        log_density -= 0.5
-            * arrayfire::sum_all(
-                &(self.weight_precisions(self.output_layer_index())
-                    * &(params.layer_weights(self.output_layer_index())
-                        * params.layer_weights(self.output_layer_index()))),
-            )
-            .0;
-
-        for i in 0..self.output_layer_index() {
-            log_density -= 0.5
-                * sum_all(
-                    &(params.layer_biases(i)
-                        * params.layer_biases(i)
-                        * &precisions.bias_precisions[i]),
-                )
-                .0;
-        }
         log_density
     }
 

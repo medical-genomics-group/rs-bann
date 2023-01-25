@@ -92,7 +92,39 @@ pub trait Branch {
     fn log_density_gradient_wrt_weights(&self) -> Vec<Array<f32>>;
 
     // This should be -U(q), e.g. log P(D | Theta)P(Theta)
-    fn log_density(&self, params: &BranchParams, precisions: &BranchPrecisions, rss: f32) -> f32;
+    fn log_density(&self, params: &BranchParams, precisions: &BranchPrecisions, rss: f32) -> f32 {
+        let wrt_w = self.log_density_wrt_weights(params, precisions);
+        let wrt_e = self.log_density_wrt_rss(precisions, rss);
+        let wrt_b = self.log_density_wrt_biases(params, precisions);
+
+        scalar_to_host(&(wrt_w + wrt_b + wrt_e))
+    }
+
+    fn log_density_wrt_weights(
+        &self,
+        params: &BranchParams,
+        precisions: &BranchPrecisions,
+    ) -> Array<f32>;
+
+    fn log_density_wrt_rss(&self, precisions: &BranchPrecisions, rss: f32) -> Array<f32> {
+        -1.0f32 * &precisions.error_precision * (rss / 2.0)
+    }
+
+    /// Log density w.r.t. l2 regularized biases
+    fn log_density_wrt_biases(
+        &self,
+        params: &BranchParams,
+        precisions: &BranchPrecisions,
+    ) -> Array<f32> {
+        let mut log_density: Array<f32> = af_scalar(0.0);
+
+        for i in 0..self.output_layer_index() {
+            log_density -=
+                precisions.layer_bias_precision(i) * (sum_of_squares(params.layer_biases(i)) / 2.0);
+        }
+
+        log_density
+    }
 
     fn last_rss(&self) -> &Array<f32> {
         self.training_state().rss()

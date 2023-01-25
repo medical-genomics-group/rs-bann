@@ -199,16 +199,18 @@ impl Branch for LassoBaseBranch {
         log_density
     }
 
-    fn log_density(&self, params: &BranchParams, precisions: &BranchPrecisions, rss: f32) -> f32 {
-        let mut log_density: f32 = scalar_to_host(&(-0.5f32 * &precisions.error_precision * rss));
+    fn log_density_wrt_weights(
+        &self,
+        params: &BranchParams,
+        precisions: &BranchPrecisions,
+    ) -> Array<f32> {
+        let mut log_density: Array<f32> = af_scalar(0.0);
+
+        // weight terms
         for i in 0..self.num_layers() {
-            log_density -=
-                sum_all(&(&precisions.weight_precisions[i] * &(abs(params.layer_weights(i))))).0;
+            log_density -= l1_norm(params.layer_weights(i)) * precisions.layer_weight_precisions(i);
         }
-        for i in 0..self.num_layers() - 1 {
-            log_density -=
-                sum_all(&(&precisions.bias_precisions[i] * abs(params.layer_biases(i)))).0;
-        }
+
         log_density
     }
 
@@ -574,10 +576,45 @@ mod tests {
     }
 
     #[test]
+    fn test_log_density() {
+        let num_individuals = 4;
+        let num_markers = 3;
+        let branch = make_test_branch_with_precision(2.0);
+        let x_train: Array<f32> = Array::new(
+            &[1., 0., 0., 2., 1., 1., 2., 0., 0., 2., 0., 1.],
+            dim4![num_individuals, num_markers, 1, 1],
+        );
+        let y_train: Array<f32> = Array::new(&[0.0, 2.0, 1.0, 1.5], dim4![4, 1, 1, 1]);
+
+        let rss = branch.rss(&x_train, &y_train);
+        assert_eq!(rss, 5.248245);
+
+        assert_eq!(
+            scalar_to_host(&branch.log_density_wrt_rss(branch.precisions(), rss)),
+            -5.24824469
+        );
+
+        assert_eq!(
+            scalar_to_host(&branch.log_density_wrt_weights(branch.params(), branch.precisions())),
+            -40.0
+        );
+
+        assert_eq!(
+            scalar_to_host(&branch.log_density_wrt_biases(branch.params(), branch.precisions())),
+            -5.0
+        );
+
+        assert_eq!(
+            branch.log_density(branch.params(), branch.precisions(), rss),
+            -50.24824469
+        );
+    }
+
+    #[test]
     fn test_log_density_gradient() {
         let num_individuals = 4;
         let num_markers = 3;
-        let mut branch = make_test_branch();
+        let mut branch = make_test_branch_with_precision(2.0);
         let x_train: Array<f32> = Array::new(
             &[1., 0., 0., 2., 1., 1., 2., 0., 0., 2., 0., 1.],
             dim4![num_individuals, num_markers, 1, 1],
@@ -585,36 +622,24 @@ mod tests {
         let y_train: Array<f32> = Array::new(&[0.0, 2.0, 1.0, 1.5], dim4![4, 1, 1, 1]);
         let ldg = branch.log_density_gradient(&x_train, &y_train);
 
-        // correct output length
-        assert_eq!(ldg.wrt_weights.len(), branch.num_layers);
-        assert_eq!(ldg.wrt_biases.len(), branch.num_layers - 1);
-
-        // correct dimensions
-        for i in 0..(branch.num_layers) {
-            assert_eq!(ldg.wrt_weights[i].dims(), branch.layer_weights(i).dims());
-        }
-        for i in 0..(branch.num_layers - 1) {
-            assert_eq!(ldg.wrt_biases[i].dims(), branch.layer_biases(i).dims());
-        }
-
         let exp_ldg_wrt_w = [
             Array::new(
-                &[-0.0005189283, -1.0005465, -1.0000138, -1.0, -1.0, -1.0],
+                &[-0.0010378566, -2.001093, -2.0000277, -2.0, -2.0, -2.0],
                 dim4![3, 2, 1, 1],
             ),
-            Array::new(&[-1.0014552, -1.0017552], dim4![2, 1, 1, 1]),
-            Array::new(&[-4.4986963], dim4![1, 1, 1, 1]),
+            Array::new(&[-2.0029104, -2.0035105], dim4!(2, 1, 1, 1)),
+            Array::new(&[-8.997393], dim4!(1, 1, 1, 1)),
         ];
 
-        let exp_ldg_wrt_b = [
-            Array::new(&[-0.00053271546, -1.0], dim4![2, 1, 1, 1]),
-            Array::new(&[-2.0017552], dim4![1, 1, 1, 1]),
-        ];
-
-        // correct values
         for i in 0..(branch.num_layers) {
             assert_eq!(to_host(&ldg.wrt_weights[i]), to_host(&exp_ldg_wrt_w[i]));
         }
+
+        let exp_ldg_wrt_b = [
+            Array::new(&[-0.0010654309, -2.00000000e+00], dim4!(2, 1, 1, 1)),
+            Array::new(&[-4.0035105], dim4!(1, 1, 1, 1)),
+        ];
+
         for i in 0..(branch.num_layers - 1) {
             assert_eq!(to_host(&ldg.wrt_biases[i]), to_host(&exp_ldg_wrt_b[i]));
         }
