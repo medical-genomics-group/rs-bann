@@ -246,6 +246,18 @@ impl BranchPrecisions {
         &self.bias_precisions[layer_index]
     }
 
+    pub fn layer_weight_precisions_mut(&mut self, layer_index: usize) -> &mut Array<f32> {
+        &mut self.weight_precisions[layer_index]
+    }
+
+    pub fn layer_bias_precision_mut(&mut self, layer_index: usize) -> &mut Array<f32> {
+        &mut self.bias_precisions[layer_index]
+    }
+
+    pub fn error_precision_mut(&mut self) -> &mut Array<f32> {
+        &mut self.error_precision
+    }
+
     pub fn full_step(&mut self, step_sizes: &StepSizes, mom: &BranchMomentumJoint) {
         for i in 0..self.weight_precisions.len() {
             self.weight_precisions[i] += &step_sizes.wrt_weight_precisions.as_ref().unwrap()[i]
@@ -385,6 +397,14 @@ impl BranchParams {
 
     pub fn layer_biases(&self, index: usize) -> &Array<f32> {
         &self.biases[index]
+    }
+
+    pub fn layer_weights_mut(&mut self, index: usize) -> &mut Array<f32> {
+        &mut self.weights[index]
+    }
+
+    pub fn layer_biases_mut(&mut self, index: usize) -> &mut Array<f32> {
+        &mut self.biases[index]
     }
 }
 

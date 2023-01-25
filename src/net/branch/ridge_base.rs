@@ -652,4 +652,73 @@ mod tests {
         let init_params = make_test_uniform_params(100.);
         assert!(branch.net_movement(&init_params, &momenta) < 0.0);
     }
+
+    #[test]
+    fn test_set_params() {
+        let num_individuals = 4;
+        let num_markers = 3;
+        let mut branch = make_test_branch_with_precision(2.0);
+        let x_train: Array<f32> = Array::new(
+            &[1., 0., 0., 2., 1., 1., 2., 0., 0., 2., 0., 1.],
+            dim4![num_individuals, num_markers, 1, 1],
+        );
+        let y_train: Array<f32> = Array::new(&[0.0, 2.0, 1.0, 1.5], dim4![4, 1, 1, 1]);
+        let hyperparams = NetworkPrecisionHyperparameters {
+            dense: PrecisionHyperparameters::new(3.0, 2.0),
+            summary: PrecisionHyperparameters::new(3.0, 2.0),
+            output: PrecisionHyperparameters::new(4.0, 5.0),
+        };
+
+        // test branch has these params:
+        // let exp_weights = [
+        //     Array::new(&[0., 1., 2., 3., 4., 5.], dim4![3, 2, 1, 1]),
+        //     Array::new(&[1., 2.], dim4![2, 1, 1, 1]),
+        //     Array::new(&[2.], dim4![1, 1, 1, 1]),
+        // ];
+        // let exp_biases = [
+        //     Array::new(&[0., 1.], dim4![1, 2, 1, 1]),
+        //     Array::new(&[2.], dim4![1, 1, 1, 1]),
+        // ];
+
+        // weight setting
+        branch.incr_weight(0, 1, 1, 1.0);
+        assert_eq!(
+            to_host(branch.layer_weights(0)),
+            vec![0., 1., 2., 3., 5., 5.]
+        );
+        branch.decr_weight(0, 1, 1, 1.0);
+        assert_eq!(
+            to_host(branch.layer_weights(0)),
+            vec![0., 1., 2., 3., 4., 5.]
+        );
+
+        // bias setting
+        branch.incr_bias(1, 0, 2.);
+        assert_eq!(to_host(branch.layer_biases(1)), vec![4.0]);
+        branch.decr_bias(1, 0, 2.);
+        assert_eq!(to_host(branch.layer_biases(1)), vec![2.0]);
+
+        branch.incr_bias(0, 1, 2.);
+        assert_eq!(to_host(branch.layer_biases(0)), vec![0., 3.0]);
+        branch.decr_bias(0, 1, 2.);
+        assert_eq!(to_host(branch.layer_biases(0)), vec![0., 1.0]);
+
+        // weight precision setting
+        branch.incr_weight_precision(0, 0, 1.0);
+        assert_eq!(to_host(branch.layer_weight_precisions(0)), vec![3.0]);
+        branch.decr_weight_precision(0, 0, 1.0);
+        assert_eq!(to_host(branch.layer_weight_precisions(0)), vec![2.0]);
+
+        // bias precision setting
+        branch.incr_bias_precision(0, 1.0);
+        assert_eq!(to_host(branch.layer_bias_precision(0)), vec![3.0]);
+        branch.decr_bias_precision(0, 1.0);
+        assert_eq!(to_host(branch.layer_bias_precision(0)), vec![2.0]);
+
+        // error precision setting
+        branch.incr_error_precision(1.0);
+        assert_eq!(to_host(branch.error_precision()), vec![3.0]);
+        branch.decr_error_precision(1.0);
+        assert_eq!(to_host(branch.error_precision()), vec![2.0]);
+    }
 }

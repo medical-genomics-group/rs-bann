@@ -1,6 +1,24 @@
 //! Useful elementary array based functions that are missing in arrayfire.
 
-use arrayfire::{dim4, Array, MatProp};
+use arrayfire::{assign_seq, dim4, index, Array, MatProp, Seq};
+
+pub(crate) fn add_at_ix(arr: &mut Array<f32>, row: u32, col: u32, value: f32) {
+    if arr.elements() == 1 {
+        *arr += af_scalar(value);
+    } else {
+        let seqs = &[Seq::new(row, row, 1), Seq::new(col, col, 1)];
+        assign_seq(arr, seqs, &(index(arr, seqs) + value));
+    }
+}
+
+pub(crate) fn subtract_at_ix(arr: &mut Array<f32>, row: u32, col: u32, value: f32) {
+    if arr.elements() == 1 {
+        *arr -= af_scalar(value);
+    } else {
+        let seqs = &[Seq::new(row, row, 1), Seq::new(col, col, 1)];
+        assign_seq(arr, seqs, &(index(arr, seqs) - value));
+    }
+}
 
 /// Create a scalar stored on device
 pub(crate) fn af_scalar(val: f32) -> Array<f32> {

@@ -13,11 +13,11 @@ use super::{
     step_sizes::StepSizes,
     trajectory::Trajectory,
 };
-use crate::af_helpers::{af_scalar, sum_of_squares};
+use crate::af_helpers::{add_at_ix, af_scalar, scalar_to_host, subtract_at_ix, sum_of_squares};
+use crate::net::params::NetworkPrecisionHyperparameters;
 use crate::net::{
     gibbs_steps::ridge_multi_param_precision_posterior, params::BranchPrecisionsHost,
 };
-use crate::{af_helpers::scalar_to_host, net::params::NetworkPrecisionHyperparameters};
 use arrayfire::{diag_extract, dim4, dot, matmul, randu, sum, tanh, Array, MatProp};
 use log::{debug, warn};
 use rand::{prelude::ThreadRng, Rng};
@@ -328,6 +328,95 @@ pub trait Branch {
         }
     }
 
+    // // DO NOT run this in production code, this is extremely slow.
+    // //
+    // // This is a drop in replacement for the analytical `log_density_gradient` method.
+    // fn numerical_log_density_gradient_joint(
+    //     &mut self,
+    //     x_train: &Array<f32>,
+    //     y_train: &Array<f32>,
+    //     hyperparams: &NetworkPrecisionHyperparameters,
+    // ) -> BranchLogDensityGradientJoint {
+    //     self.numerical_ldg_joint(x_train, y_train, hyperparams)
+    // }
+
+    // // DO NOT run this in production code, this is extremely slow.
+    // fn numerical_ldg_joint(
+    //     &mut self,
+    //     x_train: &Array<f32>,
+    //     y_train: &Array<f32>,
+    //     hyperparams: &NetworkPrecisionHyperparameters,
+    // ) -> BranchLogDensityGradientJoint {
+    //     let mut res = Vec::new();
+    //     let mut next_pv = self.params().param_vec();
+    //     let curr_pv = self.params().param_vec();
+    //     let curr_ld =
+    //         self.log_density(self.params(), self.precisions(), self.rss(x_train, y_train));
+    //     let lw = self.layer_widths().clone();
+    //     let nm = self.num_markers();
+
+    //     for pix in 0..self.num_params() {
+    //         // incr param
+    //         next_pv[pix] += NUMERICAL_DELTA;
+    //         // compute rss, ld
+    //         self.params_mut().load_param_vec(&next_pv, &lw, nm);
+    //         res.push(
+    //             (self.log_density_joint(
+    //                 self.params(),
+    //                 self.precisions(),
+    //                 self.rss(x_train, y_train),
+    //                 hyperparams,
+    //                 y_train.elements(),
+    //             ) - curr_ld)
+    //                 / NUMERICAL_DELTA,
+    //         );
+    //         // decr param
+    //         next_pv[pix] -= NUMERICAL_DELTA;
+    //     }
+    //     self.params_mut().load_param_vec(&curr_pv, &lw, nm);
+    //     res
+    // }
+
+    fn incr_weight(&mut self, layer: usize, row: u32, col: u32, value: f32) {
+        add_at_ix(self.layer_weights_mut(layer), row, col, value);
+    }
+
+    fn decr_weight(&mut self, layer: usize, row: u32, col: u32, value: f32) {
+        subtract_at_ix(self.layer_weights_mut(layer), row, col, value);
+    }
+
+    fn incr_bias(&mut self, layer: usize, col: u32, value: f32) {
+        add_at_ix(self.layer_biases_mut(layer), 0, col, value);
+    }
+
+    fn decr_bias(&mut self, layer: usize, col: u32, value: f32) {
+        subtract_at_ix(self.layer_biases_mut(layer), 0, col, value);
+    }
+
+    fn incr_weight_precision(&mut self, layer: usize, row: u32, value: f32) {
+        add_at_ix(self.layer_weight_precisions_mut(layer), row, 0, value);
+    }
+
+    fn decr_weight_precision(&mut self, layer: usize, row: u32, value: f32) {
+        subtract_at_ix(self.layer_weight_precisions_mut(layer), row, 0, value);
+    }
+
+    fn incr_bias_precision(&mut self, layer: usize, value: f32) {
+        add_at_ix(self.layer_bias_precision_mut(layer), 0, 0, value);
+    }
+
+    fn decr_bias_precision(&mut self, layer: usize, value: f32) {
+        subtract_at_ix(self.layer_bias_precision_mut(layer), 0, 0, value);
+    }
+
+    fn incr_error_precision(&mut self, value: f32) {
+        add_at_ix(self.error_precision_mut(), 0, 0, value);
+    }
+
+    fn decr_error_precision(&mut self, value: f32) {
+        subtract_at_ix(self.error_precision_mut(), 0, 0, value);
+    }
+
     // DO NOT run this in production code, this is extremely slow.
     //
     // This is a drop in replacement for the analytical `log_density_gradient` method.
@@ -372,6 +461,26 @@ pub trait Branch {
 
     fn layer_weights(&self, index: usize) -> &Array<f32> {
         &self.params().weights[index]
+    }
+
+    fn layer_weights_mut(&mut self, index: usize) -> &mut Array<f32> {
+        self.params_mut().layer_weights_mut(index)
+    }
+
+    fn layer_biases_mut(&mut self, index: usize) -> &mut Array<f32> {
+        self.params_mut().layer_biases_mut(index)
+    }
+
+    fn layer_weight_precisions_mut(&mut self, index: usize) -> &mut Array<f32> {
+        self.precisions_mut().layer_weight_precisions_mut(index)
+    }
+
+    fn layer_bias_precision_mut(&mut self, index: usize) -> &mut Array<f32> {
+        self.precisions_mut().layer_bias_precision_mut(index)
+    }
+
+    fn error_precision_mut(&mut self) -> &mut Array<f32> {
+        self.precisions_mut().error_precision_mut()
     }
 
     fn layer_biases(&self, index: usize) -> &Array<f32> {
