@@ -7,11 +7,11 @@ use super::{
     step_sizes::StepSizes,
     training_state::TrainingState,
 };
-use crate::af_helpers::{af_scalar, scalar_to_host, sign, to_host};
+use crate::af_helpers::{af_scalar, sign, to_host};
 use crate::af_helpers::{l1_norm, l1_norm_rows};
 use crate::net::mcmc_cfg::MCMCCfg;
 use crate::net::params::NetworkPrecisionHyperparameters;
-use arrayfire::{abs, dim4, matmul, sqrt, sum, sum_all, tile, Array, MatProp};
+use arrayfire::{abs, dim4, sqrt, sum, tile, Array, MatProp};
 use rand::prelude::ThreadRng;
 use rand::thread_rng;
 use rand_distr::{Distribution, Gamma};

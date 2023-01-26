@@ -340,41 +340,91 @@ pub trait Branch {
     //     self.numerical_ldg_joint(x_train, y_train, hyperparams)
     // }
 
-    // // DO NOT run this in production code, this is extremely slow.
+    // DO NOT run this in production code, this is extremely slow.
     // fn numerical_ldg_joint(
     //     &mut self,
     //     x_train: &Array<f32>,
     //     y_train: &Array<f32>,
     //     hyperparams: &NetworkPrecisionHyperparameters,
     // ) -> BranchLogDensityGradientJoint {
-    //     let mut res = Vec::new();
-    //     let mut next_pv = self.params().param_vec();
-    //     let curr_pv = self.params().param_vec();
-    //     let curr_ld =
-    //         self.log_density(self.params(), self.precisions(), self.rss(x_train, y_train));
-    //     let lw = self.layer_widths().clone();
-    //     let nm = self.num_markers();
+    //     let num_individuals = y_train.elements();
+    //     let curr_par = self.params().clone();
+    //     let curr_prec = self.precisions().clone();
+    //     let curr_ld = self.log_density_joint(
+    //         self.params(),
+    //         self.precisions(),
+    //         self.rss(x_train, y_train),
+    //         hyperparams,
+    //         num_individuals,
+    //     );
 
-    //     for pix in 0..self.num_params() {
-    //         // incr param
-    //         next_pv[pix] += NUMERICAL_DELTA;
-    //         // compute rss, ld
-    //         self.params_mut().load_param_vec(&next_pv, &lw, nm);
-    //         res.push(
-    //             (self.log_density_joint(
-    //                 self.params(),
-    //                 self.precisions(),
-    //                 self.rss(x_train, y_train),
-    //                 hyperparams,
-    //                 y_train.elements(),
-    //             ) - curr_ld)
-    //                 / NUMERICAL_DELTA,
-    //         );
-    //         // decr param
-    //         next_pv[pix] -= NUMERICAL_DELTA;
+    //     let mut wrt_weights: Vec<Array<f32>> = Vec::new();
+    //     let mut wrt_biases: Vec<Array<f32>> = Vec::new();
+    //     let mut wrt_weight_precisions: Vec<Array<f32>> = Vec::new();
+    //     let mut wrt_bias_precisions: Vec<Array<f32>> = Vec::new();
+    //     let mut wrt_error_precision = af_scalar(0.0);
+
+    //     for i in 0..self.num_layers() {
+    //         let mut layer_grad = Vec::new();
+    //         let dims = self.layer_weights(i).dims();
+    //         let [nrow, ncol, _, _] = dims.get();
+    //         for col in 0..*ncol {
+    //             for row in 0..*nrow {
+    //                 self.incr_weight(
+    //                     i,
+    //                     row.try_into().unwrap(),
+    //                     col.try_into().unwrap(),
+    //                     NUMERICAL_DELTA,
+    //                 );
+    //                 layer_grad.push(
+    //                     (self.log_density_joint(
+    //                         self.params(),
+    //                         self.precisions(),
+    //                         self.rss(x_train, y_train),
+    //                         hyperparams,
+    //                         num_individuals,
+    //                     ) - curr_ld)
+    //                         / NUMERICAL_DELTA,
+    //                 );
+    //                 self.decr_weight(
+    //                     i,
+    //                     row.try_into().unwrap(),
+    //                     col.try_into().unwrap(),
+    //                     NUMERICAL_DELTA,
+    //                 );
+    //             }
+    //         }
+    //         wrt_weights.push(Array::new(&layer_grad, dims));
     //     }
-    //     self.params_mut().load_param_vec(&curr_pv, &lw, nm);
-    //     res
+
+    //     for i in 0..self.num_layers() - 1 {
+    //         let mut layer_grad = Vec::new();
+    //         let dims = self.layer_biases(i).dims();
+    //         let [_, ncol, _, _] = dims.get();
+    //         for col in 0..*ncol {
+    //             self.incr_bias(i, col.try_into().unwrap(), NUMERICAL_DELTA);
+    //             layer_grad.push(
+    //                 (self.log_density_joint(
+    //                     self.params(),
+    //                     self.precisions(),
+    //                     self.rss(x_train, y_train),
+    //                     hyperparams,
+    //                     num_individuals,
+    //                 ) - curr_ld)
+    //                     / NUMERICAL_DELTA,
+    //             );
+    //             self.decr_bias(i, col.try_into().unwrap(), NUMERICAL_DELTA);
+    //         }
+    //         wrt_biases.push(Array::new(&layer_grad, dims));
+    //     }
+
+    //     BranchLogDensityGradientJoint {
+    //         wrt_weights,
+    //         wrt_biases,
+    //         wrt_weight_precisions,
+    //         wrt_bias_precisions,
+    //         wrt_error_precision,
+    //     }
     // }
 
     fn incr_weight(&mut self, layer: usize, row: u32, col: u32, value: f32) {

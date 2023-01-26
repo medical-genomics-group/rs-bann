@@ -655,19 +655,7 @@ mod tests {
 
     #[test]
     fn test_set_params() {
-        let num_individuals = 4;
-        let num_markers = 3;
         let mut branch = make_test_branch_with_precision(2.0);
-        let x_train: Array<f32> = Array::new(
-            &[1., 0., 0., 2., 1., 1., 2., 0., 0., 2., 0., 1.],
-            dim4![num_individuals, num_markers, 1, 1],
-        );
-        let y_train: Array<f32> = Array::new(&[0.0, 2.0, 1.0, 1.5], dim4![4, 1, 1, 1]);
-        let hyperparams = NetworkPrecisionHyperparameters {
-            dense: PrecisionHyperparameters::new(3.0, 2.0),
-            summary: PrecisionHyperparameters::new(3.0, 2.0),
-            output: PrecisionHyperparameters::new(4.0, 5.0),
-        };
 
         // test branch has these params:
         // let exp_weights = [

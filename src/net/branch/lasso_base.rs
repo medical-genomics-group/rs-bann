@@ -10,7 +10,7 @@ use super::{
 use crate::af_helpers::{af_scalar, l1_norm, scalar_to_host, sign};
 use crate::net::mcmc_cfg::MCMCCfg;
 use crate::net::params::NetworkPrecisionHyperparameters;
-use arrayfire::{abs, dim4, sqrt, sum_all, Array};
+use arrayfire::{dim4, sqrt, Array};
 use rand::prelude::ThreadRng;
 use rand::thread_rng;
 
