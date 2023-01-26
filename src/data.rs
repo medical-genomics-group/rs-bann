@@ -152,7 +152,12 @@ impl GenotypesBuilder {
         self
     }
 
-    pub fn with_x_from_bed<G>(mut self, bed_path: &Path, grouping: &G) -> Self
+    pub fn with_x_from_bed<G>(
+        mut self,
+        bed_path: &Path,
+        grouping: &G,
+        min_group_size: usize,
+    ) -> Self
     where
         G: MarkerGrouping,
     {
@@ -164,6 +169,10 @@ impl GenotypesBuilder {
         let mut num_individuals = 0;
         let num_branches = grouping.num_groups();
         for gix in 0..grouping.num_groups() {
+            // safe to unwrap, because loop doesn't exceed num_groups
+            if grouping.group_size(gix).unwrap() < min_group_size {
+                continue;
+            }
             // I might want to sort the grouping first. I think that might be more expensive than just
             // reading the data out of order.
             // + I have to save the grouping anyway, or create output reports with the original snp indexing

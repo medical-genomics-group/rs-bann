@@ -108,6 +108,10 @@ pub(crate) struct SimulateYArgs {
     /// write data to json files, e.g. for easier parsing into python
     #[clap(long)]
     pub json_data: bool,
+
+    /// minimal group size for data to be considered put in the model
+    #[clap(long, default_value_t = 1)]
+    pub min_group_size: usize,
 }
 
 impl SimulateYArgs {

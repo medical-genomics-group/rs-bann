@@ -8,14 +8,14 @@ use serde::Serialize;
 
 pub struct LinearModelBuilder {
     num_branches: usize,
-    num_markers_per_branch: usize,
+    num_markers_per_branch: Vec<usize>,
     proportion_effective_markers: f32,
     effects: Option<Vec<Vec<f32>>>,
     rng: ChaCha20Rng,
 }
 
 impl LinearModelBuilder {
-    pub fn new(num_branches: usize, num_markers_per_branch: usize) -> Self {
+    pub fn new(num_branches: usize, num_markers_per_branch: Vec<usize>) -> Self {
         Self {
             num_branches,
             num_markers_per_branch,
@@ -39,7 +39,7 @@ impl LinearModelBuilder {
     }
 
     pub fn with_random_effects(&mut self, heritability: f32) -> &mut Self {
-        let m = self.num_markers_per_branch * self.num_branches;
+        let m = self.num_markers_per_branch.iter().sum::<usize>() * self.num_branches;
         let inclusion_dist = Bernoulli::new(self.proportion_effective_markers as f64).unwrap();
         let included: Vec<bool> = (0..m)
             .map(|_| inclusion_dist.sample(&mut self.rng))
@@ -49,18 +49,18 @@ impl LinearModelBuilder {
         let beta_dist = Normal::new(0.0, beta_std).unwrap();
 
         let mut effects = Vec::new();
+        let mut effect_ix = 0;
         for bix in 0..self.num_branches {
-            effects.push(
-                (0..self.num_markers_per_branch)
-                    .map(|ix| {
-                        if included[self.num_markers_per_branch * bix + ix] {
-                            beta_dist.sample(&mut self.rng)
-                        } else {
-                            0.0
-                        }
-                    })
-                    .collect::<Vec<f32>>(),
-            );
+            let mut b_effects = Vec::new();
+            for _mix in 0..self.num_markers_per_branch[bix] {
+                if included[effect_ix] {
+                    b_effects.push(beta_dist.sample(&mut self.rng))
+                } else {
+                    b_effects.push(0.0)
+                }
+                effect_ix += 1;
+            }
+            effects.push(b_effects);
         }
         self.effects = Some(effects);
         self
@@ -69,7 +69,7 @@ impl LinearModelBuilder {
     pub fn build(&self) -> LinearModel {
         LinearModel {
             num_branches: self.num_branches,
-            num_markers_per_branch: self.num_markers_per_branch,
+            num_markers_per_branch: self.num_markers_per_branch.clone(),
             effects: self.effects.as_ref().unwrap().to_vec(),
         }
     }
@@ -78,7 +78,7 @@ impl LinearModelBuilder {
 #[derive(Debug, Serialize)]
 pub struct LinearModel {
     num_branches: usize,
-    num_markers_per_branch: usize,
+    num_markers_per_branch: Vec<usize>,
     effects: Vec<Vec<f32>>,
 }
 
@@ -90,7 +90,7 @@ impl LinearModel {
     fn af_branch_effects(&self, branch_ix: usize) -> Array<f32> {
         Array::new(
             &self.effects[branch_ix],
-            dim4!(self.num_markers_per_branch.try_into().unwrap()),
+            dim4!(self.num_markers_per_branch[branch_ix].try_into().unwrap()),
         )
     }
 
@@ -122,7 +122,7 @@ mod tests {
     const N: usize = 10;
 
     fn make_test_lm(prop_eff: f32, h2: f32) -> LinearModel {
-        LinearModelBuilder::new(NB, NMPB)
+        LinearModelBuilder::new(NB, vec![NMPB; NB])
             .with_seed(SEED)
             .with_proportion_effective_markers(prop_eff)
             .with_random_effects(h2)
