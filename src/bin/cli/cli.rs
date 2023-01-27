@@ -19,6 +19,8 @@ pub(crate) enum SubCmd {
     GroupByGenes(GroupByGenesArgs),
     /// Group markers by LD.
     GroupByLD(GroupCenteredArgs),
+    /// Apply grouping to marker data, generate .gen objects
+    GroupMarkerData(GroupMarkerDataArgs),
     /// Simulate phenotype data given marker data.
     ///
     /// Branch width is fixed to 1/2 the number of input nodes in a branch.
@@ -35,6 +37,23 @@ pub(crate) enum SubCmd {
     BranchR2(BranchR2Args),
     /// Print backends available to ArrayFire.
     AvailableBackends,
+}
+
+#[derive(Args, Debug, Serialize, Deserialize)]
+pub(crate) struct GroupMarkerDataArgs {
+    /// filestem of input .bed
+    pub bfile: String,
+
+    /// path to grouping file
+    pub groups: String,
+
+    /// path to output directory
+    #[clap(short, long, default_value = "./")]
+    pub outdir: String,
+
+    /// minimal group size for data to be considered put in the model
+    #[clap(long, default_value_t = 1)]
+    pub min_group_size: usize,
 }
 
 #[derive(Args, Debug, Serialize, Deserialize)]
@@ -69,16 +88,11 @@ pub(crate) struct SimulateYArgs {
     #[clap(short, long, default_value = "./")]
     pub outdir: String,
 
-    /// path to train .bed file
-    pub train_bed: String,
+    /// path to directory containing prepared train.gen and test.gen
+    #[clap(short, long, default_value = "./")]
+    pub indir: String,
 
-    /// path to test .bed file
-    pub test_bed: String,
-
-    /// path to file with marker groupings. Should have two columns: marker_index, group_index
-    pub groups: String,
-
-    /// Prior structure of model.
+    /// prior structure of model
     #[clap(value_enum)]
     pub model_type: ModelType,
 
@@ -108,10 +122,6 @@ pub(crate) struct SimulateYArgs {
     /// write data to json files, e.g. for easier parsing into python
     #[clap(long)]
     pub json_data: bool,
-
-    /// minimal group size for data to be considered put in the model
-    #[clap(long, default_value_t = 1)]
-    pub min_group_size: usize,
 }
 
 impl SimulateYArgs {

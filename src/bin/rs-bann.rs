@@ -2,8 +2,8 @@ mod cli;
 
 use clap::Parser;
 use cli::cli::{
-    BranchR2Args, Cli, GroupByGenesArgs, GroupCenteredArgs, PredictArgs, SimulateXYArgs,
-    SimulateYArgs, SubCmd, TrainArgs, TrainNewArgs,
+    BranchR2Args, Cli, GroupByGenesArgs, GroupCenteredArgs, GroupMarkerDataArgs, PredictArgs,
+    SimulateXYArgs, SimulateYArgs, SubCmd, TrainArgs, TrainNewArgs,
 };
 use log::{info, warn};
 use rand::thread_rng;
@@ -76,7 +76,41 @@ fn main() {
         SubCmd::BranchR2(args) => branch_r2(args),
         SubCmd::AvailableBackends => available_backends(),
         SubCmd::GroupByGenes(args) => group_by_genes(args),
+        SubCmd::GroupMarkerData(args) => group_marker_data(args),
     }
+}
+
+fn group_marker_data(args: GroupMarkerDataArgs) {
+    // load groups
+    let grouping_path = Path::new(&args.groups);
+    let grouping = ExternalGrouping::from_file(grouping_path);
+
+    let path = Path::new(&args.outdir);
+
+    let mut train_bed_str = args.bfile.clone();
+    train_bed_str.push_str("_train.bed");
+    let train_bed_path = Path::new(&train_bed_str);
+    let mut test_bed_str = args.bfile.clone();
+    test_bed_str.push_str("_test.bed");
+    let test_bed_path = Path::new(&test_bed_str);
+    let mut train_path = path.join("train");
+    let mut test_path = path.join("test");
+
+    info!("Building grouped data objects");
+    // load marker data from .bed, group, save
+    let gen_train = GenotypesBuilder::new()
+        .with_x_from_bed(train_bed_path, &grouping, args.min_group_size)
+        .build()
+        .unwrap();
+    train_path.set_extension("gen");
+    gen_train.to_file(&train_path);
+
+    let gen_test = GenotypesBuilder::new()
+        .with_x_from_bed(test_bed_path, &grouping, args.min_group_size)
+        .build()
+        .unwrap();
+    test_path.set_extension("gen");
+    gen_test.to_file(&test_path);
 }
 
 fn group_by_genes(args: GroupByGenesArgs) {
@@ -204,12 +238,11 @@ where
         panic!("Heritability must be within [0, 1].");
     }
 
-    let train_bed_path = Path::new(&args.train_bed);
-    let test_bed_path = Path::new(&args.test_bed);
+    let train_gen_path = Path::new(&args.indir).join("train.gen");
+    let test_gen_path = Path::new(&args.indir).join("train.gen");
 
     let mut path = Path::new(&args.outdir).join(format!(
-        "{}_{}_d{}_h{}_v{}_p{}",
-        train_bed_path.file_stem().unwrap().to_string_lossy(),
+        "{}_d{}_h{}_v{}_p{}",
         args.model_type,
         args.branch_depth,
         args.heritability,
@@ -219,14 +252,8 @@ where
 
     if let (Some(k), Some(s)) = (args.init_gamma_shape, args.init_gamma_scale) {
         path = Path::new(&args.outdir).join(format!(
-            "{}_{}_d{}_h{}_k{}_s{}_p{}",
-            train_bed_path.file_stem().unwrap().to_string_lossy(),
-            args.model_type,
-            args.branch_depth,
-            args.heritability,
-            k,
-            s,
-            args.proportion_effective
+            "{}_d{}_h{}_k{}_s{}_p{}",
+            args.model_type, args.branch_depth, args.heritability, k, s, args.proportion_effective
         ));
     }
 
@@ -238,6 +265,10 @@ where
     let args_path = path.join("args.json");
     let params_path = path.join("model.params");
     let model_path = path.join("model.bin");
+
+    info!("Loading genotype data");
+    let gen_train = Genotypes::from_file(&train_gen_path).expect("Failed to load train genotypes");
+    let gen_test = Genotypes::from_file(&test_gen_path).expect("Failed to load test genotypes");
 
     // TODO: depth should be set such that the largest branch still has n > p.
     // Although, that is for models I want to train. For simulation it doesn't
@@ -260,12 +291,8 @@ where
             .with_init_param_variance(args.init_param_variance)
     };
 
-    // load groups
-    let grouping_path = Path::new(&args.groups);
-    let grouping = ExternalGrouping::from_file(grouping_path);
-
     // width is fixed to half the number of input nodes
-    for size in grouping.group_sizes() {
+    for &size in gen_test.num_markers_per_branch() {
         if size == 1 {
             net_cfg.add_branch(1, 1, 1)
         }
@@ -281,21 +308,6 @@ where
     let mut net_params_file = BufWriter::new(File::create(params_path).unwrap());
     to_writer(&mut net_params_file, net.branch_cfgs()).unwrap();
     net_params_file.write_all(b"\n").unwrap();
-
-    // load marker data from .bed, group, save
-    let gen_train = GenotypesBuilder::new()
-        .with_x_from_bed(train_bed_path, &grouping, args.min_group_size)
-        .build()
-        .unwrap();
-    train_path.set_extension("gen");
-    gen_train.to_file(&train_path);
-
-    let gen_test = GenotypesBuilder::new()
-        .with_x_from_bed(test_bed_path, &grouping, args.min_group_size)
-        .build()
-        .unwrap();
-    test_path.set_extension("gen");
-    gen_test.to_file(&test_path);
 
     info!("Making phenotype data");
     let mut y_train = net.predict(&gen_train);
@@ -359,12 +371,11 @@ fn simulate_y_linear(args: SimulateYArgs) {
         panic!("Heritability must be within [0, 1].");
     }
 
-    let train_bed_path = Path::new(&args.train_bed);
-    let test_bed_path = Path::new(&args.test_bed);
+    let train_gen_path = Path::new(&args.indir).join("train.gen");
+    let test_gen_path = Path::new(&args.indir).join("train.gen");
 
     let mut path = Path::new(&args.outdir).join(format!(
-        "{}_{}_d{}_h{}_v{}_p{}",
-        train_bed_path.file_stem().unwrap().to_string_lossy(),
+        "{}_d{}_h{}_v{}_p{}",
         args.model_type,
         args.branch_depth,
         args.heritability,
@@ -374,14 +385,8 @@ fn simulate_y_linear(args: SimulateYArgs) {
 
     if let (Some(k), Some(s)) = (args.init_gamma_shape, args.init_gamma_scale) {
         path = Path::new(&args.outdir).join(format!(
-            "{}_{}_d{}_h{}_k{}_s{}_p{}",
-            train_bed_path.file_stem().unwrap().to_string_lossy(),
-            args.model_type,
-            args.branch_depth,
-            args.heritability,
-            k,
-            s,
-            args.proportion_effective
+            "{}_d{}_h{}_k{}_s{}_p{}",
+            args.model_type, args.branch_depth, args.heritability, k, s, args.proportion_effective
         ));
     }
 
@@ -396,38 +401,15 @@ fn simulate_y_linear(args: SimulateYArgs) {
 
     let mut rng = thread_rng();
 
-    // load groups
-    let grouping_path = Path::new(&args.groups);
-    let grouping = ExternalGrouping::from_file(grouping_path);
-
-    let group_sizes = grouping
-        .group_sizes()
-        .into_iter()
-        .filter(|e| *e >= args.min_group_size)
-        .to_owned()
-        .collect::<Vec<usize>>();
+    info!("Loading genotype data");
+    let gen_train = Genotypes::from_file(&train_gen_path).expect("Failed to load train genotypes");
+    let gen_test = Genotypes::from_file(&test_gen_path).expect("Failed to load test genotypes");
 
     info!("Building model");
-    let lm = LinearModelBuilder::new(group_sizes.len(), group_sizes)
+    let lm = LinearModelBuilder::new(gen_test.num_markers_per_branch())
         .with_proportion_effective_markers(args.proportion_effective)
         .with_random_effects(args.heritability)
         .build();
-
-    info!("Building grouped data objects");
-    // load marker data from .bed, group, save
-    let gen_train = GenotypesBuilder::new()
-        .with_x_from_bed(train_bed_path, &grouping, args.min_group_size)
-        .build()
-        .unwrap();
-    train_path.set_extension("gen");
-    gen_train.to_file(&train_path);
-
-    let gen_test = GenotypesBuilder::new()
-        .with_x_from_bed(test_bed_path, &grouping, args.min_group_size)
-        .build()
-        .unwrap();
-    test_path.set_extension("gen");
-    gen_test.to_file(&test_path);
 
     info!("Making phenotype data");
     // genetic values
@@ -579,13 +561,10 @@ fn simulate_xy_linear(args: SimulateXYArgs) {
         .unwrap();
     gen_test.standardize();
 
-    let lm = LinearModelBuilder::new(
-        args.num_branches,
-        vec![args.num_markers_per_branch; args.num_branches],
-    )
-    .with_proportion_effective_markers(args.proportion_effective)
-    .with_random_effects(args.heritability)
-    .build();
+    let lm = LinearModelBuilder::new(&vec![args.num_markers_per_branch; args.num_branches])
+        .with_proportion_effective_markers(args.proportion_effective)
+        .with_random_effects(args.heritability)
+        .build();
 
     info!("Making phenotype data");
     // genetic values

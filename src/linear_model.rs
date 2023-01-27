@@ -15,10 +15,10 @@ pub struct LinearModelBuilder {
 }
 
 impl LinearModelBuilder {
-    pub fn new(num_branches: usize, num_markers_per_branch: Vec<usize>) -> Self {
+    pub fn new(num_markers_per_branch: &Vec<usize>) -> Self {
         Self {
-            num_branches,
-            num_markers_per_branch,
+            num_branches: num_markers_per_branch.len(),
+            num_markers_per_branch: num_markers_per_branch.clone(),
             proportion_effective_markers: 1.0,
             effects: None,
             rng: ChaCha20Rng::from_entropy(),
@@ -122,7 +122,7 @@ mod tests {
     const N: usize = 10;
 
     fn make_test_lm(prop_eff: f32, h2: f32) -> LinearModel {
-        LinearModelBuilder::new(NB, vec![NMPB; NB])
+        LinearModelBuilder::new(&vec![NMPB; NB])
             .with_seed(SEED)
             .with_proportion_effective_markers(prop_eff)
             .with_random_effects(h2)

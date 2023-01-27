@@ -261,6 +261,10 @@ impl Genotypes {
         self.num_individuals
     }
 
+    pub fn num_markers_per_branch(&self) -> &Vec<usize> {
+        &self.num_markers_per_branch
+    }
+
     pub fn af_branch_data(&self, branch_ix: usize) -> Array<f32> {
         Array::new(
             &self.x[branch_ix],
