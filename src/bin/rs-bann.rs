@@ -91,10 +91,10 @@ fn group_marker_data(args: GroupMarkerDataArgs) {
     let path = Path::new(&args.outdir);
 
     let mut train_bed_str = args.bfile.clone();
-    train_bed_str.push_str("_train");
+    train_bed_str.push_str("_train.bed");
     let train_bed_path = Path::new(&train_bed_str);
     let mut test_bed_str = args.bfile.clone();
-    test_bed_str.push_str("_test");
+    test_bed_str.push_str("_test.bed");
     let test_bed_path = Path::new(&test_bed_str);
     let mut train_path = path.join("train");
     let mut test_path = path.join("test");
