@@ -16,7 +16,7 @@ impl ExternalGrouping {
             groups: HashMap::new(),
         };
 
-        let file = File::open(file).unwrap();
+        let file = File::open(file).expect("Failed to open file with external grouping");
         let mut reader = BufReader::new(file);
         let mut buffer = String::new();
         let mut line_fields = [0, 0];
