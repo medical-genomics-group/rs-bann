@@ -81,6 +81,7 @@ fn main() {
 }
 
 fn group_marker_data(args: GroupMarkerDataArgs) {
+    info!("rs-bann group-marker-data");
     // load groups
     let grouping_path = Path::new(&args.groups);
     let grouping = ExternalGrouping::from_file(grouping_path);
@@ -88,13 +89,16 @@ fn group_marker_data(args: GroupMarkerDataArgs) {
     let path = Path::new(&args.outdir);
 
     let mut train_bed_str = args.bfile.clone();
-    train_bed_str.push_str("_train.bed");
+    train_bed_str.push_str("_train");
     let train_bed_path = Path::new(&train_bed_str);
     let mut test_bed_str = args.bfile.clone();
-    test_bed_str.push_str("_test.bed");
+    test_bed_str.push_str("_test");
     let test_bed_path = Path::new(&test_bed_str);
     let mut train_path = path.join("train");
     let mut test_path = path.join("test");
+
+    info!("Train bfile path: {:?}", train_bed_path);
+    info!("Test bfile path: {:?}", test_bed_path);
 
     info!("Building grouped data objects");
     // load marker data from .bed, group, save
