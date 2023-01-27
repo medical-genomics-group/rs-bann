@@ -34,6 +34,8 @@ use std::{
 };
 
 fn main() {
+    simple_logger::init_with_level(log::Level::Info).unwrap();
+    info!("wdir: {:?}", std::env::current_dir().unwrap());
     match Cli::parse().cmd {
         SubCmd::SimulateY(args) => match args.model_type {
             ModelType::LassoBase => simulate_y::<LassoBaseBranch>(args),
@@ -81,7 +83,7 @@ fn main() {
 }
 
 fn group_marker_data(args: GroupMarkerDataArgs) {
-    info!("rs-bann group-marker-data");
+    info!("Loading groups from: {:?}", args.groups);
     // load groups
     let grouping_path = Path::new(&args.groups);
     let grouping = ExternalGrouping::from_file(grouping_path);
