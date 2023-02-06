@@ -1,7 +1,8 @@
-use crate::error::Error;
 use crate::group::grouping::MarkerGrouping;
+use crate::group::io::{BimEntry, FamEntry};
+use crate::{error::Error, group::io::IndexedReader};
 use arrayfire::{dim4, Array};
-use bed_reader::{Bed, ReadOptions};
+use bed_reader::{Bed as ExternBed, ReadOptions};
 use bincode::{deserialize_from, serialize_into};
 use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
@@ -11,7 +12,7 @@ use serde_json::{to_writer, to_writer_pretty};
 use std::{
     fs::File,
     io::{BufReader, BufWriter},
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 #[derive(Serialize, Deserialize)]
@@ -161,7 +162,7 @@ impl GenotypesBuilder {
     where
         G: MarkerGrouping,
     {
-        let mut bed = Bed::new(bed_path).unwrap();
+        let mut bed = ExternBed::new(bed_path).unwrap();
         let mut x = Vec::new();
         let mut x_means = Vec::new();
         let mut x_stds = Vec::new();
@@ -309,6 +310,42 @@ impl Genotypes {
     }
 }
 
+struct Bed {
+    x: Vec<u8>,
+    num_individuals: usize,
+    num_markers: usize,
+}
+
+impl Bed {
+    fn from_file(stem: &PathBuf) -> Self {
+        let mut bed_path = stem.clone();
+        bed_path.set_extension("bed");
+        let mut bim_path = stem.clone();
+        bim_path.set_extension("bim");
+        let num_markers = IndexedReader::<BimEntry>::num_lines(&bim_path);
+        let mut fam_path = stem.clone();
+        fam_path.set_extension("fam");
+        let num_individuals = IndexedReader::<FamEntry>::num_lines(&fam_path);
+        Self {
+            x: std::fs::read(bed_path).expect("failed to read .bed file"),
+            num_individuals,
+            num_markers,
+        }
+    }
+}
+
+// #[derive(Serialize, Deserialize, PartialEq, Debug)]
+// pub struct GenotypesBed {
+//     x: Vec<Vec<u8>>,
+// }
+
+// impl GenotypesBed {
+//     pub fn from_file(path: &Path) -> Self {
+
+//         let  = std::fs::read(path).expect("failed to read .bed file");
+//     }
+// }
+
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub struct Phenotypes {
     y: Vec<f32>,
@@ -419,7 +456,7 @@ mod tests {
     // const N: usize = 10;
 
     #[test]
-    fn test() {
+    fn test_rust_bed_reader() {
         let base_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
         let base_path = Path::new(&base_dir);
         let bed_path = base_path.join("resources/test/small.bed");
