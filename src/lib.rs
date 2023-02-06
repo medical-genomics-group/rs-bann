@@ -5,5 +5,6 @@ pub mod af_helpers;
 pub mod data;
 pub mod error;
 pub mod group;
+pub mod io;
 pub mod linear_model;
 pub mod net;

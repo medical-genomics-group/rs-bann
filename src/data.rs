@@ -1,6 +1,6 @@
+use crate::error::Error;
 use crate::group::grouping::MarkerGrouping;
-use crate::group::io::{BimEntry, FamEntry};
-use crate::{error::Error, group::io::IndexedReader};
+
 use arrayfire::{dim4, Array};
 use bed_reader::{Bed as ExternBed, ReadOptions};
 use bincode::{deserialize_from, serialize_into};
@@ -12,7 +12,7 @@ use serde_json::{to_writer, to_writer_pretty};
 use std::{
     fs::File,
     io::{BufReader, BufWriter},
-    path::{Path, PathBuf},
+    path::Path,
 };
 
 #[derive(Serialize, Deserialize)]
@@ -307,30 +307,6 @@ impl Genotypes {
                 self.num_markers_per_branch[branch_ix] as u64
             ),
         )
-    }
-}
-
-struct Bed {
-    x: Vec<u8>,
-    num_individuals: usize,
-    num_markers: usize,
-}
-
-impl Bed {
-    fn from_file(stem: &PathBuf) -> Self {
-        let mut bed_path = stem.clone();
-        bed_path.set_extension("bed");
-        let mut bim_path = stem.clone();
-        bim_path.set_extension("bim");
-        let num_markers = IndexedReader::<BimEntry>::num_lines(&bim_path);
-        let mut fam_path = stem.clone();
-        fam_path.set_extension("fam");
-        let num_individuals = IndexedReader::<FamEntry>::num_lines(&fam_path);
-        Self {
-            x: std::fs::read(bed_path).expect("failed to read .bed file"),
-            num_individuals,
-            num_markers,
-        }
     }
 }
 

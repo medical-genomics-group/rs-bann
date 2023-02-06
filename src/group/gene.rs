@@ -1,5 +1,9 @@
 use super::grouping::MarkerGrouping;
-use super::io::{BimEntry, Feature, GFFEntry, GFFRead, GFFReader, GzGFFReader, IndexedReader};
+use crate::io::{
+    bim::BimEntry,
+    gff::{Feature, GFFEntry, GFFRead, GFFReader, GzGFFReader},
+    indexed_read::IndexedReader,
+};
 use serde_json::to_writer_pretty;
 use std::collections::HashMap;
 use std::collections::VecDeque;
