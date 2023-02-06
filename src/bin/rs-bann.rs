@@ -34,8 +34,6 @@ use std::{
 };
 
 fn main() {
-    simple_logger::init_with_level(log::Level::Info).unwrap();
-    info!("wdir: {:?}", std::env::current_dir().unwrap());
     match Cli::parse().cmd {
         SubCmd::SimulateY(args) => match args.model_type {
             ModelType::LassoBase => simulate_y::<LassoBaseBranch>(args),
