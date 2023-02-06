@@ -3,6 +3,7 @@ use flate2::read::GzDecoder;
 use serde::Serialize;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
+use std::marker::PhantomData;
 use std::path::Path;
 use std::str::FromStr;
 
@@ -14,6 +15,8 @@ pub enum Error {
     UnknownGenomicFeature,
     #[error("Unknown chromosome")]
     UnknownChromosome,
+    #[error("Unknown sex code")]
+    UnknownSexCode,
 }
 
 // A human chromosome.
@@ -229,7 +232,7 @@ pub struct BimEntry {
     pub allele_2: String,
 }
 
-impl BimEntry {
+impl IndexedEntry for BimEntry {
     fn from_str(s: &str, ix: usize) -> Self {
         let fields = s.split_whitespace().collect::<Vec<&str>>();
         Self {
@@ -262,28 +265,122 @@ impl BimEntry {
     }
 }
 
-pub struct BimReader {
-    // number of entries that have been read
+enum FamPhenValue {
+    Control,
+    Case,
+    Other,
+}
+
+impl FromStr for FamPhenValue {
+    type Err = Error;
+
+    fn from_str(input: &str) -> Result<FamPhenValue, Self::Err> {
+        match input {
+            "1" => Ok(FamPhenValue::Control),
+            "2" => Ok(FamPhenValue::Case),
+            _ => Ok(FamPhenValue::Other),
+        }
+    }
+}
+
+enum FamSex {
+    Female,
+    Male,
+    Unknown,
+}
+
+impl FromStr for FamSex {
+    type Err = Error;
+
+    fn from_str(input: &str) -> Result<FamSex, Self::Err> {
+        match input {
+            "0" => Ok(FamSex::Unknown),
+            "1" => Ok(FamSex::Male),
+            "2" => Ok(FamSex::Female),
+            _ => Err(Error::UnknownSexCode),
+        }
+    }
+}
+
+/// Entry of a .fam file.
+///
+/// According to the Plink 1.9 specs:
+///
+/// A text file with no header line, and one line per sample with the following six fields:
+/// Family ID ('FID')
+/// Within-family ID ('IID'; cannot be '0')
+/// Within-family ID of father ('0' if father isn't in dataset)
+/// Within-family ID of mother ('0' if mother isn't in dataset)
+/// Sex code ('1' = male, '2' = female, '0' = unknown)
+/// Phenotype value ('1' = control, '2' = case, '-9'/'0'/non-numeric = missing data if case/control)///
+pub struct FamEntry {
+    ix: usize,
+    fid: usize,
+    iid: usize,
+    father_iid: usize,
+    mother_iid: usize,
+    sex: FamSex,
+    phenotype_value: FamPhenValue,
+}
+
+impl IndexedEntry for FamEntry {
+    fn from_str(s: &str, ix: usize) -> Self {
+        let fields = s.split_whitespace().collect::<Vec<&str>>();
+        Self {
+            ix,
+            fid: fields[0].parse().unwrap(),
+            iid: fields[1]
+                .parse()
+                .expect("Failed to convert 2nd col entry in .fam to int"),
+            father_iid: fields[2]
+                .parse()
+                .expect("Failed to convert 3rd col entry in .fam to int"),
+            mother_iid: fields[3]
+                .parse()
+                .expect("Failed to convert 4th col entry in .fam to int"),
+            sex: fields[4]
+                .parse()
+                .expect("Failed to convert 5th col entry in .fam to sex"),
+            phenotype_value: fields[5]
+                .parse()
+                .expect("Failed to convert 6th col entry in .fam to phenotype value"),
+        }
+    }
+}
+
+pub trait IndexedEntry {
+    fn from_str(s: &str, ix: usize) -> Self;
+}
+
+pub struct IndexedReader<T: IndexedEntry> {
     num_read: usize,
     reader: BufReader<File>,
     buffer: String,
+    _phantom: PhantomData<T>,
 }
 
-impl BimReader {
-    pub fn new(bim_path: &Path) -> Self {
+impl<T: IndexedEntry> IndexedReader<T> {
+    pub fn num_lines(fam_path: &Path) -> usize {
+        let mut reader = IndexedReader::<T>::new(fam_path);
+        while let Some(_) = reader.next_entry() {}
+        reader.num_read
+    }
+
+    pub fn new(fam_path: &Path) -> Self {
         Self {
             num_read: 0,
-            reader: BufReader::new(File::open(bim_path).unwrap()),
+            reader: BufReader::new(File::open(fam_path).unwrap()),
             buffer: String::new(),
+            _phantom: PhantomData,
         }
     }
 
-    pub fn next_entry(&mut self) -> Option<BimEntry> {
+    pub fn next_entry(&mut self) -> Option<T> {
         self.buffer.clear();
         if let Ok(bytes_read) = self.reader.read_line(&mut self.buffer) {
             if bytes_read > 0 {
                 self.num_read += 1;
-                return Some(BimEntry::from_str(&self.buffer, self.last_entry_ix()));
+                return Some(T::from_str(&self.buffer, self.last_entry_ix()));
             }
         }
         None

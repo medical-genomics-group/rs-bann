@@ -1,5 +1,5 @@
 use super::grouping::MarkerGrouping;
-use super::io::{BimEntry, BimReader, Feature, GFFEntry, GFFRead, GFFReader, GzGFFReader};
+use super::io::{BimEntry, Feature, GFFEntry, GFFRead, GFFReader, GzGFFReader, IndexedReader};
 use serde_json::to_writer_pretty;
 use std::collections::HashMap;
 use std::collections::VecDeque;
@@ -41,7 +41,7 @@ impl GeneGrouping {
         } else {
             Box::new(GFFReader::new(gff_file)) as Box<dyn GFFRead>
         };
-        let mut bim_reader = BimReader::new(bim_file);
+        let mut bim_reader = IndexedReader::new(bim_file);
         let mut bim_buffer: VecDeque<BimEntry> = VecDeque::new();
         let mut groups: HashMap<usize, Vec<isize>> = HashMap::new();
         let mut meta: HashMap<usize, GFFEntry> = HashMap::new();
