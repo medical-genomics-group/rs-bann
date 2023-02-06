@@ -1,6 +1,9 @@
 use crate::error::Error;
-use crate::io::{bim::BimEntry, fam::FamEntry, indexed_read::IndexedReader};
-use arrayfire::Array;
+use crate::io::{
+    bed_lookup_tables::BED_LOOKUP_GENOTYPE, bim::BimEntry, fam::FamEntry,
+    indexed_read::IndexedReader,
+};
+use arrayfire::{dim4, Array};
 use std::io::{Read, Seek};
 use std::path::PathBuf;
 
@@ -37,15 +40,19 @@ impl BedSignature {
     }
 }
 
-struct Bed {
+/// Variant Major (i.e. column major) bed file in memory.
+struct BedVM {
     signature: BedSignature,
     /// .bed data without signature
     data: Vec<u8>,
     num_individuals: usize,
     num_markers: usize,
+    num_bytes_per_col: usize,
+    // pairs of bits without info in the last byte per col
+    padding: usize,
 }
 
-impl Bed {
+impl BedVM {
     /// Reads .bed file from disc.
     /// Determines number of markers and individuals from .bim and .fam files with the same filestem as the .bed.
     /// Checks if .bed signature is valid.
@@ -75,17 +82,40 @@ impl Bed {
         fam_path.set_extension("fam");
         let num_individuals = IndexedReader::<FamEntry>::num_lines(&fam_path);
 
+        let mut num_bytes_per_col = num_individuals / 4;
+        let padding = num_individuals % 4;
+        if padding != 0 {
+            num_bytes_per_col += 1;
+        }
+
         Self {
             signature,
             data,
             num_individuals,
             num_markers,
+            num_bytes_per_col,
+            padding,
         }
     }
 
-    /// Assumes VariantMajor format.
+    /// Assumes VariantMajor format and no missing data.
     fn get_cols_af(&self, col_ixs: &[usize]) -> Vec<Array<f32>> {
-        let padding = self.num_individuals % 4;
-        Vec::new()
+        let mut res = Vec::new();
+        for col_ix in col_ixs {
+            let start_ix = col_ix * self.num_individuals;
+            let end_ix = start_ix + self.num_individuals;
+            let mut vals = Vec::with_capacity(self.num_bytes_per_col * 4);
+            let col_data = &self.data[start_ix..end_ix];
+            for b in col_data.iter() {
+                let lu_ix = 4 * (*b as usize);
+                vals.extend_from_slice(&BED_LOOKUP_GENOTYPE[lu_ix..lu_ix + 4]);
+            }
+            vals.truncate(self.num_individuals);
+            res.push(Array::new(
+                &vals,
+                dim4!(self.num_individuals.try_into().unwrap()),
+            ));
+        }
+        res
     }
 }
