@@ -5,7 +5,7 @@ use cli::cli::{
     BranchR2Args, Cli, GroupByGenesArgs, GroupCenteredArgs, GroupMarkerDataArgs, PredictArgs,
     SimulateXYArgs, SimulateYArgs, SubCmd, TrainArgs, TrainNewArgs,
 };
-use log::{info, warn};
+use log::{debug, info, warn};
 use rand::thread_rng;
 use rand_distr::{Binomial, Distribution, Normal, Uniform};
 use rs_bann::data::{Data, Genotypes, GenotypesBuilder, PhenStats, Phenotypes};
@@ -371,7 +371,11 @@ where
 }
 
 fn simulate_y_linear(args: SimulateYArgs) {
-    simple_logger::init_with_level(log::Level::Info).unwrap();
+    if args.debug_prints {
+        simple_logger::init_with_level(log::Level::Debug).unwrap();
+    } else {
+        simple_logger::init_with_level(log::Level::Info).unwrap();
+    }
 
     if !(args.heritability >= 0. && args.heritability <= 1.) {
         panic!("Heritability must be within [0, 1].");
@@ -416,6 +420,10 @@ fn simulate_y_linear(args: SimulateYArgs) {
         .with_proportion_effective_markers(args.proportion_effective)
         .with_random_effects(args.heritability)
         .build();
+
+    if args.debug_prints {
+        debug!("sum of squared effects: {:?}", lm.sum_of_squares());
+    }
 
     info!("Making phenotype data");
     // genetic values

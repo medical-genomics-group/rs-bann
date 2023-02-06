@@ -122,6 +122,10 @@ pub(crate) struct SimulateYArgs {
     /// write data to json files, e.g. for easier parsing into python
     #[clap(long)]
     pub json_data: bool,
+
+    /// enable debug prints
+    #[clap(short, long)]
+    pub debug_prints: bool,
 }
 
 impl SimulateYArgs {

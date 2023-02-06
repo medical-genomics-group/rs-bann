@@ -108,6 +108,14 @@ impl LinearModel {
         }
         to_host(&y_hat)
     }
+
+    /// Sum of squared effects
+    pub fn sum_of_squares(&self) -> f32 {
+        self.effects
+            .iter()
+            .map(|v| v.iter().map(|e| e * e).sum::<f32>())
+            .sum::<f32>()
+    }
 }
 
 #[cfg(test)]
