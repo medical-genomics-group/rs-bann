@@ -1,5 +1,5 @@
 use crate::af_helpers::to_host;
-use crate::data::Genotypes;
+use crate::data::genotypes::Genotypes;
 use arrayfire::{dim4, matmul, Array, MatProp};
 use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
@@ -120,7 +120,7 @@ impl LinearModel {
 
 #[cfg(test)]
 mod tests {
-    use crate::data::{Genotypes, GenotypesBuilder};
+    use crate::data::genotypes::{Genotypes, GenotypesBuilder};
 
     use super::{LinearModel, LinearModelBuilder};
 

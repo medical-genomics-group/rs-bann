@@ -8,7 +8,10 @@ use cli::cli::{
 use log::{debug, info, warn};
 use rand::thread_rng;
 use rand_distr::{Binomial, Distribution, Normal, Uniform};
-use rs_bann::data::{Data, Genotypes, GenotypesBuilder, PhenStats, Phenotypes};
+use rs_bann::data::{
+    data::Data, genotypes::Genotypes, genotypes::GenotypesBuilder, phen_stats::PhenStats,
+    phenotypes::Phenotypes,
+};
 use rs_bann::group::{
     centered::CorrGraph, external::ExternalGrouping, gene::GeneGrouping, grouping::MarkerGrouping,
 };

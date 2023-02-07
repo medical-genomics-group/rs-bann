@@ -1,5 +1,5 @@
 use super::branch::branch::HMCStepResult;
-use crate::data::Data;
+use crate::data::data::Data;
 use serde::{Deserialize, Serialize};
 use serde_json::to_writer;
 use std::fs::File;

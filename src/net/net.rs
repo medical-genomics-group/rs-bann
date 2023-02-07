@@ -7,7 +7,7 @@ use super::{
     train_stats::{ReportCfg, TrainingStats},
 };
 use crate::af_helpers::to_host;
-use crate::data::{Data, Genotypes};
+use crate::data::{data::Data, genotypes::Genotypes};
 use arrayfire::{dim4, sum_all, Array};
 use bincode::{deserialize_from, serialize_into};
 use log::{debug, info};
