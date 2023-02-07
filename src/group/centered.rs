@@ -88,7 +88,7 @@ impl CorrGraph {
         res
     }
 
-    pub fn centered_grouping(&self) -> CenteredGrouping {
+    pub fn centered_grouping(&self, min_group_size: usize) -> CenteredGrouping {
         let mut grouping = CenteredGrouping::new();
 
         let mut degrees: Vec<(usize, usize)> = self.g.iter().map(|(k, v)| (*k, v.len())).collect();
@@ -120,6 +120,10 @@ impl CorrGraph {
                     }
                 }
             }
+        }
+
+        if min_group_size > 1 {
+            grouping.groups.retain(|_, v| v.len() >= min_group_size);
         }
         let mut group_sizes: Vec<usize> = vec![0; grouping.groups.len()];
         grouping
@@ -178,7 +182,7 @@ mod tests {
 
         let g = CorrGraph::from_plink_ld(&ld_path, &bim_path);
 
-        let grouping = g.centered_grouping();
+        let grouping = g.centered_grouping(1);
 
         let exp_groups = vec![vec![0, 1, 2, 3], vec![3, 4, 5], vec![6, 7, 8, 9, 10]];
 

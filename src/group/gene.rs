@@ -39,7 +39,12 @@ impl MarkerGrouping for GeneGrouping {
 }
 
 impl GeneGrouping {
-    pub fn from_gff(gff_file: &Path, bim_file: &Path, margin: usize) -> Self {
+    pub fn from_gff(
+        gff_file: &Path,
+        bim_file: &Path,
+        margin: usize,
+        min_group_size: usize,
+    ) -> Self {
         // TODO: check for correct extensions here (gff or gff3 or gff.gz or gff3.gz)
         let mut gff_reader = if gff_file
             .extension()
@@ -106,6 +111,10 @@ impl GeneGrouping {
                     group_id += 1;
                 }
             }
+        }
+
+        if min_group_size > 1 {
+            groups.retain(|_, v| v.len() >= min_group_size);
         }
 
         let mut group_sizes: Vec<usize> = vec![0; groups.len()];

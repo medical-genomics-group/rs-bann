@@ -51,7 +51,7 @@ pub(crate) struct GroupMarkerDataArgs {
     #[clap(short, long, default_value = "./")]
     pub outdir: String,
 
-    /// minimal group size for data to be considered put in the model
+    /// minimum group size for data to be considered put in the model
     #[clap(long, default_value_t = 1)]
     pub min_group_size: usize,
 }
@@ -67,6 +67,10 @@ pub(crate) struct GroupByGenesArgs {
     /// Distance defining the window from start and end of each gene in which SNPs will be grouped
     pub margin: usize,
 
+    /// minimum group size
+    #[clap(long, default_value_t = 1)]
+    pub min_group_size: usize,
+
     /// path to output directory
     #[clap(short, long, default_value = "./")]
     pub outdir: String,
@@ -76,6 +80,10 @@ pub(crate) struct GroupByGenesArgs {
 pub(crate) struct GroupCenteredArgs {
     /// path to input (just the file stem without .bim and .ld suffixes)
     pub inpath: String,
+
+    /// minimum group size
+    #[clap(long, default_value_t = 1)]
+    pub min_group_size: usize,
 
     /// path to output directory
     #[clap(short, long, default_value = "./")]

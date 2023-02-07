@@ -129,10 +129,22 @@ fn group_by_genes(args: GroupByGenesArgs) {
     let gff_path = PathBuf::from(&args.gff);
     let mut outpath = Path::new(&args.outdir).join(bim_path.file_stem().unwrap());
     outpath.set_extension("gene_grouping");
-    let grouping = GeneGrouping::from_gff(&gff_path, &bim_path, args.margin);
+    let grouping = GeneGrouping::from_gff(&gff_path, &bim_path, args.margin, args.min_group_size);
     grouping.to_file(&outpath);
     outpath.set_extension("gene_grouping_meta");
     grouping.meta_to_file(&outpath);
+}
+
+fn group_centered(args: GroupCenteredArgs) {
+    let mut bim_path = PathBuf::from(&args.inpath);
+    bim_path.set_extension("bim");
+    let mut corr_path = PathBuf::from(&args.inpath);
+    corr_path.set_extension("ld");
+    let mut outpath = Path::new(&args.outdir).join(bim_path.file_stem().unwrap());
+    outpath.set_extension("centered_grouping");
+    CorrGraph::from_plink_ld(&corr_path, &bim_path)
+        .centered_grouping(args.min_group_size)
+        .to_file(&outpath);
 }
 
 fn available_backends() {
@@ -225,18 +237,6 @@ fn predict(args: PredictArgs) {
             .unwrap();
     }
     wtr.flush().expect("Failed to flush csv writer");
-}
-
-fn group_centered(args: GroupCenteredArgs) {
-    let mut bim_path = PathBuf::from(&args.inpath);
-    bim_path.set_extension("bim");
-    let mut corr_path = PathBuf::from(&args.inpath);
-    corr_path.set_extension("ld");
-    let mut outpath = Path::new(&args.outdir).join(bim_path.file_stem().unwrap());
-    outpath.set_extension("centered_grouping");
-    CorrGraph::from_plink_ld(&corr_path, &bim_path)
-        .centered_grouping()
-        .to_file(&outpath);
 }
 
 fn simulate_y<B>(args: SimulateYArgs)
