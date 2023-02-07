@@ -432,7 +432,7 @@ mod tests {
     // const N: usize = 10;
 
     #[test]
-    fn test_rust_bed_reader() {
+    fn rust_bed_reader() {
         let base_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
         let base_path = Path::new(&base_dir);
         let bed_path = base_path.join("resources/test/small.bed");
@@ -468,7 +468,7 @@ mod tests {
     // }
 
     // #[test]
-    // fn test_standardization() {
+    // fn standardization() {
     //     let get = make_test_gt();
 
     // }

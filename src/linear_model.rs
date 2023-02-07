@@ -148,7 +148,7 @@ mod tests {
     }
 
     #[test]
-    fn test_predict() {
+    fn predict() {
         let lm = make_test_lm(0.2, 0.6);
         let gt = make_test_gt();
         let exp: Vec<f32> = vec![

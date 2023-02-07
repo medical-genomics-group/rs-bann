@@ -464,7 +464,7 @@ mod tests {
     use arrayfire::{dim4, Array, MatProp};
 
     #[test]
-    fn test_arrayfire_dot_expected_result() {
+    fn arrayfire_dot_expected_result() {
         // this should compute the sum of squares of two arrays, right?
         let a = Array::new(&[1.0, 2.0, 3.0], dim4!(3, 1, 1, 1));
         let b = Array::new(&[3.0, 2.0, 1.0], dim4!(3, 1, 1, 1));

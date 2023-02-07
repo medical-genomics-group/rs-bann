@@ -370,7 +370,7 @@ mod tests {
     }
 
     // #[test]
-    // fn test_af() {
+    // fn af() {
     //     let num_rows: u64 = 5;
     //     let num_cols: u64 = 3;
     //     let dims = Dim4::new(&[num_rows, num_cols, 1, 1]);
@@ -379,7 +379,7 @@ mod tests {
     // }
 
     #[test]
-    fn test_af_sum_axis() {
+    fn af_sum_axis() {
         // AF sum(_, 1) sums along columns, i.e. the output vector has entries equal to the number of rows
         // of the _ matrix.
         let a = Array::new(&[0f32, 1f32, 2f32, 3f32, 4f32, 5f32], dim4![3, 2, 1, 1]);
@@ -388,7 +388,7 @@ mod tests {
 
     // this actually causes undefined behaviour.
     #[test]
-    fn test_af_array_creation_broadcast() {
+    fn af_array_creation_broadcast() {
         let a = Array::new(&[0., 1., 3.], dim4![3, 2, 1, 1]);
         assert!(to_host(&a) != vec![0., 1., 3., 0., 1., 3.]);
     }
@@ -482,7 +482,7 @@ mod tests {
     }
 
     #[test]
-    fn test_forward_feed() {
+    fn forward_feed() {
         let num_individuals = 4;
         let num_markers = 3;
         let branch = make_test_branch();
@@ -533,7 +533,7 @@ mod tests {
     }
 
     #[test]
-    fn test_effect_size_dim() {
+    fn effect_size_dim() {
         let num_individuals = 4;
         let num_markers = 3;
         let branch = make_test_branch();
@@ -550,7 +550,7 @@ mod tests {
     }
 
     #[test]
-    fn test_log_density_joint() {
+    fn log_density_joint() {
         let num_individuals = 4;
         let num_markers = 3;
         let branch = make_test_branch_with_precision(2.0);
@@ -602,7 +602,7 @@ mod tests {
     }
 
     #[test]
-    fn test_log_density_gradient_joint() {
+    fn log_density_gradient_joint() {
         let num_individuals = 4;
         let num_markers = 3;
         let mut branch = make_test_branch_with_precision(2.0);
@@ -674,7 +674,7 @@ mod tests {
     }
 
     #[test]
-    fn test_log_density_gradient_by_cfg() {
+    fn log_density_gradient_by_cfg() {
         let num_individuals = 4;
         let num_markers = 3;
         let mut branch = make_test_branch_by_cfg();
@@ -687,7 +687,7 @@ mod tests {
     }
 
     #[test]
-    fn test_log_density_gradient() {
+    fn log_density_gradient() {
         let num_individuals = 4;
         let num_markers = 3;
         let mut branch = make_test_branch();
@@ -741,7 +741,7 @@ mod tests {
     }
 
     #[test]
-    fn test_num_log_density_gradient() {
+    fn num_log_density_gradient() {
         let num_individuals = 4;
         let num_markers = 3;
         let mut branch = make_test_branch();
@@ -803,7 +803,7 @@ mod tests {
     }
 
     #[test]
-    fn test_uniform_step_sizes() {
+    fn uniform_step_sizes() {
         let branch = make_test_branch();
         let mut cfg = MCMCCfg::default();
         cfg.hmc_step_size_factor = 1.0;
@@ -819,7 +819,7 @@ mod tests {
     }
 
     #[test]
-    fn test_net_movement() {
+    fn net_movement() {
         let branch = make_test_branch();
         let momenta = make_test_uniform_momenta(1.);
         let init_params = make_test_uniform_params(0.);

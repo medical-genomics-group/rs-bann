@@ -161,7 +161,7 @@ mod tests {
     use super::BlockNetCfg;
 
     #[test]
-    fn test_block_net_architecture_num_params_in_branch() {
+    fn block_net_architecture_num_params_in_branch() {
         let mut cfg = BlockNetCfg::<RidgeBaseBranch>::new().with_num_hidden_layers(1);
         cfg.add_branch(3, 3, 1);
         cfg.add_branch(3, 3, 2);

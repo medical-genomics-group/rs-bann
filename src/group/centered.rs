@@ -159,7 +159,7 @@ mod tests {
     use std::path::Path;
 
     #[test]
-    fn test_create_centered_grouping() {
+    fn create_centered_grouping() {
         let base_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
         let base_path = Path::new(&base_dir);
         let ld_path = base_path.join("resources/test/small.ld");
