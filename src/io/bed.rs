@@ -4,6 +4,7 @@ use crate::io::{
     indexed_read::IndexedReader,
 };
 use arrayfire::{dim4, Array};
+use log::warn;
 use std::io::{Read, Seek};
 use std::path::PathBuf;
 
@@ -41,10 +42,14 @@ impl BedSignature {
 }
 
 /// Variant Major (i.e. column major) bed file in memory.
-struct BedVM {
+///
+/// This struct does not handle NAs correctly. NAs should be imputed / removed beforehand.
+pub struct BedVM {
     signature: BedSignature,
     /// .bed data without signature
     data: Vec<u8>,
+    col_means: Vec<f32>,
+    col_stds: Vec<f32>,
     num_individuals: usize,
     num_markers: usize,
     num_bytes_per_col: usize,
@@ -56,7 +61,7 @@ impl BedVM {
     /// Reads .bed file from disc.
     /// Determines number of markers and individuals from .bim and .fam files with the same filestem as the .bed.
     /// Checks if .bed signature is valid.
-    fn from_file(stem: &PathBuf) -> Self {
+    pub fn from_file(stem: &PathBuf) -> Self {
         let mut bed_path = stem.clone();
         bed_path.set_extension("bed");
         let signature = BedSignature::from_bed_file(&bed_path).expect("Unexpected .bed signature");
@@ -88,17 +93,35 @@ impl BedVM {
             num_bytes_per_col += 1;
         }
 
-        Self {
+        let mut res = Self {
             signature,
             data,
+            col_means: vec![0.0; num_markers],
+            col_stds: vec![0.0; num_markers],
             num_individuals,
             num_markers,
             num_bytes_per_col,
             padding,
+        };
+
+        for col_ix in 0..num_markers {
+            let vals = &res.get_cols(&[col_ix])[0];
+            let mean: f32 = vals.iter().sum::<f32>() / num_individuals as f32;
+            let std: f32 = (vals.iter().map(|v| (v - mean) * (v - mean)).sum::<f32>()
+                / num_individuals as f32)
+                .sqrt();
+            res.col_means[col_ix] = mean;
+            res.col_stds[col_ix] = std;
+            if std == 0.0 {
+                warn!("No variation in marker {:?}; This might lead to division by zero if accessing standardized marker data", col_ix);
+            }
         }
+
+        res
     }
 
-    fn get_cols_af(&self, col_ixs: &[usize]) -> Vec<Array<f32>> {
+    /// Decompress and load columns onto device.
+    pub fn get_cols_af(&self, col_ixs: &[usize]) -> Vec<Array<f32>> {
         let mut res = Vec::new();
         for col_ix in col_ixs {
             let start_ix = col_ix * self.num_bytes_per_col;
@@ -118,7 +141,7 @@ impl BedVM {
         res
     }
 
-    fn get_cols(&self, col_ixs: &[usize]) -> Vec<Vec<f32>> {
+    pub fn get_cols(&self, col_ixs: &[usize]) -> Vec<Vec<f32>> {
         let mut res = Vec::new();
         for col_ix in col_ixs {
             let start_ix = col_ix * self.num_bytes_per_col;
@@ -135,9 +158,30 @@ impl BedVM {
         res
     }
 
+    pub fn get_cols_af_standardized(&self, col_ixs: &[usize]) -> Vec<Array<f32>> {
+        let mut res = Vec::new();
+        for col_ix in col_ixs {
+            let start_ix = col_ix * self.num_bytes_per_col;
+            let end_ix = start_ix + self.num_bytes_per_col;
+            let mut vals = Vec::with_capacity(self.num_bytes_per_col * 4);
+            let col_data = &self.data[start_ix..end_ix];
+            for b in col_data.iter() {
+                let lu_ix = 4 * (*b as usize);
+                vals.extend_from_slice(&BED_LOOKUP_GENOTYPE[lu_ix..lu_ix + 4]);
+            }
+            vals.truncate(self.num_individuals);
+            res.push(
+                (Array::new(&vals, dim4!(self.num_individuals.try_into().unwrap()))
+                    - self.col_means[*col_ix])
+                    / self.col_stds[*col_ix],
+            );
+        }
+        res
+    }
+
     /// Decompresses data to f32.
     /// Removes padding from columns.
-    fn data_f32(&self) -> Vec<f32> {
+    pub fn data_f32(&self) -> Vec<f32> {
         let mut res = Vec::with_capacity(self.num_individuals * self.num_markers);
         for (ix, byte) in self.data.iter().enumerate() {
             let lu_ix = 4 * (*byte as usize);
@@ -196,5 +240,22 @@ mod tests {
             ],
         ];
         assert_eq!(bed_vm.get_cols(&cols), exp);
+    }
+
+    #[test]
+    fn bed_vm_col_means() {
+        let bed_vm = make_test_bed_vm();
+        let exp = [0.35, 0.5, 0.05, 0.35, 0., 0.9, 0.45, 1., 0.25, 0.7, 0.65];
+        assert_eq!(bed_vm.col_means, exp);
+    }
+
+    #[test]
+    fn bed_vm_col_stds() {
+        let bed_vm = make_test_bed_vm();
+        let exp = [
+            0.5722761, 0.591608, 0.21794495, 0.47696957, 0.0, 0.70000005, 0.58949125, 0.5477226,
+            0.622495, 0.55677646, 0.5722762,
+        ];
+        assert_eq!(bed_vm.col_stds, exp);
     }
 }
