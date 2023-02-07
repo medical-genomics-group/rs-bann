@@ -315,6 +315,12 @@ pub struct CompressedGenotypes<T: MarkerGrouping> {
     groups: T,
 }
 
+impl<T: MarkerGrouping> CompressedGenotypes<T> {
+    pub fn new(bed: BedVM, groups: T) -> Self {
+        Self { bed, groups }
+    }
+}
+
 impl<T: MarkerGrouping> GroupedGenotypes for CompressedGenotypes<T> {
     fn num_groups(&self) -> usize {
         self.groups.num_groups()

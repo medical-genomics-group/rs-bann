@@ -87,14 +87,14 @@ impl LinearModel {
         &self.effects
     }
 
-    fn af_branch_effects(&self, branch_ix: usize) -> Array<f32> {
+    fn branch_effects_af(&self, branch_ix: usize) -> Array<f32> {
         Array::new(
             &self.effects[branch_ix],
             dim4!(self.num_markers_per_branch[branch_ix].try_into().unwrap()),
         )
     }
 
-    pub fn predict(&self, gen: &Genotypes) -> Vec<f32> {
+    pub fn predict<T: GroupedGenotypes>(&self, gen: &T) -> Vec<f32> {
         // I expect X to be column major
         let mut y_hat = Array::new(
             &vec![0.0; gen.num_individuals()],
@@ -102,8 +102,8 @@ impl LinearModel {
         );
         // add all branch predictions
         for branch_ix in 0..self.num_branches {
-            let af_x = gen.af_branch_data(branch_ix);
-            let af_beta = self.af_branch_effects(branch_ix);
+            let af_x = gen.x_group_af(branch_ix);
+            let af_beta = self.branch_effects_af(branch_ix);
             y_hat += matmul(&af_x, &af_beta, MatProp::NONE, MatProp::NONE);
         }
         to_host(&y_hat)

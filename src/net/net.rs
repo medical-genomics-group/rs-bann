@@ -325,7 +325,7 @@ impl<B: Branch> Net<B> {
         }
     }
 
-    pub fn predict(&self, gen: &Genotypes) -> Vec<f32> {
+    pub fn predict<T: GroupedGenotypes>(&self, gen: &T) -> Vec<f32> {
         // I expect X to be column major
         let mut y_hat = Array::new(
             &vec![0.0; gen.num_individuals()],
@@ -336,16 +336,12 @@ impl<B: Branch> Net<B> {
         // add all branch predictions
         for branch_ix in 0..self.num_branches {
             let cfg = &self.branch_cfgs[branch_ix];
-            let x = Array::new(
-                &gen.x()[branch_ix],
-                dim4!(gen.num_individuals() as u64, cfg.num_markers as u64),
-            );
-            y_hat += B::from_cfg(cfg).predict(&x);
+            y_hat += B::from_cfg(cfg).predict(&gen.x_group_af(branch_ix));
         }
         to_host(&y_hat)
     }
 
-    pub fn predict_f64(&self, gen: &Genotypes) -> Vec<f64> {
+    pub fn predict_f64<T: GroupedGenotypes>(&self, gen: &T) -> Vec<f64> {
         self.predict(gen).iter().map(|e| *e as f64).collect()
     }
 

@@ -92,7 +92,7 @@ impl BedVM {
     /// Reads .bed file from disc.
     /// Determines number of markers and individuals from .bim and .fam files with the same filestem as the .bed.
     /// Checks if .bed signature is valid.
-    pub fn from_file(stem: &PathBuf) -> Self {
+    pub fn from_file(stem: &Path) -> Self {
         let bfiles = PlinkBinaryFileset::new(stem);
         let signature =
             BedSignature::from_bed_file(&bfiles.bed()).expect("Unexpected .bed signature");

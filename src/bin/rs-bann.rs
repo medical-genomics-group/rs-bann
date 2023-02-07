@@ -8,6 +8,7 @@ use cli::cli::{
 use log::{debug, info, warn};
 use rand::thread_rng;
 use rand_distr::{Binomial, Distribution, Normal, Uniform};
+use rs_bann::data::genotypes::CompressedGenotypes;
 use rs_bann::data::{
     data::Data,
     genotypes::{Genotypes, GenotypesBuilder, GroupedGenotypes},
@@ -17,6 +18,7 @@ use rs_bann::data::{
 use rs_bann::group::{
     centered::CorrGraph, external::ExternalGrouping, gene::GeneGrouping, grouping::MarkerGrouping,
 };
+use rs_bann::io::bed::BedVM;
 use rs_bann::linear_model::LinearModelBuilder;
 use rs_bann::net::{
     architectures::BlockNetCfg,
@@ -241,19 +243,20 @@ fn simulate_y<B>(args: SimulateYArgs)
 where
     B: Branch,
 {
-    simple_logger::init_with_level(log::Level::Info).unwrap();
+    if args.debug {
+        simple_logger::init_with_level(log::Level::Debug).unwrap();
+    } else {
+        simple_logger::init_with_level(log::Level::Info).unwrap();
+    }
 
     if !(args.heritability >= 0. && args.heritability <= 1.) {
         panic!("Heritability must be within [0, 1].");
     }
 
-    let train_gen_path = Path::new(&args.indir).join("train.gen");
-    let test_gen_path = Path::new(&args.indir).join("train.gen");
-
     let mut path = Path::new(&args.outdir).join(format!(
         "{}_d{}_h{}_v{}_p{}",
         args.model_type,
-        args.branch_depth,
+        args.depth,
         args.heritability,
         args.init_param_variance,
         args.proportion_effective
@@ -262,7 +265,7 @@ where
     if let (Some(k), Some(s)) = (args.init_gamma_shape, args.init_gamma_scale) {
         path = Path::new(&args.outdir).join(format!(
             "{}_d{}_h{}_k{}_s{}_p{}",
-            args.model_type, args.branch_depth, args.heritability, k, s, args.proportion_effective
+            args.model_type, args.depth, args.heritability, k, s, args.proportion_effective
         ));
     }
 
@@ -276,8 +279,15 @@ where
     let model_path = path.join("model.bin");
 
     info!("Loading genotype data");
-    let gen_train = Genotypes::from_file(&train_gen_path).expect("Failed to load train genotypes");
-    let gen_test = Genotypes::from_file(&test_gen_path).expect("Failed to load test genotypes");
+    let gen_train = CompressedGenotypes::new(
+        BedVM::from_file(Path::new(&args.bfile_train)),
+        ExternalGrouping::from_file(Path::new(&args.groups)),
+    );
+
+    let gen_test = CompressedGenotypes::new(
+        BedVM::from_file(Path::new(&args.bfile_test)),
+        ExternalGrouping::from_file(Path::new(&args.groups)),
+    );
 
     // TODO: depth should be set such that the largest branch still has n > p.
     // Although, that is for models I want to train. For simulation it doesn't
@@ -286,7 +296,7 @@ where
     let mut net_cfg = if let (Some(k), Some(s)) = (args.init_gamma_shape, args.init_gamma_scale) {
         BlockNetCfg::<B>::new()
             .with_proportion_effective_markers(args.proportion_effective)
-            .with_num_hidden_layers(args.branch_depth)
+            .with_num_hidden_layers(args.depth)
             .with_init_gamma_params(k, s)
             .with_dense_precision_prior(k, s)
             .with_summary_precision_prior(k, s)
@@ -296,7 +306,7 @@ where
     } else {
         BlockNetCfg::<B>::new()
             .with_proportion_effective_markers(args.proportion_effective)
-            .with_num_hidden_layers(args.branch_depth)
+            .with_num_hidden_layers(args.depth)
             .with_init_param_variance(args.init_param_variance)
     };
 
@@ -366,15 +376,13 @@ where
     if args.json_data {
         phen_train.to_json(&path.join("phen_train.json"));
         phen_test.to_json(&path.join("phen_test.json"));
-        gen_train.to_json(&path.join("gen_train.json"));
-        gen_test.to_json(&path.join("gen_test.json"));
     }
 
     args.to_file(&args_path);
 }
 
 fn simulate_y_linear(args: SimulateYArgs) {
-    if args.debug_prints {
+    if args.debug {
         simple_logger::init_with_level(log::Level::Debug).unwrap();
     } else {
         simple_logger::init_with_level(log::Level::Info).unwrap();
@@ -384,13 +392,10 @@ fn simulate_y_linear(args: SimulateYArgs) {
         panic!("Heritability must be within [0, 1].");
     }
 
-    let train_gen_path = Path::new(&args.indir).join("train.gen");
-    let test_gen_path = Path::new(&args.indir).join("train.gen");
-
     let mut path = Path::new(&args.outdir).join(format!(
         "{}_d{}_h{}_v{}_p{}",
         args.model_type,
-        args.branch_depth,
+        args.depth,
         args.heritability,
         args.init_param_variance,
         args.proportion_effective
@@ -399,7 +404,7 @@ fn simulate_y_linear(args: SimulateYArgs) {
     if let (Some(k), Some(s)) = (args.init_gamma_shape, args.init_gamma_scale) {
         path = Path::new(&args.outdir).join(format!(
             "{}_d{}_h{}_k{}_s{}_p{}",
-            args.model_type, args.branch_depth, args.heritability, k, s, args.proportion_effective
+            args.model_type, args.depth, args.heritability, k, s, args.proportion_effective
         ));
     }
 
@@ -415,8 +420,15 @@ fn simulate_y_linear(args: SimulateYArgs) {
     let mut rng = thread_rng();
 
     info!("Loading genotype data");
-    let gen_train = Genotypes::from_file(&train_gen_path).expect("Failed to load train genotypes");
-    let gen_test = Genotypes::from_file(&test_gen_path).expect("Failed to load test genotypes");
+    let gen_train = CompressedGenotypes::new(
+        BedVM::from_file(Path::new(&args.bfile_train)),
+        ExternalGrouping::from_file(Path::new(&args.groups)),
+    );
+
+    let gen_test = CompressedGenotypes::new(
+        BedVM::from_file(Path::new(&args.bfile_test)),
+        ExternalGrouping::from_file(Path::new(&args.groups)),
+    );
 
     info!("Building model");
     let lm = LinearModelBuilder::new(gen_test.num_markers_per_group())
@@ -424,7 +436,7 @@ fn simulate_y_linear(args: SimulateYArgs) {
         .with_random_effects(args.heritability)
         .build();
 
-    if args.debug_prints {
+    if args.debug {
         debug!("sum of squared effects: {:?}", lm.sum_of_squares());
     }
 
@@ -465,11 +477,6 @@ fn simulate_y_linear(args: SimulateYArgs) {
     to_writer(&mut net_params_file, &lm).unwrap();
     net_params_file.write_all(b"\n").unwrap();
 
-    train_path.set_extension("gen");
-    gen_train.to_file(&train_path);
-    test_path.set_extension("gen");
-    gen_test.to_file(&test_path);
-
     PhenStats::new(
         (&y_test.iter().map(|e| *e as f64).collect::<Vec<f64>>()).mean() as f32,
         (&y_test.iter().map(|e| *e as f64).collect::<Vec<f64>>()).variance() as f32,
@@ -497,8 +504,6 @@ fn simulate_y_linear(args: SimulateYArgs) {
         Phenotypes::new(g_train).to_json(&path.join("genetic_values_train.json"));
         phen_train.to_json(&path.join("phen_train.json"));
         phen_test.to_json(&path.join("phen_test.json"));
-        gen_train.to_json(&path.join("gen_train.json"));
-        gen_test.to_json(&path.join("gen_test.json"));
     }
 
     args.to_file(&args_path);

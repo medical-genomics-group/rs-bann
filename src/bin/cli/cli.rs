@@ -84,20 +84,26 @@ pub(crate) struct GroupCenteredArgs {
 
 #[derive(Args, Debug, Serialize, Deserialize)]
 pub(crate) struct SimulateYArgs {
-    /// path to output dir. Dir with the simulated data will be created there.
-    #[clap(short, long, default_value = "./")]
-    pub outdir: String,
+    /// filepath + stem of train data .bed, .bim, .fam files (the input genotypes)
+    pub bfile_train: String,
 
-    /// path to directory containing prepared train.gen and test.gen
-    #[clap(short, long, default_value = "./")]
-    pub indir: String,
+    /// filepath + stem of test data .bed, .bim, .fam files (the input genotypes)
+    pub bfile_test: String,
+
+    /// path to grouping file
+    pub groups: String,
 
     /// prior structure of model
     #[clap(value_enum)]
     pub model_type: ModelType,
 
     /// number of hidden layers in branches
-    pub branch_depth: usize,
+    #[clap(short, long, default_value_t = 0)]
+    pub depth: usize,
+
+    /// path to output dir. Dir with the simulated data will be created there.
+    #[clap(short, long, default_value = "./")]
+    pub outdir: String,
 
     /// proportion of effective markers
     #[clap(short, long, default_value_t = 1.0)]
@@ -124,8 +130,8 @@ pub(crate) struct SimulateYArgs {
     pub json_data: bool,
 
     /// enable debug prints
-    #[clap(short, long)]
-    pub debug_prints: bool,
+    #[clap(long)]
+    pub debug: bool,
 }
 
 impl SimulateYArgs {
