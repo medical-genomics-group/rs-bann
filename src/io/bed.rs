@@ -6,9 +6,40 @@ use crate::io::{
 use arrayfire::{dim4, Array};
 use log::warn;
 use std::io::{Read, Seek};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 const BED_SIGNATURE_LENGTH: usize = 3;
+
+/// Paths of a set of .bed, .bim, .fam files
+pub struct PlinkBinaryFileset {
+    stem: PathBuf,
+}
+
+impl PlinkBinaryFileset {
+    pub fn new(path: &Path) -> Self {
+        Self {
+            stem: path.to_owned(),
+        }
+    }
+
+    pub fn bed(&self) -> PathBuf {
+        self.stem_with_extension("bed")
+    }
+
+    pub fn bim(&self) -> PathBuf {
+        self.stem_with_extension("bim")
+    }
+
+    pub fn fam(&self) -> PathBuf {
+        self.stem_with_extension("fam")
+    }
+
+    fn stem_with_extension(&self, ext: &str) -> PathBuf {
+        let mut path = self.stem.clone();
+        path.set_extension(ext);
+        path
+    }
+}
 
 enum BedSignature {
     SampleMajor,
@@ -62,14 +93,14 @@ impl BedVM {
     /// Determines number of markers and individuals from .bim and .fam files with the same filestem as the .bed.
     /// Checks if .bed signature is valid.
     pub fn from_file(stem: &PathBuf) -> Self {
-        let mut bed_path = stem.clone();
-        bed_path.set_extension("bed");
-        let signature = BedSignature::from_bed_file(&bed_path).expect("Unexpected .bed signature");
+        let bfiles = PlinkBinaryFileset::new(stem);
+        let signature =
+            BedSignature::from_bed_file(&bfiles.bed()).expect("Unexpected .bed signature");
         if let BedSignature::SampleMajor = signature {
             panic!("SampleMajor .bed formats are not supported at the moment. Try converting to VariantMajor format.")
         }
 
-        let mut bed_file = std::fs::File::open(&bed_path).expect("Failed to open .bed file");
+        let mut bed_file = std::fs::File::open(&bfiles.bed()).expect("Failed to open .bed file");
         bed_file
             .seek(std::io::SeekFrom::Start(
                 BED_SIGNATURE_LENGTH.try_into().unwrap(),
@@ -80,12 +111,8 @@ impl BedVM {
             .read_to_end(&mut data)
             .expect("Error while reading .bed file");
 
-        let mut bim_path = stem.clone();
-        bim_path.set_extension("bim");
-        let num_markers = IndexedReader::<BimEntry>::num_lines(&bim_path);
-        let mut fam_path = stem.clone();
-        fam_path.set_extension("fam");
-        let num_individuals = IndexedReader::<FamEntry>::num_lines(&fam_path);
+        let num_markers = IndexedReader::<BimEntry>::num_lines(&bfiles.bim());
+        let num_individuals = IndexedReader::<FamEntry>::num_lines(&bfiles.fam());
 
         let mut num_bytes_per_col = num_individuals / 4;
         let padding = num_individuals % 4;
