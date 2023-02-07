@@ -101,8 +101,8 @@ impl BedVM {
     fn get_cols_af(&self, col_ixs: &[usize]) -> Vec<Array<f32>> {
         let mut res = Vec::new();
         for col_ix in col_ixs {
-            let start_ix = col_ix * self.num_individuals;
-            let end_ix = start_ix + self.num_individuals;
+            let start_ix = col_ix * self.num_bytes_per_col;
+            let end_ix = start_ix + self.num_bytes_per_col;
             let mut vals = Vec::with_capacity(self.num_bytes_per_col * 4);
             let col_data = &self.data[start_ix..end_ix];
             for b in col_data.iter() {
@@ -121,8 +121,8 @@ impl BedVM {
     fn get_cols(&self, col_ixs: &[usize]) -> Vec<Vec<f32>> {
         let mut res = Vec::new();
         for col_ix in col_ixs {
-            let start_ix = col_ix * self.num_individuals;
-            let end_ix = start_ix + self.num_individuals;
+            let start_ix = col_ix * self.num_bytes_per_col;
+            let end_ix = start_ix + self.num_bytes_per_col;
             let mut vals = Vec::with_capacity(self.num_bytes_per_col * 4);
             let col_data = &self.data[start_ix..end_ix];
             for b in col_data.iter() {
@@ -181,6 +181,7 @@ mod tests {
         assert_eq!(bed_vm.data_f32(), col_major_mat);
     }
 
+    #[test]
     fn bed_vm_get_cols() {
         let bed_vm = make_test_bed_vm();
         let cols = vec![0, 5];
