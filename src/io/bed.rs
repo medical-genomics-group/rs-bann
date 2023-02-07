@@ -179,6 +179,38 @@ impl BedVM {
         res
     }
 
+    pub fn get_submatrix_af_standardized(&self, col_ixs: &[usize]) -> Array<f32> {
+        let mut all_vals: Vec<f32> = Vec::new();
+        let mut col_means: Vec<f32> = Vec::new();
+        let mut col_stds: Vec<f32> = Vec::new();
+        for col_ix in col_ixs {
+            let start_ix = col_ix * self.num_bytes_per_col;
+            let end_ix = start_ix + self.num_bytes_per_col;
+            let mut vals = Vec::with_capacity(self.num_bytes_per_col * 4);
+            let col_data = &self.data[start_ix..end_ix];
+            for b in col_data.iter() {
+                let lu_ix = 4 * (*b as usize);
+                vals.extend_from_slice(&BED_LOOKUP_GENOTYPE[lu_ix..lu_ix + 4]);
+            }
+            vals.truncate(self.num_individuals);
+            all_vals.append(&mut vals);
+            col_means.push(self.col_means[*col_ix]);
+            col_stds.push(self.col_stds[*col_ix]);
+        }
+        let tiling_dims = dim4!(self.num_individuals as u64);
+        let means = arrayfire::tile(
+            &Array::new(&col_means, dim4!(1, col_ixs.len() as u64)),
+            tiling_dims,
+        );
+        let stds = arrayfire::tile(
+            &Array::new(&col_stds, dim4!(1, col_ixs.len() as u64)),
+            tiling_dims,
+        );
+        let subm_dims = dim4!(self.num_individuals as u64, col_ixs.len() as u64);
+        let raw_arr = Array::new(&all_vals, subm_dims);
+        (raw_arr - means) / stds
+    }
+
     /// Decompresses data to f32.
     /// Removes padding from columns.
     pub fn data_f32(&self) -> Vec<f32> {
@@ -190,11 +222,21 @@ impl BedVM {
         }
         res
     }
+
+    pub fn num_individuals(&self) -> usize {
+        self.num_individuals
+    }
+
+    pub fn num_markers(&self) -> usize {
+        self.num_markers
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use std::path::Path;
+
+    use crate::af_helpers::to_host;
 
     use super::BedVM;
 
@@ -257,5 +299,20 @@ mod tests {
             0.622495, 0.55677646, 0.5722762,
         ];
         assert_eq!(bed_vm.col_stds, exp);
+    }
+
+    #[test]
+    fn bed_get_submatrix_af_standardized() {
+        let bed_vm = make_test_bed_vm();
+        let subm = bed_vm.get_submatrix_af_standardized(&[0, 5]);
+        let exp = [
+            -0.6115929, -0.6115929, 1.1358153, -0.6115929, 1.1358153, -0.6115929, -0.6115929,
+            1.1358153, -0.6115929, -0.6115929, 1.1358153, -0.6115929, -0.6115929, -0.6115929,
+            -0.6115929, -0.6115929, 1.1358153, -0.6115929, 2.8832235, -0.6115929, -1.2857141,
+            1.5714285, -1.2857141, 0.14285716, 0.14285716, 0.14285716, 1.5714285, -1.2857141,
+            0.14285716, 0.14285716, 0.14285716, 0.14285716, 1.5714285, -1.2857141, -1.2857141,
+            0.14285716, 1.5714285, 0.14285716, -1.2857141, 0.14285716,
+        ];
+        assert_eq!(to_host(&subm), exp);
     }
 }

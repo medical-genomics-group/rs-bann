@@ -9,7 +9,9 @@ use log::{debug, info, warn};
 use rand::thread_rng;
 use rand_distr::{Binomial, Distribution, Normal, Uniform};
 use rs_bann::data::{
-    data::Data, genotypes::Genotypes, genotypes::GenotypesBuilder, phen_stats::PhenStats,
+    data::Data,
+    genotypes::{Genotypes, GenotypesBuilder, GroupedGenotypes},
+    phen_stats::PhenStats,
     phenotypes::Phenotypes,
 };
 use rs_bann::group::{
@@ -299,7 +301,7 @@ where
     };
 
     // width is fixed to half the number of input nodes
-    for &size in gen_test.num_markers_per_branch() {
+    for &size in gen_test.num_markers_per_group() {
         if size == 1 {
             net_cfg.add_branch(1, 1, 1)
         }
@@ -417,7 +419,7 @@ fn simulate_y_linear(args: SimulateYArgs) {
     let gen_test = Genotypes::from_file(&test_gen_path).expect("Failed to load test genotypes");
 
     info!("Building model");
-    let lm = LinearModelBuilder::new(gen_test.num_markers_per_branch())
+    let lm = LinearModelBuilder::new(gen_test.num_markers_per_group())
         .with_proportion_effective_markers(args.proportion_effective)
         .with_random_effects(args.heritability)
         .build();
@@ -867,7 +869,7 @@ where
     }
 }
 
-fn load_data(indir: &str) -> (Data, Option<Data>) {
+fn load_data(indir: &str) -> (Data<Genotypes>, Option<Data<Genotypes>>) {
     let train_gen = Genotypes::from_file(&Path::new(indir).join("train.gen"))
         .expect("Failed to load train.gen training genotypes");
     let train_phen = Phenotypes::from_file(&Path::new(indir).join("train.phen"))
@@ -896,15 +898,7 @@ where
     }
 
     info!("Loading data");
-    let (mut train_data, mut test_data) = load_data(&args.indir);
-
-    if args.standardize {
-        info!("Standardizing data");
-        train_data.standardize_x();
-        if let Some(ref mut data) = test_data {
-            data.standardize_x();
-        }
-    }
+    let (train_data, test_data) = load_data(&args.indir);
 
     let mut outdir = format!(
         "{}_w{}_d{}_cl{}_il{}_{}_dpk{}_dps{}_spk{}_sps{}_opk{}_ops{}",
@@ -994,15 +988,7 @@ where
     }
 
     info!("Loading data");
-    let (mut train_data, mut test_data) = load_data(&args.indir);
-
-    if args.standardize {
-        info!("Standardizing data");
-        train_data.standardize_x();
-        if let Some(ref mut data) = test_data {
-            data.standardize_x();
-        }
-    }
+    let (train_data, test_data) = load_data(&args.indir);
 
     let model_path = Path::new(&args.model_file);
 

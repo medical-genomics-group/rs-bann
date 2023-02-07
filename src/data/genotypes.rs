@@ -1,5 +1,5 @@
-use crate::error::Error;
 use crate::group::grouping::MarkerGrouping;
+use crate::{error::Error, io::bed::BedVM};
 
 use arrayfire::{dim4, Array};
 use bed_reader::{Bed as ExternBed, ReadOptions};
@@ -15,11 +15,18 @@ use std::{
     path::Path,
 };
 
+pub trait GroupedGenotypes {
+    fn num_individuals(&self) -> usize;
+    fn num_markers_per_group(&self) -> &[usize];
+    fn num_groups(&self) -> usize;
+    fn x_group_af(&self, group_ix: usize) -> Array<f32>;
+}
+
 pub struct GenotypesBuilder {
     x: Option<Vec<Vec<f32>>>,
     num_individuals: Option<usize>,
-    num_markers_per_branch: Option<Vec<usize>>,
-    num_branches: Option<usize>,
+    num_markers_per_group: Option<Vec<usize>>,
+    num_groups: Option<usize>,
     means: Option<Vec<Vec<f32>>>,
     stds: Option<Vec<Vec<f32>>>,
     standardized: Option<bool>,
@@ -37,8 +44,8 @@ impl GenotypesBuilder {
         Self {
             x: None,
             num_individuals: None,
-            num_markers_per_branch: None,
-            num_branches: None,
+            num_markers_per_group: None,
+            num_groups: None,
             means: None,
             stds: None,
             standardized: None,
@@ -63,16 +70,16 @@ impl GenotypesBuilder {
 
     pub fn with_random_x(
         mut self,
-        num_markers_per_branch: Vec<usize>,
+        num_markers_per_group: Vec<usize>,
         num_individuals: usize,
         mafs: Option<Vec<f32>>,
     ) -> Self {
-        let num_branches = num_markers_per_branch.len();
+        let num_groups = num_markers_per_group.len();
         let mut x: Vec<Vec<f32>> = Vec::new();
         let mut x_means: Vec<Vec<f32>> = Vec::new();
         let mut x_stds: Vec<Vec<f32>> = Vec::new();
-        for branch_ix in 0..num_branches {
-            let nmpb = num_markers_per_branch[branch_ix];
+        for branch_ix in 0..num_groups {
+            let nmpb = num_markers_per_group[branch_ix];
             x.push(vec![0.0; nmpb * num_individuals]);
             x_means.push(vec![0.0; nmpb]);
             x_stds.push(vec![0.0; nmpb]);
@@ -80,10 +87,10 @@ impl GenotypesBuilder {
                 loop {
                     let maf = if let Some(v) = &mafs {
                         assert!(
-                            v[num_branches * branch_ix + marker_ix] != 0.0,
+                            v[num_groups * branch_ix + marker_ix] != 0.0,
                             "maf of 0 it not allowed in simulation"
                         );
-                        v[num_branches * branch_ix + marker_ix]
+                        v[num_groups * branch_ix + marker_ix]
                     } else {
                         Uniform::from(0.01..0.5).sample(&mut self.rng)
                     };
@@ -112,8 +119,8 @@ impl GenotypesBuilder {
         self.x = Some(x);
         self.stds = Some(x_stds);
         self.means = Some(x_means);
-        self.num_branches = Some(num_branches);
-        self.num_markers_per_branch = Some(num_markers_per_branch);
+        self.num_groups = Some(num_groups);
+        self.num_markers_per_group = Some(num_markers_per_group);
         self.num_individuals = Some(num_individuals);
         self
     }
@@ -122,12 +129,12 @@ impl GenotypesBuilder {
     pub fn with_x(
         mut self,
         x: Vec<Vec<f32>>,
-        num_markers_per_branch: Vec<usize>,
+        num_markers_per_group: Vec<usize>,
         num_individuals: usize,
     ) -> Self {
         self.x = Some(x);
-        self.num_branches = Some(num_markers_per_branch.len());
-        self.num_markers_per_branch = Some(num_markers_per_branch);
+        self.num_groups = Some(num_markers_per_group.len());
+        self.num_markers_per_group = Some(num_markers_per_group);
         self.num_individuals = Some(num_individuals);
         self
     }
@@ -145,9 +152,9 @@ impl GenotypesBuilder {
         let mut x = Vec::new();
         let mut x_means = Vec::new();
         let mut x_stds = Vec::new();
-        let mut num_markers_per_branch = Vec::new();
+        let mut num_markers_per_group = Vec::new();
         let mut num_individuals = 0;
-        let num_branches = grouping.num_groups();
+        let num_groups = grouping.num_groups();
         for gix in 0..grouping.num_groups() {
             // safe to unwrap, because loop doesn't exceed num_groups
             if grouping.group_size(gix).unwrap() < min_group_size {
@@ -160,7 +167,14 @@ impl GenotypesBuilder {
             let val = ReadOptions::builder()
                 .f32()
                 .f()
-                .sid_index(grouping.group(gix).unwrap())
+                .sid_index(
+                    grouping
+                        .group(gix)
+                        .unwrap()
+                        .iter()
+                        .map(|v| *v as isize)
+                        .collect::<Vec<isize>>(),
+                )
                 .read(&mut bed)
                 .unwrap();
             // TODO: make sure that t().iter() actually is column-major iteration.
@@ -168,14 +182,14 @@ impl GenotypesBuilder {
             x.push(val.t().iter().copied().collect::<Vec<f32>>());
             x_means.push(val.t().mean_axis(ndarray::Axis(0)).unwrap().to_vec());
             x_stds.push(val.t().std_axis(ndarray::Axis(0), 1f32).to_vec());
-            num_markers_per_branch.push(grouping.group_size(gix).unwrap());
+            num_markers_per_group.push(grouping.group_size(gix).unwrap());
         }
         self.x = Some(x);
         self.means = Some(x_means);
         self.stds = Some(x_stds);
-        self.num_markers_per_branch = Some(num_markers_per_branch);
+        self.num_markers_per_group = Some(num_markers_per_group);
         self.num_individuals = Some(num_individuals);
-        self.num_branches = Some(num_branches);
+        self.num_groups = Some(num_groups);
         self.standardized = Some(false);
         self
     }
@@ -189,9 +203,9 @@ impl GenotypesBuilder {
         }
         Ok(Genotypes {
             x: self.x.unwrap(),
-            num_markers_per_branch: self.num_markers_per_branch.unwrap(),
+            num_markers_per_group: self.num_markers_per_group.unwrap(),
             num_individuals: self.num_individuals.unwrap(),
-            num_branches: self.num_branches.unwrap(),
+            num_groups: self.num_groups.unwrap(),
             means: self.means,
             stds: self.stds,
             standardized: self.standardized.unwrap(),
@@ -203,11 +217,35 @@ impl GenotypesBuilder {
 pub struct Genotypes {
     x: Vec<Vec<f32>>,
     num_individuals: usize,
-    num_markers_per_branch: Vec<usize>,
-    num_branches: usize,
+    num_markers_per_group: Vec<usize>,
+    num_groups: usize,
     means: Option<Vec<Vec<f32>>>,
     stds: Option<Vec<Vec<f32>>>,
     standardized: bool,
+}
+
+impl GroupedGenotypes for Genotypes {
+    fn num_groups(&self) -> usize {
+        self.num_groups
+    }
+
+    fn num_individuals(&self) -> usize {
+        self.num_individuals
+    }
+
+    fn num_markers_per_group(&self) -> &[usize] {
+        &self.num_markers_per_group
+    }
+
+    fn x_group_af(&self, branch_ix: usize) -> Array<f32> {
+        Array::new(
+            &self.x[branch_ix],
+            dim4!(
+                self.num_individuals as u64,
+                self.num_markers_per_group[branch_ix] as u64
+            ),
+        )
+    }
 }
 
 impl Genotypes {
@@ -237,20 +275,12 @@ impl Genotypes {
         &self.means
     }
 
-    pub fn num_individuals(&self) -> usize {
-        self.num_individuals
-    }
-
-    pub fn num_markers_per_branch(&self) -> &Vec<usize> {
-        &self.num_markers_per_branch
-    }
-
     pub fn af_branch_data(&self, branch_ix: usize) -> Array<f32> {
         Array::new(
             &self.x[branch_ix],
             dim4!(
                 self.num_individuals as u64,
-                self.num_markers_per_branch[branch_ix] as u64
+                self.num_markers_per_group[branch_ix] as u64
             ),
         )
     }
@@ -260,8 +290,8 @@ impl Genotypes {
             if self.means.is_some() && self.stds.is_some() {
                 let means = self.means.as_ref().unwrap();
                 let stds = self.stds.as_ref().unwrap();
-                for branch_ix in 0..self.num_branches {
-                    for marker_ix in 0..self.num_markers_per_branch[branch_ix] {
+                for branch_ix in 0..self.num_groups {
+                    for marker_ix in 0..self.num_markers_per_group[branch_ix] {
                         (0..self.num_individuals).for_each(|i| {
                             let val = self.x[branch_ix][self.num_individuals * marker_ix + i];
                             self.x[branch_ix][self.num_individuals * marker_ix + i] =
@@ -277,14 +307,30 @@ impl Genotypes {
             self.standardized = true;
         }
     }
+}
 
-    pub fn x_branch_af(&self, branch_ix: usize) -> Array<f32> {
-        Array::new(
-            &self.x[branch_ix],
-            dim4!(
-                self.num_individuals as u64,
-                self.num_markers_per_branch[branch_ix] as u64
-            ),
+/// Genotype information stored in the Plink .bed format.
+pub struct CompressedGenotypes<T: MarkerGrouping> {
+    bed: BedVM,
+    groups: T,
+}
+
+impl<T: MarkerGrouping> GroupedGenotypes for CompressedGenotypes<T> {
+    fn num_groups(&self) -> usize {
+        self.groups.num_groups()
+    }
+
+    fn num_individuals(&self) -> usize {
+        self.bed.num_individuals()
+    }
+
+    fn num_markers_per_group(&self) -> &[usize] {
+        self.groups.group_sizes()
+    }
+
+    fn x_group_af(&self, group_ix: usize) -> Array<f32> {
+        self.bed.get_submatrix_af_standardized(
+            self.groups.group(group_ix).expect("Invalid group index"),
         )
     }
 }

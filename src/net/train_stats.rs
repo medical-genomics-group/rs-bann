@@ -1,18 +1,19 @@
 use super::branch::branch::HMCStepResult;
 use crate::data::data::Data;
+use crate::data::genotypes::GroupedGenotypes;
 use serde::{Deserialize, Serialize};
 use serde_json::to_writer;
 use std::fs::File;
 use std::io::BufWriter;
 use std::path::Path;
 
-pub struct ReportCfg<'data> {
+pub struct ReportCfg<'data, T: GroupedGenotypes> {
     pub(crate) interval: usize,
-    pub(crate) test_data: Option<&'data Data>,
+    pub(crate) test_data: Option<&'data Data<T>>,
 }
 
-impl<'data> ReportCfg<'data> {
-    pub fn new(interval: usize, test_data: Option<&'data Data>) -> Self {
+impl<'data, T: GroupedGenotypes> ReportCfg<'data, T> {
+    pub fn new(interval: usize, test_data: Option<&'data Data<T>>) -> Self {
         Self {
             interval,
             test_data,

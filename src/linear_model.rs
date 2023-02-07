@@ -1,5 +1,5 @@
 use crate::af_helpers::to_host;
-use crate::data::genotypes::Genotypes;
+use crate::data::genotypes::{Genotypes, GroupedGenotypes};
 use arrayfire::{dim4, matmul, Array, MatProp};
 use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
@@ -15,10 +15,10 @@ pub struct LinearModelBuilder {
 }
 
 impl LinearModelBuilder {
-    pub fn new(num_markers_per_branch: &Vec<usize>) -> Self {
+    pub fn new(num_markers_per_branch: &[usize]) -> Self {
         Self {
             num_branches: num_markers_per_branch.len(),
-            num_markers_per_branch: num_markers_per_branch.clone(),
+            num_markers_per_branch: num_markers_per_branch.to_vec(),
             proportion_effective_markers: 1.0,
             effects: None,
             rng: ChaCha20Rng::from_entropy(),

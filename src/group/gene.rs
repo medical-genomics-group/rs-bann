@@ -19,8 +19,9 @@ enum RelativePosition {
 /// Grouping of SNPs.
 /// All SNPs within a gene or within a given distance to it are part of the same group.
 pub struct GeneGrouping {
-    pub groups: HashMap<usize, Vec<isize>>,
+    pub groups: HashMap<usize, Vec<usize>>,
     pub meta: HashMap<usize, GFFEntry>,
+    pub group_sizes: Vec<usize>,
 }
 
 impl MarkerGrouping for GeneGrouping {
@@ -28,8 +29,12 @@ impl MarkerGrouping for GeneGrouping {
         self.groups.len()
     }
 
-    fn group(&self, ix: usize) -> Option<&Vec<isize>> {
+    fn group(&self, ix: usize) -> Option<&Vec<usize>> {
         self.groups.get(&ix)
+    }
+
+    fn group_sizes(&self) -> &[usize] {
+        &self.group_sizes
     }
 }
 
@@ -47,7 +52,7 @@ impl GeneGrouping {
         };
         let mut bim_reader = IndexedReader::new(bim_file);
         let mut bim_buffer: VecDeque<BimEntry> = VecDeque::new();
-        let mut groups: HashMap<usize, Vec<isize>> = HashMap::new();
+        let mut groups: HashMap<usize, Vec<usize>> = HashMap::new();
         let mut meta: HashMap<usize, GFFEntry> = HashMap::new();
         let mut group_id = 0;
 
@@ -103,7 +108,14 @@ impl GeneGrouping {
             }
         }
 
-        Self { groups, meta }
+        let mut group_sizes: Vec<usize> = vec![0; groups.len()];
+        groups.iter().for_each(|(k, v)| group_sizes[*k] = v.len());
+
+        Self {
+            groups,
+            meta,
+            group_sizes,
+        }
     }
 
     fn relative_position(snp: &BimEntry, feature: &GFFEntry, margin: usize) -> RelativePosition {

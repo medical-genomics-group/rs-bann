@@ -1,70 +1,45 @@
-use crate::data::genotypes::Genotypes;
 use crate::data::phenotypes::Phenotypes;
 use arrayfire::Array;
-use bincode::{deserialize_from, serialize_into};
-use serde::{Deserialize, Serialize};
-use serde_json::to_writer;
-use std::{
-    fs::File,
-    io::{BufReader, BufWriter},
-    path::Path,
-};
 
-#[derive(Serialize, Deserialize, PartialEq, Debug)]
-pub struct Data {
-    pub gen: Genotypes,
+use super::genotypes::GroupedGenotypes;
+
+#[derive(PartialEq, Debug)]
+pub struct Data<T>
+where
+    T: GroupedGenotypes,
+{
+    pub gen: T,
     pub phen: Phenotypes,
 }
 
-impl Data {
-    pub fn new(gen: Genotypes, phen: Phenotypes) -> Self {
+impl<T: GroupedGenotypes> Data<T> {
+    pub fn new(gen: T, phen: Phenotypes) -> Self {
         Self { gen, phen }
     }
 
-    pub fn from_file(path: &Path) -> Self {
-        let mut r = BufReader::new(File::open(path).unwrap());
-        deserialize_from(&mut r).unwrap()
-    }
-
-    pub fn to_file(&self, path: &Path) {
-        let mut f = BufWriter::new(File::create(path).unwrap());
-        serialize_into(&mut f, self).unwrap();
-    }
-
-    pub fn to_json(&self, path: &Path) {
-        to_writer(File::create(path).unwrap(), self).unwrap();
-    }
-
     pub fn num_branches(&self) -> usize {
-        self.gen.x().len()
+        self.gen.num_groups()
     }
 
-    pub fn num_markers_per_branch(&self) -> &Vec<usize> {
-        &self.gen.num_markers_per_branch()
+    pub fn num_markers_per_branch(&self) -> &[usize] {
+        self.gen.num_markers_per_group()
     }
 
     pub fn num_markers_in_branch(&self, ix: usize) -> usize {
-        self.gen.num_markers_per_branch()[ix]
+        self.gen.num_markers_per_group()[ix]
     }
 
     pub fn num_individuals(&self) -> usize {
         self.gen.num_individuals()
     }
 
-    pub fn standardize_x(&mut self) {
-        self.gen.standardize();
-    }
-
-    pub fn x(&self) -> &Vec<Vec<f32>> {
-        &self.gen.x()
-    }
-
     pub fn y(&self) -> &[f32] {
         self.phen.y()
     }
 
+    /// Returns marker data belonging to a given branch / ix in a af array.
     pub fn x_branch_af(&self, branch_ix: usize) -> Array<f32> {
-        self.gen.x_branch_af(branch_ix)
+        self.gen.x_group_af(branch_ix)
     }
 
     pub fn y_af(&self) -> Array<f32> {
