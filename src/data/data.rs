@@ -65,7 +65,7 @@ mod tests {
         let base_path = Path::new(&base_dir);
         let bed_path = base_path.join("resources/test/small.bed");
 
-        let mut bed = Bed::new(&bed_path).unwrap();
+        let mut bed = Bed::new(bed_path).unwrap();
         // c or f doesn't affect the shape of the output array, it is always the same 20 x 11 matrix.
         // it probably sets the memory layout for efficient access. I guess I would want f(), as I
         // want to extract columns from the final array.

@@ -17,7 +17,7 @@ pub struct IndexedReader<T: IndexedEntry> {
 impl<T: IndexedEntry> IndexedReader<T> {
     pub fn num_lines(fam_path: &Path) -> usize {
         let mut reader = IndexedReader::<T>::new(fam_path);
-        while let Some(_) = reader.next_entry() {}
+        while reader.next_entry().is_some() {}
         reader.num_read
     }
 

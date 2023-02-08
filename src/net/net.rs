@@ -7,8 +7,8 @@ use super::{
     train_stats::{ReportCfg, TrainingStats},
 };
 use crate::af_helpers::to_host;
+use crate::data::data::Data;
 use crate::data::genotypes::GroupedGenotypes;
-use crate::data::{data::Data, genotypes::Genotypes};
 use arrayfire::{dim4, sum_all, Array};
 use bincode::{deserialize_from, serialize_into};
 use log::{debug, info};
@@ -241,15 +241,15 @@ impl<B: Branch> Net<B> {
                 );
                 // TODO: save last prediction contribution for each branch to reduce compute
                 // ... this might need substantial amount of memory though, probably not worth it.
-                let prev_pred = branch.predict(&x);
+                let prev_pred = branch.predict(x);
                 residual = &residual + &prev_pred;
                 // update error precision
                 let step_res = if mcmc_cfg.gradient_descent {
-                    branch.gradient_descent(&x, &residual, mcmc_cfg)
+                    branch.gradient_descent(x, &residual, mcmc_cfg)
                 } else if mcmc_cfg.joint_hmc {
-                    branch.hmc_step_joint(&x, &residual, mcmc_cfg, &self.hyperparams)
+                    branch.hmc_step_joint(x, &residual, mcmc_cfg, &self.hyperparams)
                 } else {
-                    branch.hmc_step(&x, &residual, mcmc_cfg)
+                    branch.hmc_step(x, &residual, mcmc_cfg)
                 };
                 self.note_hmc_step_result(&step_res);
                 match step_res {
@@ -265,7 +265,7 @@ impl<B: Branch> Net<B> {
 
                 // compute effect sizes and save
                 if chain_ix >= mcmc_cfg.burn_in {
-                    self.save_effect_sizes(&branch.effect_sizes(&x, y_train), chain_ix, mcmc_cfg)
+                    self.save_effect_sizes(&branch.effect_sizes(x, y_train), chain_ix, mcmc_cfg)
                 }
             }
 

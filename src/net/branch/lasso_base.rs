@@ -193,7 +193,7 @@ impl Branch for LassoBaseBranch {
                 * precisions.layer_weight_precisions(i);
             let nvar = params.layer_weights(i).elements();
             log_density += (shape + nvar as f32 - 1.0f32)
-                * arrayfire::log(&precisions.layer_weight_precisions(i));
+                * arrayfire::log(precisions.layer_weight_precisions(i));
         }
 
         log_density

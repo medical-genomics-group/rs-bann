@@ -80,10 +80,7 @@ impl GeneGrouping {
                     if let RelativePosition::Overlap =
                         GeneGrouping::relative_position(bim_entry, &gff_entry, margin)
                     {
-                        groups
-                            .entry(group_id)
-                            .or_default()
-                            .push(bim_entry.ix.try_into().unwrap());
+                        groups.entry(group_id).or_default().push(bim_entry.ix);
                     }
                 }
                 // check next bim entries
@@ -96,10 +93,7 @@ impl GeneGrouping {
                         }
                         RelativePosition::GFFIsAhead => {}
                         RelativePosition::Overlap => {
-                            groups
-                                .entry(group_id)
-                                .or_default()
-                                .push(bim_entry.ix.try_into().unwrap());
+                            groups.entry(group_id).or_default().push(bim_entry.ix);
                             // needed for next feature
                             bim_buffer.push_back(bim_entry);
                         }

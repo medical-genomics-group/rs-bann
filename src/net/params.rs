@@ -178,16 +178,8 @@ impl BranchPrecisions {
 
     pub fn to_host(&self) -> BranchPrecisionsHost {
         BranchPrecisionsHost {
-            weight_precisions: self
-                .weight_precisions
-                .iter()
-                .map(|arr| to_host(arr))
-                .collect(),
-            bias_precisions: self
-                .bias_precisions
-                .iter()
-                .map(|arr| to_host(arr))
-                .collect(),
+            weight_precisions: self.weight_precisions.iter().map(to_host).collect(),
+            bias_precisions: self.bias_precisions.iter().map(to_host).collect(),
             error_precision: to_host(&self.error_precision),
         }
     }

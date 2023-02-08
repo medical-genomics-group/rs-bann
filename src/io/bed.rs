@@ -100,7 +100,7 @@ impl BedVM {
             panic!("SampleMajor .bed formats are not supported at the moment. Try converting to VariantMajor format.")
         }
 
-        let mut bed_file = std::fs::File::open(&bfiles.bed()).expect("Failed to open .bed file");
+        let mut bed_file = std::fs::File::open(bfiles.bed()).expect("Failed to open .bed file");
         bed_file
             .seek(std::io::SeekFrom::Start(
                 BED_SIGNATURE_LENGTH.try_into().unwrap(),

@@ -1,5 +1,5 @@
 use crate::af_helpers::to_host;
-use crate::data::genotypes::{Genotypes, GroupedGenotypes};
+use crate::data::genotypes::GroupedGenotypes;
 use arrayfire::{dim4, matmul, Array, MatProp};
 use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
@@ -130,7 +130,7 @@ mod tests {
     const N: usize = 10;
 
     fn make_test_lm(prop_eff: f32, h2: f32) -> LinearModel {
-        LinearModelBuilder::new(&vec![NMPB; NB])
+        LinearModelBuilder::new(&[NMPB; NB])
             .with_seed(SEED)
             .with_proportion_effective_markers(prop_eff)
             .with_random_effects(h2)

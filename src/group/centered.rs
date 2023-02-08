@@ -110,10 +110,10 @@ impl CorrGraph {
                 } else {
                     // find closest (by id) group
                     for d in 1..100 {
-                        if let Some(n) = grouping.groups.get_mut(&((cix - d) as usize)) {
+                        if let Some(n) = grouping.groups.get_mut(&(cix - d)) {
                             n.push(cix);
                             break;
-                        } else if let Some(n) = grouping.groups.get_mut(&((cix + d) as usize)) {
+                        } else if let Some(n) = grouping.groups.get_mut(&(cix + d)) {
                             n.push(cix);
                             break;
                         }

@@ -36,7 +36,7 @@ impl ExternalGrouping {
                 .for_each(|(ix, e)| line_fields[ix] = e);
 
             res.groups
-                .entry(line_fields[1] as usize)
+                .entry(line_fields[1])
                 .or_default()
                 .push(line_fields[0]);
 

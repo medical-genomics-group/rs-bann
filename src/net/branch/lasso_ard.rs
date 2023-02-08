@@ -190,7 +190,7 @@ impl Branch for LassoArdBranch {
             let (shape, scale) = hyperparams.layer_prior_hyperparams(i, self.num_layers());
             log_density -= arrayfire::dot(
                 &(l1_norm_rows(params.layer_weights(i)) + 1.0 / scale),
-                &precisions.layer_weight_precisions(i),
+                precisions.layer_weight_precisions(i),
                 MatProp::NONE,
                 MatProp::NONE,
             );
@@ -198,7 +198,7 @@ impl Branch for LassoArdBranch {
             let ncols = params.layer_weights(i).dims().get()[1];
             log_density += arrayfire::dot(
                 &((shape + ncols as f32 - 1.0f32) * arrayfire::constant(1.0f32, dim4!(nrows))),
-                &arrayfire::log(&precisions.layer_weight_precisions(i)),
+                &arrayfire::log(precisions.layer_weight_precisions(i)),
                 MatProp::NONE,
                 MatProp::NONE,
             );
@@ -218,7 +218,7 @@ impl Branch for LassoArdBranch {
         for i in 0..self.num_layers() {
             log_density -= arrayfire::dot(
                 &(l1_norm_rows(params.layer_weights(i))),
-                &precisions.layer_weight_precisions(i),
+                precisions.layer_weight_precisions(i),
                 MatProp::NONE,
                 MatProp::NONE,
             );
@@ -767,8 +767,10 @@ mod tests {
     #[test]
     fn uniform_step_sizes() {
         let branch = make_test_branch();
-        let mut cfg = MCMCCfg::default();
-        cfg.hmc_step_size_factor = 1.0;
+        let cfg = MCMCCfg {
+            hmc_step_size_factor: 1.0,
+            ..Default::default()
+        };
         let step_sizes = branch.uniform_step_sizes(&cfg);
         for i in 0..(branch.num_layers - 1) {
             let mut obs = to_host(&step_sizes.wrt_weights[i]);
