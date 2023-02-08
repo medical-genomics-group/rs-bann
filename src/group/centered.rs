@@ -91,16 +91,17 @@ impl CorrGraph {
     pub fn centered_grouping(&self, min_group_size: usize) -> CenteredGrouping {
         let mut grouping = CenteredGrouping::new();
 
-        let mut degrees: Vec<(usize, usize)> = self.g.iter().map(|(k, v)| (*k, v.len())).collect();
+        let mut nodes_and_degrees: Vec<(usize, usize)> =
+            self.g.iter().map(|(k, v)| (*k, v.len())).collect();
         // descending order by degree
-        degrees.sort_by_key(|e| (Reverse(e.1), e.0));
+        nodes_and_degrees.sort_by_key(|e| (Reverse(e.1), e.0));
 
         let mut no_centers = HashSet::<usize>::new();
         let mut gix = 0;
-        for (cix, _) in degrees {
+        for (cix, _) in nodes_and_degrees {
             if !no_centers.contains(&cix) {
                 let neighbors = self.g.get(&cix).unwrap();
-                if !neighbors.is_empty() {
+                if !neighbors.is_empty() && neighbors.len() > min_group_size {
                     let mut group = neighbors.iter().copied().collect::<Vec<usize>>();
                     group.push(cix);
                     // group.sort();
@@ -122,9 +123,6 @@ impl CorrGraph {
             }
         }
 
-        if min_group_size > 1 {
-            grouping.groups.retain(|_, v| v.len() >= min_group_size);
-        }
         let mut group_sizes: Vec<usize> = vec![0; grouping.groups.len()];
         grouping
             .groups

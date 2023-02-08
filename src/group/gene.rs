@@ -99,16 +99,17 @@ impl GeneGrouping {
                         }
                     }
                 }
-                // only increment group_id if any snps were added
-                if groups.contains_key(&group_id) {
-                    meta.insert(group_id, gff_entry);
-                    group_id += 1;
+                if let Some(group) = groups.get(&group_id) {
+                    // check if group has minimum size
+                    if group.len() < min_group_size {
+                        groups.remove(&group_id);
+                    } else {
+                        // only increment group_id if enough snps were added
+                        meta.insert(group_id, gff_entry);
+                        group_id += 1;
+                    }
                 }
             }
-        }
-
-        if min_group_size > 1 {
-            groups.retain(|_, v| v.len() >= min_group_size);
         }
 
         let mut group_sizes: Vec<usize> = vec![0; groups.len()];
