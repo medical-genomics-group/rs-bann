@@ -92,10 +92,10 @@ pub(crate) struct GroupCenteredArgs {
 
 #[derive(Args, Debug, Serialize, Deserialize)]
 pub(crate) struct SimulateYArgs {
-    /// filepath + stem of train data .bed, .bim, .fam files (the input genotypes)
+    /// dir + filestem of train data .bed, .bim, .fam files (the input genotypes)
     pub bfile_train: String,
 
-    /// filepath + stem of test data .bed, .bim, .fam files (the input genotypes)
+    /// dir + filestem of test data .bed, .bim, .fam files (the input genotypes)
     pub bfile_test: String,
 
     /// path to grouping file
@@ -306,7 +306,23 @@ pub(crate) struct TrainNewArgs {
     #[clap(value_enum)]
     pub model_type: ModelType,
 
-    /// input directory with train.bin and test.bin files
+    #[clap(long)]
+    /// dir + filestem of train data .bed, .bim, .fam files (the input genotypes)
+    pub bfile_train: String,
+
+    #[clap(long)]
+    /// filepath of training data phenotypes
+    pub p_train: String,
+
+    #[clap(long)]
+    /// dir + filestem of test data .bed, .bim, .fam files (the input genotypes)
+    pub bfile_test: String,
+
+    #[clap(long)]
+    /// filepath of test data phenotypes
+    pub p_test: String,
+
+    /// input directory with train.bin and test.bin files. Only used when no bfiles + grouping + phenotypes are specified.
     #[clap(short, long, default_value = "./")]
     pub indir: String,
 
@@ -319,12 +335,30 @@ pub(crate) struct TrainNewArgs {
     /// full model chain length
     pub chain_length: usize,
 
+    /// hmc integration length
+    pub integration_length: usize,
+
+    /// sets the width of all hidden layers to the input size of the branch
+    /// times this value
+    #[clap(long, default_value_t = 0.5)]
+    pub relative_hidden_layer_width: f32,
+
+    /// fixes the width of all hidden layers, if set. Takes priority over `relative_hidden_layer_width`
+    #[clap(long)]
+    pub fixed_hidden_layer_width: Option<usize>,
+
+    /// sets the width of all summary layers to the hidden layer size of the branch
+    /// times this value.
+    #[clap(long, default_value_t = 1.0)]
+    pub relative_summary_layer_width: f32,
+
+    /// fixes the width of all summary layers, if set. Takes priority over `relative_summary_layer_width`
+    #[clap(long)]
+    pub fixed_summary_layer_width: Option<usize>,
+
     /// hmc max hamiltonian error
     #[clap(default_value_t = 10., long)]
     pub max_hamiltonian_error: f32,
-
-    /// hmc integration length
-    pub integration_length: usize,
 
     /// hmc step size, acts as a modifying factor on random step sizes if enabled
     #[clap(default_value_t = 0.1, long)]

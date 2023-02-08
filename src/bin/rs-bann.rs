@@ -21,7 +21,7 @@ use rs_bann::group::{
 use rs_bann::io::bed::BedVM;
 use rs_bann::linear_model::LinearModelBuilder;
 use rs_bann::net::{
-    architectures::BlockNetCfg,
+    architectures::{BlockNetCfg, HiddenLayerWidthRule, SummaryLayerWidthRule},
     branch::{
         branch::Branch, lasso_ard::LassoArdBranch, lasso_base::LassoBaseBranch,
         ridge_ard::RidgeArdBranch, ridge_base::RidgeBaseBranch, std_normal_branch::StdNormalBranch,
@@ -303,19 +303,20 @@ where
             // this is Gamma(1, 1) because at the moment the output variance
             // is hardcoded to 1. TODO: this should be configurable.
             .with_output_precision_prior(1., 1.)
+            .with_hidden_layer_width_rule(HiddenLayerWidthRule::FractionOfInput(0.5))
+            .with_summary_layer_width_rule(SummaryLayerWidthRule::LikeHiddenLayerWidth)
     } else {
         BlockNetCfg::<B>::new()
             .with_proportion_effective_markers(args.proportion_effective)
             .with_num_hidden_layers(args.depth)
             .with_init_param_variance(args.init_param_variance)
+            .with_hidden_layer_width_rule(HiddenLayerWidthRule::FractionOfInput(0.5))
+            .with_summary_layer_width_rule(SummaryLayerWidthRule::LikeHiddenLayerWidth)
     };
 
     // width is fixed to half the number of input nodes
     for &size in gen_test.num_markers_per_group() {
-        if size == 1 {
-            net_cfg.add_branch(1, 1, 1)
-        }
-        net_cfg.add_branch(size, size / 2, size / 2);
+        net_cfg.add_branch(size);
     }
     let net = net_cfg.build_net();
 
@@ -719,6 +720,12 @@ where
 
     loop {
         info!("Building model");
+        let slwr = if let Some(width) = args.summary_layer_width {
+            SummaryLayerWidthRule::Fixed(width)
+        } else {
+            SummaryLayerWidthRule::LikeHiddenLayerWidth
+        };
+
         let mut net_cfg = if let (Some(k), Some(s)) = (args.init_gamma_shape, args.init_gamma_scale)
         {
             BlockNetCfg::<B>::new()
@@ -728,18 +735,18 @@ where
                 .with_dense_precision_prior(k, s)
                 .with_summary_precision_prior(k, s)
                 .with_output_precision_prior(1., 1.)
+                .with_hidden_layer_width_rule(HiddenLayerWidthRule::Fixed(args.hidden_layer_width))
+                .with_summary_layer_width_rule(slwr)
         } else {
             BlockNetCfg::<B>::new()
                 .with_num_hidden_layers(args.branch_depth)
                 .with_proportion_effective_markers(args.proportion_effective)
                 .with_init_param_variance(args.init_param_variance)
+                .with_hidden_layer_width_rule(HiddenLayerWidthRule::Fixed(args.hidden_layer_width))
+                .with_summary_layer_width_rule(slwr)
         };
         for _ in 0..args.num_branches {
-            net_cfg.add_branch(
-                args.num_markers_per_branch,
-                args.hidden_layer_width,
-                args.summary_layer_width.unwrap_or(args.hidden_layer_width),
-            );
+            net_cfg.add_branch(args.num_markers_per_branch);
         }
         let net = net_cfg.build_net();
 
@@ -925,6 +932,22 @@ where
         outdir.push_str("_joint");
     }
 
+    let hlwr = if let Some(width) = args.fixed_hidden_layer_width {
+        outdir.push_str(&format!("_fhlw{}", width));
+        HiddenLayerWidthRule::Fixed(width)
+    } else {
+        outdir.push_str(&format!("_rhlw{}", args.relative_hidden_layer_width));
+        HiddenLayerWidthRule::FractionOfInput(args.relative_hidden_layer_width)
+    };
+
+    let slwr = if let Some(width) = args.fixed_summary_layer_width {
+        outdir.push_str(&format!("_fslw{}", width));
+        SummaryLayerWidthRule::Fixed(width)
+    } else {
+        outdir.push_str(&format!("_rslw{}", args.relative_summary_layer_width));
+        SummaryLayerWidthRule::FractionOfHiddenLayerWidth(args.relative_summary_layer_width)
+    };
+
     let mcmc_cfg = MCMCCfg {
         hmc_step_size_factor: args.step_size,
         hmc_max_hamiltonian_error: args.max_hamiltonian_error,
@@ -952,14 +975,12 @@ where
         .with_num_hidden_layers(args.branch_depth)
         .with_dense_precision_prior(args.dpk, args.dps)
         .with_summary_precision_prior(args.spk, args.sps)
-        .with_output_precision_prior(args.opk, args.ops);
+        .with_output_precision_prior(args.opk, args.ops)
+        .with_hidden_layer_width_rule(hlwr)
+        .with_summary_layer_width_rule(slwr);
 
     for bix in 0..train_data.num_branches() {
-        net_cfg.add_branch(
-            train_data.num_markers_in_branch(bix),
-            args.hidden_layer_width,
-            args.summary_layer_width.unwrap_or(args.hidden_layer_width),
-        );
+        net_cfg.add_branch(train_data.num_markers_in_branch(bix));
     }
     let mut net = net_cfg.build_net();
     if let Some(p) = args.error_precision {
