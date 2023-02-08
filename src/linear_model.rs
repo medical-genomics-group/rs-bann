@@ -45,7 +45,7 @@ impl LinearModelBuilder {
         // (by the variance of a linear combination theorem).
         // we draw our non zero effects from a Normal(0, h / m_incl) where m_incl is the number of effective (non zero) effects.
         // A large enough sample from that dist should have variance h / m_incl, and sum of squares m_incl * h / m_incl = h.
-        let m = self.num_markers_per_branch.iter().sum::<usize>() * self.num_branches;
+        let m = self.num_markers_per_branch.iter().sum::<usize>();
         let inclusion_dist = Bernoulli::new(self.proportion_effective_markers as f64).unwrap();
         let included: Vec<bool> = (0..m)
             .map(|_| inclusion_dist.sample(&mut self.rng))
