@@ -1,6 +1,7 @@
 use crate::af_helpers::to_host;
 use crate::data::genotypes::GroupedGenotypes;
 use arrayfire::{dim4, matmul, Array, MatProp};
+use log::debug;
 use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
 use rand_distr::{Bernoulli, Distribution, Normal};
@@ -39,13 +40,20 @@ impl LinearModelBuilder {
     }
 
     pub fn with_random_effects(&mut self, heritability: f32) -> &mut Self {
+        // we want the the genetic variance to be equal to the heritability h.
+        // the genetic variance is given by the sum of squares of the coefficients, assuming independent and standardized marker data.
+        // (by the variance of a linear combination theorem).
+        // we draw our non zero effects from a Normal(0, h / m_incl) where m_incl is the number of effective (non zero) effects.
+        // A large enough sample from that dist should have variance h / m_incl, and sum of squares m_incl * h / m_incl = h.
         let m = self.num_markers_per_branch.iter().sum::<usize>() * self.num_branches;
         let inclusion_dist = Bernoulli::new(self.proportion_effective_markers as f64).unwrap();
         let included: Vec<bool> = (0..m)
             .map(|_| inclusion_dist.sample(&mut self.rng))
             .collect();
         let m_incl = included.iter().filter(|b| **b).count();
+        debug!("m_incl: {:?}", m_incl);
         let beta_std = (heritability / m_incl as f32).sqrt();
+        debug!("beta_std: {:?}", beta_std);
         let beta_dist = Normal::new(0.0, beta_std).unwrap();
 
         let mut effects = Vec::new();
