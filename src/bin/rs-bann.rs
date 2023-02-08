@@ -881,7 +881,45 @@ where
     }
 }
 
-fn load_data(indir: &str) -> (Data<Genotypes>, Option<Data<Genotypes>>) {
+fn load_ungrouped_data(
+    args: &TrainNewArgs,
+) -> (
+    Data<CompressedGenotypes<ExternalGrouping>>,
+    Option<Data<CompressedGenotypes<ExternalGrouping>>>,
+) {
+    let gen_train = CompressedGenotypes::new(
+        BedVM::from_file(Path::new(&args.bfile_train.as_ref().unwrap())),
+        ExternalGrouping::from_file(Path::new(&args.groups.as_ref().unwrap())),
+    );
+
+    let train_phen = Phenotypes::from_file(Path::new(&args.p_train.as_ref().unwrap()))
+        .expect("Failed to load train.phen training phenotypes");
+
+    let train_data = Data::new(gen_train, train_phen);
+
+    let gen_test = args.bfile_test.as_ref().map(|bfile| {
+        CompressedGenotypes::new(
+            BedVM::from_file(Path::new(&bfile)),
+            ExternalGrouping::from_file(Path::new(&args.groups.as_ref().unwrap())),
+        )
+    });
+
+    let test_phen = args
+        .p_test
+        .as_ref()
+        .map(|pfile| Phenotypes::from_file(Path::new(&pfile)));
+
+    let test_data = if let (Some(tg), Some(tp)) = (gen_test, test_phen) {
+        // just checked that they are Some
+        Some(Data::new(tg, tp.unwrap()))
+    } else {
+        info!("No complete test data provided, proceeding without");
+        None
+    };
+    (train_data, test_data)
+}
+
+fn load_grouped_data<T: MarkerGrouping>(indir: &str) -> (Data<Genotypes>, Option<Data<Genotypes>>) {
     let train_gen = Genotypes::from_file(&Path::new(indir).join("train.gen"))
         .expect("Failed to load train.gen training genotypes");
     let train_phen = Phenotypes::from_file(&Path::new(indir).join("train.phen"))
@@ -893,7 +931,7 @@ fn load_data(indir: &str) -> (Data<Genotypes>, Option<Data<Genotypes>>) {
         // just checked that they are Ok()
         Some(Data::new(tg, tp))
     } else {
-        info!("No complete test data provided, proceeding without");
+        info!("No complete test data provided in bed format, proceeding without");
         None
     };
     (train_data, test_data)
@@ -910,7 +948,14 @@ where
     }
 
     info!("Loading data");
-    let (train_data, test_data) = load_data(&args.indir);
+    let (train_data, test_data) =
+        if args.bfile_train.is_some() && args.p_train.is_some() && args.groups.is_some() {
+            info!("Bed, phen and group paths provided for train data, attempting to load as bed.");
+            load_ungrouped_data(&args)
+        } else {
+            info!("Attempting to load pre-grouped data from input directory");
+            load_grouped_data(&args.indir)
+        };
 
     let mut outdir = format!(
         "{}_w{}_d{}_cl{}_il{}_{}_dpk{}_dps{}_spk{}_sps{}_opk{}_ops{}",
@@ -1014,7 +1059,7 @@ where
     }
 
     info!("Loading data");
-    let (train_data, test_data) = load_data(&args.indir);
+    let (train_data, test_data) = load_grouped_data(&args.indir);
 
     let model_path = Path::new(&args.model_file);
 

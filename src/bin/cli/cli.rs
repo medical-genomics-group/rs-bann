@@ -306,21 +306,25 @@ pub(crate) struct TrainNewArgs {
     #[clap(value_enum)]
     pub model_type: ModelType,
 
-    #[clap(long)]
     /// dir + filestem of train data .bed, .bim, .fam files (the input genotypes)
-    pub bfile_train: String,
-
     #[clap(long)]
+    pub bfile_train: Option<String>,
+
     /// filepath of training data phenotypes
-    pub p_train: String,
-
     #[clap(long)]
+    pub p_train: Option<String>,
+
     /// dir + filestem of test data .bed, .bim, .fam files (the input genotypes)
-    pub bfile_test: String,
-
     #[clap(long)]
+    pub bfile_test: Option<String>,
+
     /// filepath of test data phenotypes
-    pub p_test: String,
+    #[clap(long)]
+    pub p_test: Option<String>,
+
+    /// path to grouping file
+    #[clap(long)]
+    pub groups: Option<String>,
 
     /// input directory with train.bin and test.bin files. Only used when no bfiles + grouping + phenotypes are specified.
     #[clap(short, long, default_value = "./")]
