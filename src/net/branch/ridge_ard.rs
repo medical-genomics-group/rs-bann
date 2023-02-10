@@ -185,11 +185,11 @@ impl Branch for RidgeArdBranch {
         let mut log_density: Array<f32> = af_scalar(0.0);
 
         // weight terms
-        for i in 0..self.num_layers() {
+        for i in 0..self.output_layer_index() {
             let (shape, scale) = hyperparams.layer_prior_hyperparams(i, self.num_layers());
             log_density -= arrayfire::dot(
                 &(sum_of_squares_rows(params.layer_weights(i)) / 2.0f32 + 1.0f32 / scale),
-                &precisions.layer_weight_precisions(i),
+                precisions.layer_weight_precisions(i),
                 MatProp::NONE,
                 MatProp::NONE,
             );
@@ -198,11 +198,21 @@ impl Branch for RidgeArdBranch {
             log_density += arrayfire::dot(
                 &((shape + (ncols as f32 - 2.0f32) / 2.0)
                     * arrayfire::constant(1.0f32, dim4!(nrows))),
-                &arrayfire::log(&precisions.layer_weight_precisions(i)),
+                &arrayfire::log(precisions.layer_weight_precisions(i)),
                 MatProp::NONE,
                 MatProp::NONE,
             );
         }
+
+        let i = self.output_layer_index();
+        let (shape, scale) = hyperparams.layer_prior_hyperparams(i, self.num_layers());
+        log_density -= (0.5f32 * sum_of_squares(params.layer_weights(i)) + 1.0 / scale)
+            * precisions.layer_weight_precisions(i);
+
+        let ncols = params.layer_weights(i).dims().get()[1];
+
+        log_density += (shape + (ncols as f32 - 2.0f32) / 2.0)
+            * &arrayfire::log(precisions.layer_weight_precisions(i));
 
         log_density
     }
@@ -215,14 +225,19 @@ impl Branch for RidgeArdBranch {
         let mut log_density: Array<f32> = af_scalar(0.0);
 
         // weight terms
-        for i in 0..self.num_layers() {
+        for i in 0..self.output_layer_index() {
             log_density -= arrayfire::dot(
                 &(0.5f32 * &sum_of_squares_rows(params.layer_weights(i))),
-                &precisions.layer_weight_precisions(i),
+                precisions.layer_weight_precisions(i),
                 MatProp::NONE,
                 MatProp::NONE,
             );
         }
+
+        let i = self.output_layer_index();
+        log_density -= 0.5f32
+            * sum_of_squares(params.layer_weights(i))
+            * precisions.layer_weight_precisions(i);
 
         log_density
     }

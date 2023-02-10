@@ -13,10 +13,13 @@ use super::{
     step_sizes::StepSizes,
     trajectory::Trajectory,
 };
-use crate::af_helpers::{add_at_ix, af_scalar, scalar_to_host, subtract_at_ix, sum_of_squares};
 use crate::net::params::NetworkPrecisionHyperparameters;
 use crate::net::{
     gibbs_steps::ridge_multi_param_precision_posterior, params::BranchPrecisionsHost,
+};
+use crate::{
+    af_helpers::{add_at_ix, af_scalar, scalar_to_host, subtract_at_ix, sum_of_squares},
+    net::params::BranchHyperparameters,
 };
 use arrayfire::{diag_extract, dim4, dot, matmul, randu, sum, tanh, Array, MatProp};
 use log::{debug, warn};
@@ -883,6 +886,26 @@ pub trait Branch {
         self.log_density(self.params(), self.precisions(), self.rss(x, y)) - momentum.log_density()
     }
 
+    // this is -H = (-U(q)) + (-K(p))
+    fn neg_hamiltonian_joint<T>(
+        &self,
+        momentum: &T,
+        x: &Array<f32>,
+        y: &Array<f32>,
+        hyperparams: &NetworkPrecisionHyperparameters,
+    ) -> f32
+    where
+        T: Momentum,
+    {
+        self.log_density_joint(
+            self.params(),
+            self.precisions(),
+            self.rss(x, y),
+            hyperparams,
+            y.elements(),
+        ) - momentum.log_density()
+    }
+
     fn rss(&self, x: &Array<f32>, y: &Array<f32>) -> f32 {
         let r = self.forward_feed(x).last().unwrap() - y;
         arrayfire::sum_all(&(&r * &r)).0
@@ -998,7 +1021,8 @@ pub trait Branch {
         let init_precisions = self.precisions().clone();
         let step_sizes = self.random_step_sizes(mcmc_cfg);
         let mut momentum = self.sample_joint_momentum();
-        let init_neg_hamiltonian = self.neg_hamiltonian(&momentum, x_train, y_train);
+        let init_neg_hamiltonian =
+            self.neg_hamiltonian_joint(&momentum, x_train, y_train, hyperparams);
         let mut ldg = self.log_density_gradient_joint(x_train, y_train, hyperparams);
 
         if mcmc_cfg.trajectories {
@@ -1015,7 +1039,8 @@ pub trait Branch {
 
             // diagnostics and logging
 
-            let curr_neg_hamiltonian = self.neg_hamiltonian(&momentum, x_train, y_train);
+            let curr_neg_hamiltonian =
+                self.neg_hamiltonian_joint(&momentum, x_train, y_train, hyperparams);
 
             if mcmc_cfg.trajectories {
                 traj.add_params(self.params().param_vec());
