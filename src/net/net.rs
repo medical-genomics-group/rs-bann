@@ -187,7 +187,7 @@ impl<B: Branch> Net<B> {
         );
 
         // initial loss
-        self.record_mse(train_data, report_cfg.as_ref().unwrap().test_data);
+        self.record_mse(&residual, report_cfg.as_ref().unwrap().test_data);
 
         // report
         if verbose {
@@ -267,6 +267,8 @@ impl<B: Branch> Net<B> {
                 if chain_ix >= mcmc_cfg.burn_in {
                     self.save_effect_sizes(&branch.effect_sizes(x, y_train), chain_ix, mcmc_cfg)
                 }
+
+                self.report_training_state_debug(chain_ix, &residual);
             }
 
             self.sample_output_layer_weight_precision(&mut rng);
@@ -275,7 +277,7 @@ impl<B: Branch> Net<B> {
             // this can be easily done without predicting again,
             // just by saving the last predictions of each branch
             // and combining them.
-            self.record_mse(train_data, report_cfg.as_ref().unwrap().test_data);
+            self.record_mse(&residual, report_cfg.as_ref().unwrap().test_data);
 
             // update error precision
             self.error_precision = ridge_multi_param_precision_posterior(
@@ -371,10 +373,12 @@ impl<B: Branch> Net<B> {
 
     fn record_mse<T: GroupedGenotypes>(
         &mut self,
-        train_data: &Data<T>,
+        residual: &Array<f32>,
         test_data: Option<&Data<T>>,
     ) {
-        self.training_stats.add_mse_train(self.mse(train_data));
+        self.training_stats.add_mse_train(
+            crate::af_helpers::sum_of_squares(residual) / residual.elements() as f32,
+        );
         if let Some(tst) = test_data {
             self.training_stats.add_mse_test(self.mse(tst));
         }
@@ -424,6 +428,16 @@ impl<B: Branch> Net<B> {
             res[branch_ix] = B::from_cfg(cfg).r2(&data.x_branch_af(branch_ix), &y);
         }
         res
+    }
+
+    fn report_training_state_debug(&self, iteration: usize, residual: &Array<f32>) {
+        debug!(
+                "iteration: {:} \t | acc: {:.2} \t | early_rej: {:.2} \t | end_rej: {:.2} \t | mse(trn): {:.4}",
+                iteration,
+                self.training_stats.acceptance_rate(),
+                self.training_stats.early_rejection_rate(),
+                self.training_stats.end_rejection_rate(),
+                crate::af_helpers::sum_of_squares(residual) / residual.elements() as f32);
     }
 
     fn report_training_state(&self, iteration: usize) {
