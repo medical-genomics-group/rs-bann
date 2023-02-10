@@ -943,7 +943,7 @@ pub trait Branch {
         let r = &y_pred - y_train;
         let rss = arrayfire::sum_all(&(&r * &r)).0;
         let log_density = self.log_density(self.params(), self.precisions(), rss);
-        debug!("branch log density after step: {:.4}", log_density);
+        // debug!("branch log density after step: {:.4}", log_density);
         let state_data = HMCStepResultData {
             y_pred,
             log_density,
@@ -1116,18 +1116,18 @@ pub trait Branch {
         };
 
         let mut momentum = self.sample_momentum();
-        debug!(
-            "branch log density before step: {:.4}",
-            self.log_density(self.params(), self.precisions(), self.rss(x_train, y_train))
-        );
+        // debug!(
+        //     "branch log density before step: {:.4}",
+        //     self.log_density(self.params(), self.precisions(), self.rss(x_train, y_train))
+        // );
         let init_neg_hamiltonian = self.neg_hamiltonian(&momentum, x_train, y_train);
 
         if mcmc_cfg.trajectories {
             traj.add_hamiltonian(init_neg_hamiltonian);
         }
 
-        debug!("Starting hmc step");
-        debug!("initial hamiltonian: {:?}", init_neg_hamiltonian);
+        // debug!("Starting hmc step");
+        // debug!("initial hamiltonian: {:?}", init_neg_hamiltonian);
         let mut ldg = if mcmc_cfg.num_grad {
             self.numerical_log_density_gradient(x_train, y_train)
         } else {
