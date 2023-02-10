@@ -3,7 +3,7 @@ mod cli;
 use clap::Parser;
 use cli::cli::{
     BranchR2Args, Cli, GroupByGenesArgs, GroupCenteredArgs, GroupMarkerDataArgs, PredictArgs,
-    SimulateXYArgs, SimulateYArgs, SubCmd, TrainArgs, TrainNewArgs,
+    SimulateXYArgs, SimulateYArgs, SubCmd, TrainArgs, TrainNewArgs, TrainNewBedArgs,
 };
 use log::{debug, info, warn};
 use rand::thread_rng;
@@ -64,6 +64,16 @@ fn main() {
             ModelType::RidgeBase => train_new::<RidgeBaseBranch>(args),
             ModelType::RidgeARD => train_new::<RidgeArdBranch>(args),
             ModelType::StdNormal => train_new::<StdNormalBranch>(args),
+            ModelType::Linear => {
+                unimplemented!("Training linear models is currently not supported.")
+            }
+        },
+        SubCmd::TrainNewBed(args) => match args.model_type {
+            ModelType::LassoBase => train_new_bed::<LassoBaseBranch>(args),
+            ModelType::LassoARD => train_new_bed::<LassoArdBranch>(args),
+            ModelType::RidgeBase => train_new_bed::<RidgeBaseBranch>(args),
+            ModelType::RidgeARD => train_new_bed::<RidgeArdBranch>(args),
+            ModelType::StdNormal => train_new_bed::<StdNormalBranch>(args),
             ModelType::Linear => {
                 unimplemented!("Training linear models is currently not supported.")
             }
@@ -882,17 +892,17 @@ where
 }
 
 fn load_ungrouped_data(
-    args: &TrainNewArgs,
+    args: &TrainNewBedArgs,
 ) -> (
     Data<CompressedGenotypes<ExternalGrouping>>,
     Option<Data<CompressedGenotypes<ExternalGrouping>>>,
 ) {
     let gen_train = CompressedGenotypes::new(
-        BedVM::from_file(Path::new(&args.bfile_train.as_ref().unwrap())),
-        ExternalGrouping::from_file(Path::new(&args.groups.as_ref().unwrap())),
+        BedVM::from_file(Path::new(&args.bfile_train)),
+        ExternalGrouping::from_file(Path::new(&args.groups)),
     );
 
-    let train_phen = Phenotypes::from_file(Path::new(&args.p_train.as_ref().unwrap()))
+    let train_phen = Phenotypes::from_file(Path::new(&args.p_train))
         .expect("Failed to load train.phen training phenotypes");
 
     let train_data = Data::new(gen_train, train_phen);
@@ -900,7 +910,7 @@ fn load_ungrouped_data(
     let gen_test = args.bfile_test.as_ref().map(|bfile| {
         CompressedGenotypes::new(
             BedVM::from_file(Path::new(&bfile)),
-            ExternalGrouping::from_file(Path::new(&args.groups.as_ref().unwrap())),
+            ExternalGrouping::from_file(Path::new(&args.groups)),
         )
     });
 
@@ -919,7 +929,7 @@ fn load_ungrouped_data(
     (train_data, test_data)
 }
 
-fn load_grouped_data<T: MarkerGrouping>(indir: &str) -> (Data<Genotypes>, Option<Data<Genotypes>>) {
+fn load_grouped_data(indir: &str) -> (Data<Genotypes>, Option<Data<Genotypes>>) {
     let train_gen = Genotypes::from_file(&Path::new(indir).join("train.gen"))
         .expect("Failed to load train.gen training genotypes");
     let train_phen = Phenotypes::from_file(&Path::new(indir).join("train.phen"))
@@ -947,15 +957,112 @@ where
         simple_logger::init_with_level(log::Level::Info).unwrap();
     }
 
-    info!("Loading data");
-    let (train_data, test_data) =
-        if args.bfile_train.is_some() && args.p_train.is_some() && args.groups.is_some() {
-            info!("Bed, phen and group paths provided for train data, attempting to load as bed.");
-            load_ungrouped_data(&args)
-        } else {
-            info!("Attempting to load pre-grouped data from input directory");
-            load_grouped_data(&args.indir)
-        };
+    info!("Loading pre-grouped data from input directory");
+    let (train_data, test_data) = load_grouped_data(&args.indir);
+
+    let mut outdir = format!(
+        "{}_w{}_d{}_cl{}_il{}_{}_dpk{}_dps{}_spk{}_sps{}_opk{}_ops{}",
+        args.model_type,
+        args.hidden_layer_width,
+        args.branch_depth,
+        args.chain_length,
+        args.integration_length,
+        args.step_size_mode,
+        args.dpk,
+        args.dps,
+        args.spk,
+        args.sps,
+        args.opk,
+        args.ops,
+    );
+
+    if args.joint_hmc {
+        outdir.push_str("_joint");
+    }
+
+    let hlwr = if let Some(width) = args.fixed_hidden_layer_width {
+        outdir.push_str(&format!("_fhlw{}", width));
+        HiddenLayerWidthRule::Fixed(width)
+    } else {
+        outdir.push_str(&format!("_rhlw{}", args.relative_hidden_layer_width));
+        HiddenLayerWidthRule::FractionOfInput(args.relative_hidden_layer_width)
+    };
+
+    let slwr = if let Some(width) = args.fixed_summary_layer_width {
+        outdir.push_str(&format!("_fslw{}", width));
+        SummaryLayerWidthRule::Fixed(width)
+    } else {
+        outdir.push_str(&format!("_rslw{}", args.relative_summary_layer_width));
+        SummaryLayerWidthRule::FractionOfHiddenLayerWidth(args.relative_summary_layer_width)
+    };
+
+    let mcmc_cfg = MCMCCfg {
+        hmc_step_size_factor: args.step_size,
+        hmc_max_hamiltonian_error: args.max_hamiltonian_error,
+        hmc_integration_length: args.integration_length,
+        hmc_step_size_mode: args.step_size_mode.clone(),
+        chain_length: args.chain_length,
+        burn_in: args.burn_in,
+        outpath: outdir,
+        trace: args.trace,
+        trajectories: args.trajectories,
+        num_grad_traj: args.num_grad_traj,
+        num_grad: args.num_grad,
+        gradient_descent: args.gradient_descent,
+        joint_hmc: args.joint_hmc,
+    };
+    mcmc_cfg.create_out();
+
+    args.to_file(&mcmc_cfg.args_path());
+
+    let report_cfg = ReportCfg::new(args.report_interval, test_data.as_ref());
+
+    info!("Building net");
+
+    let mut net_cfg = BlockNetCfg::<B>::new()
+        .with_num_hidden_layers(args.branch_depth)
+        .with_dense_precision_prior(args.dpk, args.dps)
+        .with_summary_precision_prior(args.spk, args.sps)
+        .with_output_precision_prior(args.opk, args.ops)
+        .with_hidden_layer_width_rule(hlwr)
+        .with_summary_layer_width_rule(slwr);
+
+    for bix in 0..train_data.num_branches() {
+        net_cfg.add_branch(train_data.num_markers_in_branch(bix));
+    }
+    let mut net = net_cfg.build_net();
+    if let Some(p) = args.error_precision {
+        net.set_error_precision(p);
+    }
+
+    for bix in 0..net.num_branches() {
+        if net.num_branch_params(bix) > train_data.num_individuals() {
+            warn!(
+                "Num params > num individuals in branch {} (with {} params, {} individuals)",
+                bix,
+                net.num_branch_params(bix),
+                train_data.num_individuals()
+            );
+        }
+    }
+    net.write_hyperparams(&mcmc_cfg);
+
+    info!("Training net");
+    net.train(&train_data, &mcmc_cfg, true, Some(report_cfg));
+}
+
+fn train_new_bed<B>(args: TrainNewBedArgs)
+where
+    B: Branch,
+{
+    if args.debug_prints {
+        simple_logger::init_with_level(log::Level::Debug).unwrap();
+    } else {
+        simple_logger::init_with_level(log::Level::Info).unwrap();
+    }
+
+    info!("Loading data.");
+    let (train_data, test_data) = load_ungrouped_data(&args);
 
     let mut outdir = format!(
         "{}_w{}_d{}_cl{}_il{}_{}_dpk{}_dps{}_spk{}_sps{}_opk{}_ops{}",
