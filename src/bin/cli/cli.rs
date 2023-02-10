@@ -312,9 +312,6 @@ pub(crate) struct TrainNewArgs {
     #[clap(short, long, default_value = "./")]
     pub indir: String,
 
-    /// width of hidden layers
-    pub hidden_layer_width: usize,
-
     /// number of hidden layers in branches
     pub branch_depth: usize,
 
@@ -469,9 +466,6 @@ pub(crate) struct TrainNewBedArgs {
 
     /// path to grouping file
     pub groups: String,
-
-    /// width of hidden layers
-    pub hidden_layer_width: usize,
 
     /// number of hidden layers in branches
     pub branch_depth: usize,

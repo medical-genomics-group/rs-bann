@@ -961,9 +961,8 @@ where
     let (train_data, test_data) = load_grouped_data(&args.indir);
 
     let mut outdir = format!(
-        "{}_w{}_d{}_cl{}_il{}_{}_dpk{}_dps{}_spk{}_sps{}_opk{}_ops{}",
+        "{}_d{}_cl{}_il{}_{}_dpk{}_dps{}_spk{}_sps{}_opk{}_ops{}",
         args.model_type,
-        args.hidden_layer_width,
         args.branch_depth,
         args.chain_length,
         args.integration_length,
@@ -1065,9 +1064,8 @@ where
     let (train_data, test_data) = load_ungrouped_data(&args);
 
     let mut outdir = format!(
-        "{}_w{}_d{}_cl{}_il{}_{}_dpk{}_dps{}_spk{}_sps{}_opk{}_ops{}",
+        "{}_d{}_cl{}_il{}_{}_dpk{}_dps{}_spk{}_sps{}_opk{}_ops{}",
         args.model_type,
-        args.hidden_layer_width,
         args.branch_depth,
         args.chain_length,
         args.integration_length,
