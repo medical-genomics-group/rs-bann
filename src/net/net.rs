@@ -260,6 +260,7 @@ impl<B: Branch> Net<B> {
                     // not accepted, just remove previous prediction
                     _ => residual -= prev_pred,
                 }
+
                 branch.sample_prior_precisions(&self.hyperparams);
                 self.sample_output_layer_weight_precision(&mut rng);
 
@@ -282,10 +283,6 @@ impl<B: Branch> Net<B> {
                 self.report_training_state_debug(chain_ix, &residual);
             }
 
-            // TODO:
-            // this can be easily done without predicting again,
-            // just by saving the last predictions of each branch
-            // and combining them.
             self.record_mse(&residual, report_cfg.as_ref().unwrap().test_data);
 
             // save current model if done with burn in
