@@ -27,8 +27,10 @@ pub(crate) enum SubCmd {
     SimulateY(SimulateYArgs),
     /// Simulate marker and phenotype data under a network model.
     SimulateXY(SimulateXYArgs),
-    /// Train new model.
+    /// Train new model on pregrouped data in .bin format
     TrainNew(TrainNewArgs),
+    /// Train new model on data in .bed format
+    TrainNewBed(TrainNewBedArgs),
     /// Train prespecified model.
     Train(TrainArgs),
     /// Use trained model to predict phenotypes.
@@ -51,7 +53,7 @@ pub(crate) struct GroupMarkerDataArgs {
     #[clap(short, long, default_value = "./")]
     pub outdir: String,
 
-    /// minimal group size for data to be considered put in the model
+    /// minimum group size for data to be considered put in the model
     #[clap(long, default_value_t = 1)]
     pub min_group_size: usize,
 }
@@ -67,6 +69,10 @@ pub(crate) struct GroupByGenesArgs {
     /// Distance defining the window from start and end of each gene in which SNPs will be grouped
     pub margin: usize,
 
+    /// minimum group size
+    #[clap(long, default_value_t = 1)]
+    pub min_group_size: usize,
+
     /// path to output directory
     #[clap(short, long, default_value = "./")]
     pub outdir: String,
@@ -77,6 +83,10 @@ pub(crate) struct GroupCenteredArgs {
     /// path to input (just the file stem without .bim and .ld suffixes)
     pub inpath: String,
 
+    /// minimum group size
+    #[clap(long, default_value_t = 1)]
+    pub min_group_size: usize,
+
     /// path to output directory
     #[clap(short, long, default_value = "./")]
     pub outdir: String,
@@ -84,20 +94,26 @@ pub(crate) struct GroupCenteredArgs {
 
 #[derive(Args, Debug, Serialize, Deserialize)]
 pub(crate) struct SimulateYArgs {
-    /// path to output dir. Dir with the simulated data will be created there.
-    #[clap(short, long, default_value = "./")]
-    pub outdir: String,
+    /// dir + filestem of train data .bed, .bim, .fam files (the input genotypes)
+    pub bfile_train: String,
 
-    /// path to directory containing prepared train.gen and test.gen
-    #[clap(short, long, default_value = "./")]
-    pub indir: String,
+    /// dir + filestem of test data .bed, .bim, .fam files (the input genotypes)
+    pub bfile_test: String,
+
+    /// path to grouping file
+    pub groups: String,
 
     /// prior structure of model
     #[clap(value_enum)]
     pub model_type: ModelType,
 
     /// number of hidden layers in branches
-    pub branch_depth: usize,
+    #[clap(short, long, default_value_t = 0)]
+    pub depth: usize,
+
+    /// path to output dir. Dir with the simulated data will be created there.
+    #[clap(short, long, default_value = "./")]
+    pub outdir: String,
 
     /// proportion of effective markers
     #[clap(short, long, default_value_t = 1.0)]
@@ -124,8 +140,8 @@ pub(crate) struct SimulateYArgs {
     pub json_data: bool,
 
     /// enable debug prints
-    #[clap(short, long)]
-    pub debug_prints: bool,
+    #[clap(long)]
+    pub debug: bool,
 }
 
 impl SimulateYArgs {
@@ -292,12 +308,9 @@ pub(crate) struct TrainNewArgs {
     #[clap(value_enum)]
     pub model_type: ModelType,
 
-    /// input directory with train.bin and test.bin files
+    /// input directory with train.bin and test.bin files.
     #[clap(short, long, default_value = "./")]
     pub indir: String,
-
-    /// width of hidden layers
-    pub hidden_layer_width: usize,
 
     /// number of hidden layers in branches
     pub branch_depth: usize,
@@ -305,12 +318,30 @@ pub(crate) struct TrainNewArgs {
     /// full model chain length
     pub chain_length: usize,
 
+    /// hmc integration length
+    pub integration_length: usize,
+
+    /// sets the width of all hidden layers to the input size of the branch
+    /// times this value
+    #[clap(long, default_value_t = 0.5)]
+    pub relative_hidden_layer_width: f32,
+
+    /// fixes the width of all hidden layers, if set. Takes priority over `relative_hidden_layer_width`
+    #[clap(long)]
+    pub fixed_hidden_layer_width: Option<usize>,
+
+    /// sets the width of all summary layers to the hidden layer size of the branch
+    /// times this value.
+    #[clap(long, default_value_t = 1.0)]
+    pub relative_summary_layer_width: f32,
+
+    /// fixes the width of all summary layers, if set. Takes priority over `relative_summary_layer_width`
+    #[clap(long)]
+    pub fixed_summary_layer_width: Option<usize>,
+
     /// hmc max hamiltonian error
     #[clap(default_value_t = 10., long)]
     pub max_hamiltonian_error: f32,
-
-    /// hmc integration length
-    pub integration_length: usize,
 
     /// hmc step size, acts as a modifying factor on random step sizes if enabled
     #[clap(default_value_t = 0.1, long)]
@@ -401,6 +432,161 @@ pub(crate) struct TrainNewArgs {
 }
 
 impl TrainNewArgs {
+    pub fn from_file(path: &Path) -> Self {
+        let file = File::open(path).expect("Failed to open args.json");
+        let reader = BufReader::new(file);
+        serde_json::from_reader(reader).unwrap()
+    }
+
+    pub fn to_file(&self, path: &Path) {
+        info!("Creating: {:?}", path);
+        to_writer_pretty(File::create(path).unwrap(), self).unwrap();
+    }
+}
+
+#[derive(Args, Debug, Serialize, Deserialize)]
+pub(crate) struct TrainNewBedArgs {
+    /// Prior structure of model.
+    #[clap(value_enum)]
+    pub model_type: ModelType,
+
+    /// dir + filestem of train data .bed, .bim, .fam files (the input genotypes)
+    pub bfile_train: String,
+
+    /// filepath of training data phenotypes
+    pub p_train: String,
+
+    /// dir + filestem of test data .bed, .bim, .fam files (the input genotypes)
+    #[clap(long)]
+    pub bfile_test: Option<String>,
+
+    /// filepath of test data phenotypes
+    #[clap(long)]
+    pub p_test: Option<String>,
+
+    /// path to grouping file
+    pub groups: String,
+
+    /// number of hidden layers in branches
+    pub branch_depth: usize,
+
+    /// full model chain length
+    pub chain_length: usize,
+
+    /// hmc integration length
+    pub integration_length: usize,
+
+    /// sets the width of all hidden layers to the input size of the branch
+    /// times this value
+    #[clap(long, default_value_t = 0.5)]
+    pub relative_hidden_layer_width: f32,
+
+    /// fixes the width of all hidden layers, if set. Takes priority over `relative_hidden_layer_width`
+    #[clap(long)]
+    pub fixed_hidden_layer_width: Option<usize>,
+
+    /// sets the width of all summary layers to the hidden layer size of the branch
+    /// times this value.
+    #[clap(long, default_value_t = 1.0)]
+    pub relative_summary_layer_width: f32,
+
+    /// fixes the width of all summary layers, if set. Takes priority over `relative_summary_layer_width`
+    #[clap(long)]
+    pub fixed_summary_layer_width: Option<usize>,
+
+    /// hmc max hamiltonian error
+    #[clap(default_value_t = 10., long)]
+    pub max_hamiltonian_error: f32,
+
+    /// hmc step size, acts as a modifying factor on random step sizes if enabled
+    #[clap(default_value_t = 0.1, long)]
+    pub step_size: f32,
+
+    #[clap(default_value_t = 1, long)]
+    /// training stats report interval
+    pub report_interval: usize,
+
+    #[clap(default_value_t = 1., long)]
+    /// shape hyperparam of prior distribution of precision of dense layer params
+    pub dpk: f32,
+
+    #[clap(default_value_t = 1., long)]
+    /// scale hyperparam of prior distribution of precision of dense layer params
+    pub dps: f32,
+
+    #[clap(default_value_t = 1., long)]
+    /// shape hyperparam of prior distribution of precision of summary layer params
+    pub spk: f32,
+
+    #[clap(default_value_t = 1., long)]
+    /// scale hyperparam of prior distribution of precision of summary layer params
+    pub sps: f32,
+
+    #[clap(default_value_t = 1., long)]
+    /// shape hyperparam of prior distribution of precision of ouput layer params
+    pub opk: f32,
+
+    #[clap(default_value_t = 1., long)]
+    /// scale hyperparam of prior distribution of precision of output layer params
+    pub ops: f32,
+
+    #[clap(short, long, default_value = "./")]
+    /// Output path. Outdir will be created there.
+    pub outpath: String,
+
+    ///  Step size mode
+    #[clap(value_enum, default_value_t = StepSizeMode::Izmailov, long)]
+    pub step_size_mode: StepSizeMode,
+
+    /// enable debug prints
+    #[clap(short, long)]
+    pub debug_prints: bool,
+
+    /// standardize input data
+    #[clap(short, long)]
+    pub standardize: bool,
+
+    /// Output trace
+    #[clap(long)]
+    pub trace: bool,
+
+    /// Output hmc trajectories
+    #[clap(long)]
+    pub trajectories: bool,
+
+    /// Output numerical gradients.
+    /// CAUTION: this is extremely expensive, do not run this in production.
+    #[clap(long)]
+    pub num_grad_traj: bool,
+
+    /// Use numerical gradients instead of analytical for integration.
+    /// CAUTION: this is extremely expensive, do not run this in production.
+    #[clap(long)]
+    pub num_grad: bool,
+
+    /// Use gradient descent instead of HMC.
+    /// CAUTION: this does only lead to point estimates for all parameters
+    #[clap(long)]
+    pub gradient_descent: bool,
+
+    /// width of summary layer. By default equal to hidden layer width
+    #[clap(long)]
+    pub summary_layer_width: Option<usize>,
+
+    /// Set error precision of model before training.
+    #[clap(long)]
+    pub error_precision: Option<f32>,
+
+    /// Number of burn-in samples that will be discarded.
+    #[clap(default_value_t = 0, long)]
+    pub burn_in: usize,
+
+    /// Sample parameters and their precisions jointly, instead sampling the precisions in a Gibbs step.
+    #[clap(short, long)]
+    pub joint_hmc: bool,
+}
+
+impl TrainNewBedArgs {
     pub fn from_file(path: &Path) -> Self {
         let file = File::open(path).expect("Failed to open args.json");
         let reader = BufReader::new(file);

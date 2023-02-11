@@ -7,10 +7,23 @@ use super::{
 };
 use std::marker::PhantomData;
 
+pub enum HiddenLayerWidthRule {
+    Fixed(usize),
+    FractionOfInput(f32),
+}
+
+pub enum SummaryLayerWidthRule {
+    Fixed(usize),
+    LikeHiddenLayerWidth,
+    FractionOfHiddenLayerWidth(f32),
+}
+
 /// Number of markers per branch: dynamic
 /// Depth of branches: same for all branches
 /// Width of branch layers: same within branches, dynamic between branches
 pub struct BlockNetCfg<B: Branch> {
+    hidden_layer_width_rule: HiddenLayerWidthRule,
+    summary_layer_width_rule: SummaryLayerWidthRule,
     num_markers: Vec<usize>,
     num_hidden_layers: usize,
     hidden_layer_widths: Vec<usize>,
@@ -34,6 +47,8 @@ impl<B: Branch> Default for BlockNetCfg<B> {
 impl<B: Branch> BlockNetCfg<B> {
     pub fn new() -> Self {
         BlockNetCfg {
+            hidden_layer_width_rule: HiddenLayerWidthRule::FractionOfInput(0.5),
+            summary_layer_width_rule: SummaryLayerWidthRule::LikeHiddenLayerWidth,
             num_markers: vec![],
             // summary layer is not counted as hidden layer
             num_hidden_layers: 0,
@@ -50,19 +65,44 @@ impl<B: Branch> BlockNetCfg<B> {
         }
     }
 
-    pub fn add_branch(
-        &mut self,
-        num_markers: usize,
-        hidden_layer_width: usize,
-        summary_layer_width: usize,
-    ) {
+    pub fn add_branch(&mut self, num_markers: usize) {
         self.num_markers.push(num_markers);
-        self.hidden_layer_widths.push(hidden_layer_width);
-        assert!(
-            summary_layer_width != 0,
-            "Branch cannot be initiated with summary layer width = 0."
-        );
-        self.summary_layer_widths.push(summary_layer_width);
+        match self.hidden_layer_width_rule {
+            HiddenLayerWidthRule::Fixed(width) => self.hidden_layer_widths.push(width),
+            HiddenLayerWidthRule::FractionOfInput(fraction) => self
+                .hidden_layer_widths
+                // make sure that width doesn't go below 1
+                .push(((num_markers as f32 * fraction) as usize).max(1)),
+        }
+
+        match self.summary_layer_width_rule {
+            SummaryLayerWidthRule::Fixed(width) => {
+                assert!(
+                    width != 0,
+                    "Branch cannot be initiated with summary layer width = 0."
+                );
+                self.summary_layer_widths.push(width);
+            }
+            SummaryLayerWidthRule::FractionOfHiddenLayerWidth(fraction) => {
+                let width =
+                    ((*self.hidden_layer_widths.last().unwrap() as f32 * fraction) as usize).max(1);
+                self.summary_layer_widths.push(width);
+            }
+            SummaryLayerWidthRule::LikeHiddenLayerWidth => {
+                self.summary_layer_widths
+                    .push(*self.hidden_layer_widths.last().unwrap());
+            }
+        }
+    }
+
+    pub fn with_hidden_layer_width_rule(mut self, hlwr: HiddenLayerWidthRule) -> Self {
+        self.hidden_layer_width_rule = hlwr;
+        self
+    }
+
+    pub fn with_summary_layer_width_rule(mut self, slwr: SummaryLayerWidthRule) -> Self {
+        self.summary_layer_width_rule = slwr;
+        self
     }
 
     pub fn with_num_hidden_layers(mut self, depth: usize) -> Self {
@@ -158,15 +198,18 @@ impl<B: Branch> BlockNetCfg<B> {
 #[cfg(test)]
 mod tests {
     use super::super::branch::ridge_base::RidgeBaseBranch;
-    use super::BlockNetCfg;
+    use super::{BlockNetCfg, HiddenLayerWidthRule, SummaryLayerWidthRule};
 
     #[test]
-    fn test_block_net_architecture_num_params_in_branch() {
-        let mut cfg = BlockNetCfg::<RidgeBaseBranch>::new().with_num_hidden_layers(1);
-        cfg.add_branch(3, 3, 1);
-        cfg.add_branch(3, 3, 2);
+    fn block_net_architecture_num_params_in_branch() {
+        let mut cfg = BlockNetCfg::<RidgeBaseBranch>::new()
+            .with_num_hidden_layers(1)
+            .with_hidden_layer_width_rule(HiddenLayerWidthRule::Fixed(3))
+            .with_summary_layer_width_rule(SummaryLayerWidthRule::Fixed(2));
+        cfg.add_branch(3);
+        cfg.add_branch(3);
         let net = cfg.build_net();
-        assert_eq!(net.branch_cfg(0).num_params, 17);
+        assert_eq!(net.branch_cfg(0).num_params, 22);
         assert_eq!(net.branch_cfg(1).num_params, 22);
     }
 }

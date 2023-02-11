@@ -25,8 +25,8 @@ pub struct MCMCCfg {
     pub joint_hmc: bool,
 }
 
-impl MCMCCfg {
-    pub fn default() -> Self {
+impl Default for MCMCCfg {
+    fn default() -> Self {
         Self {
             hmc_step_size_factor: 1.0,
             hmc_max_hamiltonian_error: 10.0,
@@ -44,7 +44,9 @@ impl MCMCCfg {
             joint_hmc: false,
         }
     }
+}
 
+impl MCMCCfg {
     pub fn create_out(&self) {
         if !Path::new(&self.outpath).exists() {
             std::fs::create_dir_all(&self.outpath).expect("Could not create output directory!");

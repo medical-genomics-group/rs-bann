@@ -186,11 +186,11 @@ impl Branch for LassoArdBranch {
         let mut log_density: Array<f32> = af_scalar(0.0);
 
         // weight terms
-        for i in 0..self.num_layers() {
+        for i in 0..self.output_layer_index() {
             let (shape, scale) = hyperparams.layer_prior_hyperparams(i, self.num_layers());
             log_density -= arrayfire::dot(
                 &(l1_norm_rows(params.layer_weights(i)) + 1.0 / scale),
-                &precisions.layer_weight_precisions(i),
+                precisions.layer_weight_precisions(i),
                 MatProp::NONE,
                 MatProp::NONE,
             );
@@ -198,11 +198,21 @@ impl Branch for LassoArdBranch {
             let ncols = params.layer_weights(i).dims().get()[1];
             log_density += arrayfire::dot(
                 &((shape + ncols as f32 - 1.0f32) * arrayfire::constant(1.0f32, dim4!(nrows))),
-                &arrayfire::log(&precisions.layer_weight_precisions(i)),
+                &arrayfire::log(precisions.layer_weight_precisions(i)),
                 MatProp::NONE,
                 MatProp::NONE,
             );
         }
+
+        let i = self.output_layer_index();
+        let (shape, scale) = hyperparams.layer_prior_hyperparams(i, self.num_layers());
+        log_density -= (l1_norm(params.layer_weights(i)) + 1.0 / scale)
+            * precisions.layer_weight_precisions(i);
+
+        let ncols = params.layer_weights(i).dims().get()[1];
+
+        log_density += (shape + ncols as f32 - 1.0f32)
+            * &arrayfire::log(precisions.layer_weight_precisions(i));
 
         log_density
     }
@@ -215,14 +225,17 @@ impl Branch for LassoArdBranch {
         let mut log_density: Array<f32> = af_scalar(0.0);
 
         // weight terms
-        for i in 0..self.num_layers() {
+        for i in 0..self.output_layer_index() {
             log_density -= arrayfire::dot(
                 &(l1_norm_rows(params.layer_weights(i))),
-                &precisions.layer_weight_precisions(i),
+                precisions.layer_weight_precisions(i),
                 MatProp::NONE,
                 MatProp::NONE,
             );
         }
+
+        let i = self.output_layer_index();
+        log_density -= l1_norm(params.layer_weights(i)) * precisions.layer_weight_precisions(i);
 
         log_density
     }
@@ -364,7 +377,7 @@ mod tests {
     }
 
     #[test]
-    fn test_af_sign() {
+    fn af_sign() {
         let a = Array::new(&[0f32, 2f32, -2f32], dim4![3, 1, 1, 1]);
 
         let neg = arrayfire::sign(&a);
@@ -377,7 +390,7 @@ mod tests {
     }
 
     // #[test]
-    // fn test_af() {
+    // fn af() {
     //     let num_rows: u64 = 5;
     //     let num_cols: u64 = 3;
     //     let dims = Dim4::new(&[num_rows, num_cols, 1, 1]);
@@ -386,7 +399,7 @@ mod tests {
     // }
 
     #[test]
-    fn test_af_sum_axis() {
+    fn af_sum_axis() {
         // AF sum(_, 1) sums along columns, i.e. the output vector has entries equal to the number of rows
         // of the _ matrix.
         let a = Array::new(&[0f32, 1f32, 2f32, 3f32, 4f32, 5f32], dim4![3, 2, 1, 1]);
@@ -395,7 +408,7 @@ mod tests {
 
     // this actually causes undefined behaviour.
     #[test]
-    fn test_af_array_creation_broadcast() {
+    fn af_array_creation_broadcast() {
         let a = Array::new(&[0., 1., 3.], dim4![3, 2, 1, 1]);
         assert!(to_host(&a) != vec![0., 1., 3., 0., 1., 3.]);
     }
@@ -479,7 +492,7 @@ mod tests {
     }
 
     #[test]
-    fn test_forward_feed() {
+    fn forward_feed() {
         let num_individuals = 4;
         let num_markers = 3;
         let branch = make_test_branch();
@@ -530,7 +543,7 @@ mod tests {
     }
 
     #[test]
-    fn test_log_density_joint() {
+    fn log_density_joint() {
         let num_individuals = 4;
         let num_markers = 3;
         let branch = make_test_branch_with_precision(2.0);
@@ -582,7 +595,7 @@ mod tests {
     }
 
     #[test]
-    fn test_log_density_gradient_joint() {
+    fn log_density_gradient_joint() {
         let num_individuals = 4;
         let num_markers = 3;
         let mut branch = make_test_branch_with_precision(2.0);
@@ -647,7 +660,7 @@ mod tests {
     }
 
     #[test]
-    fn test_log_density_gradient() {
+    fn log_density_gradient() {
         let num_individuals = 4;
         let num_markers = 3;
         let mut branch = make_test_branch();
@@ -701,7 +714,7 @@ mod tests {
     }
 
     #[test]
-    fn test_num_log_density_gradient() {
+    fn num_log_density_gradient() {
         let num_individuals = 4;
         let num_markers = 3;
         let mut branch = make_test_branch();
@@ -765,10 +778,12 @@ mod tests {
     }
 
     #[test]
-    fn test_uniform_step_sizes() {
+    fn uniform_step_sizes() {
         let branch = make_test_branch();
-        let mut cfg = MCMCCfg::default();
-        cfg.hmc_step_size_factor = 1.0;
+        let cfg = MCMCCfg {
+            hmc_step_size_factor: 1.0,
+            ..Default::default()
+        };
         let step_sizes = branch.uniform_step_sizes(&cfg);
         for i in 0..(branch.num_layers - 1) {
             let mut obs = to_host(&step_sizes.wrt_weights[i]);
@@ -781,7 +796,7 @@ mod tests {
     }
 
     #[test]
-    fn test_net_movement() {
+    fn net_movement() {
         let branch = make_test_branch();
         let momenta = make_test_uniform_momenta(1.);
         let init_params = make_test_uniform_params(0.);

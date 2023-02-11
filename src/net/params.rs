@@ -178,16 +178,8 @@ impl BranchPrecisions {
 
     pub fn to_host(&self) -> BranchPrecisionsHost {
         BranchPrecisionsHost {
-            weight_precisions: self
-                .weight_precisions
-                .iter()
-                .map(|arr| to_host(arr))
-                .collect(),
-            bias_precisions: self
-                .bias_precisions
-                .iter()
-                .map(|arr| to_host(arr))
-                .collect(),
+            weight_precisions: self.weight_precisions.iter().map(to_host).collect(),
+            bias_precisions: self.bias_precisions.iter().map(to_host).collect(),
             error_precision: to_host(&self.error_precision),
         }
     }
@@ -414,7 +406,7 @@ mod tests {
     use crate::af_helpers::to_host;
     use arrayfire::{dim4, Array};
 
-    fn test_params() -> BranchParams {
+    fn make_test_params() -> BranchParams {
         BranchParams {
             weights: vec![
                 Array::new(&[0.1, 0.2], dim4![2, 1, 1, 1]),
@@ -425,15 +417,15 @@ mod tests {
     }
 
     #[test]
-    fn test_param_vec() {
-        let params = test_params();
+    fn param_vec() {
+        let params = make_test_params();
         let exp = vec![0.1, 0.2, 0.3, 0.4];
         assert_eq!(params.param_vec(), exp);
     }
 
     #[test]
-    fn test_from_param_vec() {
-        let params = test_params();
+    fn from_param_vec() {
+        let params = make_test_params();
         let param_vec = params.param_vec();
         let params_loaded = BranchParams::from_param_vec(&param_vec, &vec![1, 1], 2);
         assert_eq!(params.weights.len(), params_loaded.weights.len());

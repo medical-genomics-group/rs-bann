@@ -193,7 +193,7 @@ impl Branch for LassoBaseBranch {
                 * precisions.layer_weight_precisions(i);
             let nvar = params.layer_weights(i).elements();
             log_density += (shape + nvar as f32 - 1.0f32)
-                * arrayfire::log(&precisions.layer_weight_precisions(i));
+                * arrayfire::log(precisions.layer_weight_precisions(i));
         }
 
         log_density
@@ -321,7 +321,7 @@ mod tests {
     use crate::net::params::BranchParams;
 
     // #[test]
-    // fn test_af() {
+    // fn af() {
     //     let num_rows: u64 = 5;
     //     let num_cols: u64 = 3;
     //     let dims = Dim4::new(&[num_rows, num_cols, 1, 1]);
@@ -408,7 +408,7 @@ mod tests {
     }
 
     #[test]
-    fn test_forward_feed() {
+    fn forward_feed() {
         let num_individuals = 4;
         let num_markers = 3;
         let branch = make_test_branch();
@@ -459,7 +459,7 @@ mod tests {
     }
 
     #[test]
-    fn test_log_density_joint() {
+    fn log_density_joint() {
         let num_individuals = 4;
         let num_markers = 3;
         let branch = make_test_branch_with_precision(2.0);
@@ -511,7 +511,7 @@ mod tests {
     }
 
     #[test]
-    fn test_log_density_gradient_joint() {
+    fn log_density_gradient_joint() {
         let num_individuals = 4;
         let num_markers = 3;
         let mut branch = make_test_branch_with_precision(2.0);
@@ -576,7 +576,7 @@ mod tests {
     }
 
     #[test]
-    fn test_log_density() {
+    fn log_density() {
         let num_individuals = 4;
         let num_markers = 3;
         let branch = make_test_branch_with_precision(2.0);
@@ -611,7 +611,7 @@ mod tests {
     }
 
     #[test]
-    fn test_log_density_gradient() {
+    fn log_density_gradient() {
         let num_individuals = 4;
         let num_markers = 3;
         let mut branch = make_test_branch_with_precision(2.0);
@@ -646,7 +646,7 @@ mod tests {
     }
 
     #[test]
-    fn test_uniform_step_sizes() {
+    fn uniform_step_sizes() {
         let branch = make_test_branch();
         let mut cfg = MCMCCfg::default();
         cfg.hmc_step_size_factor = 1.0;
@@ -662,7 +662,7 @@ mod tests {
     }
 
     #[test]
-    fn test_net_movement() {
+    fn net_movement() {
         let branch = make_test_branch();
         let momenta = make_test_uniform_momenta(1.);
         let init_params = make_test_uniform_params(0.);

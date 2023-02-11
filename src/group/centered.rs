@@ -8,7 +8,7 @@ use std::{
 };
 
 pub struct SNPId2Ix {
-    map: HashMap<String, isize>,
+    map: HashMap<String, usize>,
 }
 
 impl SNPId2Ix {
@@ -41,13 +41,13 @@ impl SNPId2Ix {
         res
     }
 
-    pub fn ix(&self, id: &str) -> Option<&isize> {
+    pub fn ix(&self, id: &str) -> Option<&usize> {
         self.map.get(id)
     }
 }
 
 pub struct CorrGraph {
-    g: HashMap<isize, HashSet<isize>>,
+    g: HashMap<usize, HashSet<usize>>,
 }
 
 impl CorrGraph {
@@ -88,20 +88,21 @@ impl CorrGraph {
         res
     }
 
-    pub fn centered_grouping(&self) -> CenteredGrouping {
+    pub fn centered_grouping(&self, min_group_size: usize) -> CenteredGrouping {
         let mut grouping = CenteredGrouping::new();
 
-        let mut degrees: Vec<(isize, usize)> = self.g.iter().map(|(k, v)| (*k, v.len())).collect();
+        let mut nodes_and_degrees: Vec<(usize, usize)> =
+            self.g.iter().map(|(k, v)| (*k, v.len())).collect();
         // descending order by degree
-        degrees.sort_by_key(|e| (Reverse(e.1), e.0));
+        nodes_and_degrees.sort_by_key(|e| (Reverse(e.1), e.0));
 
-        let mut no_centers = HashSet::<isize>::new();
+        let mut no_centers = HashSet::<usize>::new();
         let mut gix = 0;
-        for (cix, _) in degrees {
+        for (cix, _) in nodes_and_degrees {
             if !no_centers.contains(&cix) {
                 let neighbors = self.g.get(&cix).unwrap();
-                if !neighbors.is_empty() {
-                    let mut group = neighbors.iter().copied().collect::<Vec<isize>>();
+                if !neighbors.is_empty() && neighbors.len() > min_group_size {
+                    let mut group = neighbors.iter().copied().collect::<Vec<usize>>();
                     group.push(cix);
                     // group.sort();
                     no_centers.extend(group.iter());
@@ -110,10 +111,10 @@ impl CorrGraph {
                 } else {
                     // find closest (by id) group
                     for d in 1..100 {
-                        if let Some(n) = grouping.groups.get_mut(&((cix - d) as usize)) {
+                        if let Some(n) = grouping.groups.get_mut(&(cix - d)) {
                             n.push(cix);
                             break;
-                        } else if let Some(n) = grouping.groups.get_mut(&((cix + d) as usize)) {
+                        } else if let Some(n) = grouping.groups.get_mut(&(cix + d)) {
                             n.push(cix);
                             break;
                         }
@@ -122,6 +123,12 @@ impl CorrGraph {
             }
         }
 
+        let mut group_sizes: Vec<usize> = vec![0; grouping.groups.len()];
+        grouping
+            .groups
+            .iter()
+            .for_each(|(k, v)| group_sizes[*k] = v.len());
+        grouping.group_sizes = group_sizes;
         grouping
     }
 }
@@ -131,13 +138,15 @@ impl CorrGraph {
 /// remaining degree. All SNPs correlated with a center SNP are
 /// part of the same group.
 pub struct CenteredGrouping {
-    pub groups: HashMap<usize, Vec<isize>>,
+    pub groups: HashMap<usize, Vec<usize>>,
+    group_sizes: Vec<usize>,
 }
 
 impl CenteredGrouping {
     fn new() -> Self {
         CenteredGrouping {
             groups: HashMap::new(),
+            group_sizes: Vec::new(),
         }
     }
 }
@@ -147,8 +156,12 @@ impl MarkerGrouping for CenteredGrouping {
         self.groups.len()
     }
 
-    fn group(&self, ix: usize) -> Option<&Vec<isize>> {
+    fn group(&self, ix: usize) -> Option<&Vec<usize>> {
         self.groups.get(&ix)
+    }
+
+    fn group_sizes(&self) -> &[usize] {
+        &self.group_sizes
     }
 }
 
@@ -159,7 +172,7 @@ mod tests {
     use std::path::Path;
 
     #[test]
-    fn test_create_centered_grouping() {
+    fn create_centered_grouping() {
         let base_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
         let base_path = Path::new(&base_dir);
         let ld_path = base_path.join("resources/test/small.ld");
@@ -167,7 +180,7 @@ mod tests {
 
         let g = CorrGraph::from_plink_ld(&ld_path, &bim_path);
 
-        let grouping = g.centered_grouping();
+        let grouping = g.centered_grouping(1);
 
         let exp_groups = vec![vec![0, 1, 2, 3], vec![3, 4, 5], vec![6, 7, 8, 9, 10]];
 

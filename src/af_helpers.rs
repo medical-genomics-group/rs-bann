@@ -22,7 +22,7 @@ pub(crate) fn subtract_at_ix(arr: &mut Array<f32>, row: u32, col: u32, value: f3
 
 /// Create a scalar stored on device
 pub(crate) fn af_scalar(val: f32) -> Array<f32> {
-    Array::new(&vec![val], dim4!(1, 1, 1, 1))
+    Array::new(&[val], dim4!(1, 1, 1, 1))
 }
 
 pub(crate) fn sum_of_squares(arr: &Array<f32>) -> f32 {

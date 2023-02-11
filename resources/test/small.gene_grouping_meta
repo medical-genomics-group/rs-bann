@@ -1,0 +1,35 @@
+{
+  "0": {
+    "chromosome": "Nineteen",
+    "source": "Eponine",
+    "feature": "Gene",
+    "start": 2,
+    "end": 4,
+    "score": "0.999",
+    "strand": "-",
+    "frame": ".",
+    "attribute": "gene1"
+  },
+  "1": {
+    "chromosome": "Nineteen",
+    "source": "Eponine",
+    "feature": "Gene",
+    "start": 3,
+    "end": 5,
+    "score": "0.999",
+    "strand": "-",
+    "frame": ".",
+    "attribute": "gene1"
+  },
+  "2": {
+    "chromosome": "Nineteen",
+    "source": "Eponine",
+    "feature": "Gene",
+    "start": 7,
+    "end": 10,
+    "score": "0.999",
+    "strand": "-",
+    "frame": ".",
+    "attribute": "gene1"
+  }
+}

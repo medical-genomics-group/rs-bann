@@ -376,7 +376,7 @@ mod tests {
     use super::BranchCfgBuilder;
 
     #[test]
-    fn test_build_branch_cfg() {
+    fn build_branch_cfg() {
         let mut bld = BranchCfgBuilder::new()
             .with_num_markers(3)
             .with_initial_weights_value(0.1);
@@ -386,12 +386,12 @@ mod tests {
         assert_eq!(cfg.num_params, 17);
     }
 
-    // fn test_af_constant_dims() {
+    // fn af_constant_dims() {
     //     assert_eq!(constant!(1.0; 5).dims()[0], 5);
     // }
 
     #[test]
-    fn test_remove_markers_from_model() {
+    fn remove_markers_from_model() {
         let mut bld = BranchCfgBuilder::new()
             .with_num_markers(4)
             .with_initial_weights_value(0.1)

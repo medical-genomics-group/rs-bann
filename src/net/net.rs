@@ -7,7 +7,8 @@ use super::{
     train_stats::{ReportCfg, TrainingStats},
 };
 use crate::af_helpers::to_host;
-use crate::data::{Data, Genotypes};
+use crate::data::data::Data;
+use crate::data::genotypes::GroupedGenotypes;
 use arrayfire::{dim4, sum_all, Array};
 use bincode::{deserialize_from, serialize_into};
 use log::{debug, info};
@@ -147,12 +148,12 @@ impl<B: Branch> Net<B> {
     // X has to be column major!
     // TODO: X will likely have to be in compressed format on host memory, so Ill have to unpack
     // it before loading it into device memory
-    pub fn train(
+    pub fn train<T: GroupedGenotypes>(
         &mut self,
-        train_data: &Data,
+        train_data: &Data<T>,
         mcmc_cfg: &MCMCCfg,
         verbose: bool,
-        report_cfg: Option<ReportCfg>,
+        report_cfg: Option<ReportCfg<T>>,
     ) {
         if mcmc_cfg.chain_length > mcmc_cfg.burn_in {
             self.create_model_dir(mcmc_cfg);
@@ -167,7 +168,7 @@ impl<B: Branch> Net<B> {
         let mut rng = thread_rng();
         let num_individuals = train_data.num_individuals();
         let y_train = &Array::new(train_data.y(), dim4!(num_individuals as u64, 1, 1, 1));
-        let mut residual = self.residual(train_data.x(), y_train);
+        let mut residual = self.residual(&train_data.gen, y_train);
         let mut branch_ixs = (0..self.num_branches).collect::<Vec<usize>>();
         let mut report_interval = 1;
 
@@ -186,7 +187,7 @@ impl<B: Branch> Net<B> {
         );
 
         // initial loss
-        self.record_mse(train_data, report_cfg.as_ref().unwrap().test_data);
+        self.record_mse(&residual, report_cfg.as_ref().unwrap().test_data);
 
         // report
         if verbose {
@@ -228,10 +229,7 @@ impl<B: Branch> Net<B> {
                 debug!("Updating branch {:}", branch_ix);
                 let cfg = &self.branch_cfgs[branch_ix];
                 // load marker data onto device
-                let x = Array::new(
-                    &train_data.x()[branch_ix],
-                    dim4!(num_individuals as u64, cfg.num_markers as u64),
-                );
+                let x = &train_data.x_branch_af(branch_ix);
                 // load branch cfg
                 let mut branch = B::from_cfg(cfg);
                 branch.set_error_precision(self.error_precision);
@@ -243,15 +241,15 @@ impl<B: Branch> Net<B> {
                 );
                 // TODO: save last prediction contribution for each branch to reduce compute
                 // ... this might need substantial amount of memory though, probably not worth it.
-                let prev_pred = branch.predict(&x);
+                let prev_pred = branch.predict(x);
                 residual = &residual + &prev_pred;
                 // update error precision
                 let step_res = if mcmc_cfg.gradient_descent {
-                    branch.gradient_descent(&x, &residual, mcmc_cfg)
+                    branch.gradient_descent(x, &residual, mcmc_cfg)
                 } else if mcmc_cfg.joint_hmc {
-                    branch.hmc_step_joint(&x, &residual, mcmc_cfg, &self.hyperparams)
+                    branch.hmc_step_joint(x, &residual, mcmc_cfg, &self.hyperparams)
                 } else {
-                    branch.hmc_step(&x, &residual, mcmc_cfg)
+                    branch.hmc_step(x, &residual, mcmc_cfg)
                 };
                 self.note_hmc_step_result(&step_res);
                 match step_res {
@@ -267,8 +265,10 @@ impl<B: Branch> Net<B> {
 
                 // compute effect sizes and save
                 if chain_ix >= mcmc_cfg.burn_in {
-                    self.save_effect_sizes(&branch.effect_sizes(&x, y_train), chain_ix, mcmc_cfg)
+                    self.save_effect_sizes(&branch.effect_sizes(x, y_train), chain_ix, mcmc_cfg)
                 }
+
+                self.report_training_state_debug(chain_ix, &residual);
             }
 
             self.sample_output_layer_weight_precision(&mut rng);
@@ -277,7 +277,7 @@ impl<B: Branch> Net<B> {
             // this can be easily done without predicting again,
             // just by saving the last predictions of each branch
             // and combining them.
-            self.record_mse(train_data, report_cfg.as_ref().unwrap().test_data);
+            self.record_mse(&residual, report_cfg.as_ref().unwrap().test_data);
 
             // update error precision
             self.error_precision = ridge_multi_param_precision_posterior(
@@ -327,7 +327,7 @@ impl<B: Branch> Net<B> {
         }
     }
 
-    pub fn predict(&self, gen: &Genotypes) -> Vec<f32> {
+    pub fn predict<T: GroupedGenotypes>(&self, gen: &T) -> Vec<f32> {
         // I expect X to be column major
         let mut y_hat = Array::new(
             &vec![0.0; gen.num_individuals()],
@@ -338,16 +338,12 @@ impl<B: Branch> Net<B> {
         // add all branch predictions
         for branch_ix in 0..self.num_branches {
             let cfg = &self.branch_cfgs[branch_ix];
-            let x = Array::new(
-                &gen.x()[branch_ix],
-                dim4!(gen.num_individuals() as u64, cfg.num_markers as u64),
-            );
-            y_hat += B::from_cfg(cfg).predict(&x);
+            y_hat += B::from_cfg(cfg).predict(&gen.x_group_af(branch_ix));
         }
         to_host(&y_hat)
     }
 
-    pub fn predict_f64(&self, gen: &Genotypes) -> Vec<f64> {
+    pub fn predict_f64<T: GroupedGenotypes>(&self, gen: &T) -> Vec<f64> {
         self.predict(gen).iter().map(|e| *e as f64).collect()
     }
 
@@ -375,19 +371,29 @@ impl<B: Branch> Net<B> {
         create_dir_all(mcmc_cfg.effect_sizes_path()).expect("Failed to create effect size outdir");
     }
 
-    fn record_mse(&mut self, train_data: &Data, test_data: Option<&Data>) {
-        self.training_stats.add_mse_train(self.mse(train_data));
+    fn record_mse<T: GroupedGenotypes>(
+        &mut self,
+        residual: &Array<f32>,
+        test_data: Option<&Data<T>>,
+    ) {
+        self.training_stats.add_mse_train(
+            crate::af_helpers::sum_of_squares(residual) / residual.elements() as f32,
+        );
         if let Some(tst) = test_data {
             self.training_stats.add_mse_test(self.mse(tst));
         }
     }
 
-    fn residual(&self, x: &[Vec<f32>], y: &Array<f32>) -> Array<f32> {
+    fn residual<T: GroupedGenotypes>(&self, x: &T, y: &Array<f32>) -> Array<f32> {
         y - self.predict_device(x, y.elements())
     }
 
     // TODO: predict using posterior predictive distribution instead of point estimate
-    fn predict_device(&self, x_test: &[Vec<f32>], num_individuals: usize) -> Array<f32> {
+    fn predict_device<T: GroupedGenotypes>(
+        &self,
+        x_test: &T,
+        num_individuals: usize,
+    ) -> Array<f32> {
         // I expect X to be column major
         let mut y_hat = Array::new(
             &vec![0.0; num_individuals],
@@ -398,27 +404,23 @@ impl<B: Branch> Net<B> {
         // add all branch predictions
         for branch_ix in 0..self.num_branches {
             let cfg = &self.branch_cfgs[branch_ix];
-            let x = Array::new(
-                &x_test[branch_ix],
-                dim4!(num_individuals as u64, cfg.num_markers as u64),
-            );
-            y_hat += B::from_cfg(cfg).predict(&x);
+            y_hat += B::from_cfg(cfg).predict(&x_test.x_group_af(branch_ix));
         }
         y_hat
     }
 
-    pub fn rss(&self, data: &Data) -> f32 {
+    pub fn rss<T: GroupedGenotypes>(&self, data: &Data<T>) -> f32 {
         let y_test_arr = Array::new(data.y(), dim4!(data.num_individuals() as u64, 1, 1, 1));
-        let y_hat = self.predict_device(data.x(), data.num_individuals());
+        let y_hat = self.predict_device(&data.gen, data.num_individuals());
         let residual = y_test_arr - y_hat;
         crate::af_helpers::sum_of_squares(&residual)
     }
 
-    pub fn mse(&self, data: &Data) -> f32 {
+    pub fn mse<T: GroupedGenotypes>(&self, data: &Data<T>) -> f32 {
         self.rss(data) / data.num_individuals() as f32
     }
 
-    pub fn branch_r2s(&self, data: &Data) -> Vec<f32> {
+    pub fn branch_r2s<T: GroupedGenotypes>(&self, data: &Data<T>) -> Vec<f32> {
         let mut res = vec![0.0; self.num_branches];
         let y = data.y_af();
         for branch_ix in 0..self.num_branches {
@@ -426,6 +428,16 @@ impl<B: Branch> Net<B> {
             res[branch_ix] = B::from_cfg(cfg).r2(&data.x_branch_af(branch_ix), &y);
         }
         res
+    }
+
+    fn report_training_state_debug(&self, iteration: usize, residual: &Array<f32>) {
+        debug!(
+                "iteration: {:} \t | acc: {:.2} \t | early_rej: {:.2} \t | end_rej: {:.2} \t | mse(trn): {:.4}",
+                iteration,
+                self.training_stats.acceptance_rate(),
+                self.training_stats.early_rejection_rate(),
+                self.training_stats.end_rejection_rate(),
+                crate::af_helpers::sum_of_squares(residual) / residual.elements() as f32);
     }
 
     fn report_training_state(&self, iteration: usize) {
@@ -464,7 +476,7 @@ mod tests {
     use arrayfire::{dim4, Array, MatProp};
 
     #[test]
-    fn test_arrayfire_dot_expected_result() {
+    fn arrayfire_dot_expected_result() {
         // this should compute the sum of squares of two arrays, right?
         let a = Array::new(&[1.0, 2.0, 3.0], dim4!(3, 1, 1, 1));
         let b = Array::new(&[3.0, 2.0, 1.0], dim4!(3, 1, 1, 1));

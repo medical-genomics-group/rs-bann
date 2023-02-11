@@ -1,6 +1,7 @@
 use crate::af_helpers::to_host;
-use crate::data::Genotypes;
+use crate::data::genotypes::GroupedGenotypes;
 use arrayfire::{dim4, matmul, Array, MatProp};
+use log::debug;
 use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
 use rand_distr::{Bernoulli, Distribution, Normal};
@@ -15,10 +16,10 @@ pub struct LinearModelBuilder {
 }
 
 impl LinearModelBuilder {
-    pub fn new(num_markers_per_branch: &Vec<usize>) -> Self {
+    pub fn new(num_markers_per_branch: &[usize]) -> Self {
         Self {
             num_branches: num_markers_per_branch.len(),
-            num_markers_per_branch: num_markers_per_branch.clone(),
+            num_markers_per_branch: num_markers_per_branch.to_vec(),
             proportion_effective_markers: 1.0,
             effects: None,
             rng: ChaCha20Rng::from_entropy(),
@@ -39,13 +40,20 @@ impl LinearModelBuilder {
     }
 
     pub fn with_random_effects(&mut self, heritability: f32) -> &mut Self {
-        let m = self.num_markers_per_branch.iter().sum::<usize>() * self.num_branches;
+        // we want the the genetic variance to be equal to the heritability h.
+        // the genetic variance is given by the sum of squares of the coefficients, assuming independent and standardized marker data.
+        // (by the variance of a linear combination theorem).
+        // we draw our non zero effects from a Normal(0, h / m_incl) where m_incl is the number of effective (non zero) effects.
+        // A large enough sample from that dist should have variance h / m_incl, and sum of squares m_incl * h / m_incl = h.
+        let m = self.num_markers_per_branch.iter().sum::<usize>();
         let inclusion_dist = Bernoulli::new(self.proportion_effective_markers as f64).unwrap();
         let included: Vec<bool> = (0..m)
             .map(|_| inclusion_dist.sample(&mut self.rng))
             .collect();
         let m_incl = included.iter().filter(|b| **b).count();
+        debug!("m_incl: {:?}", m_incl);
         let beta_std = (heritability / m_incl as f32).sqrt();
+        debug!("beta_std: {:?}", beta_std);
         let beta_dist = Normal::new(0.0, beta_std).unwrap();
 
         let mut effects = Vec::new();
@@ -87,14 +95,14 @@ impl LinearModel {
         &self.effects
     }
 
-    fn af_branch_effects(&self, branch_ix: usize) -> Array<f32> {
+    fn branch_effects_af(&self, branch_ix: usize) -> Array<f32> {
         Array::new(
             &self.effects[branch_ix],
             dim4!(self.num_markers_per_branch[branch_ix].try_into().unwrap()),
         )
     }
 
-    pub fn predict(&self, gen: &Genotypes) -> Vec<f32> {
+    pub fn predict<T: GroupedGenotypes>(&self, gen: &T) -> Vec<f32> {
         // I expect X to be column major
         let mut y_hat = Array::new(
             &vec![0.0; gen.num_individuals()],
@@ -102,8 +110,8 @@ impl LinearModel {
         );
         // add all branch predictions
         for branch_ix in 0..self.num_branches {
-            let af_x = gen.af_branch_data(branch_ix);
-            let af_beta = self.af_branch_effects(branch_ix);
+            let af_x = gen.x_group_af(branch_ix);
+            let af_beta = self.branch_effects_af(branch_ix);
             y_hat += matmul(&af_x, &af_beta, MatProp::NONE, MatProp::NONE);
         }
         to_host(&y_hat)
@@ -120,7 +128,7 @@ impl LinearModel {
 
 #[cfg(test)]
 mod tests {
-    use crate::data::{Genotypes, GenotypesBuilder};
+    use crate::data::genotypes::{Genotypes, GenotypesBuilder};
 
     use super::{LinearModel, LinearModelBuilder};
 
@@ -130,7 +138,7 @@ mod tests {
     const N: usize = 10;
 
     fn make_test_lm(prop_eff: f32, h2: f32) -> LinearModel {
-        LinearModelBuilder::new(&vec![NMPB; NB])
+        LinearModelBuilder::new(&[NMPB; NB])
             .with_seed(SEED)
             .with_proportion_effective_markers(prop_eff)
             .with_random_effects(h2)
@@ -148,7 +156,7 @@ mod tests {
     }
 
     #[test]
-    fn test_predict() {
+    fn predict() {
         let lm = make_test_lm(0.2, 0.6);
         let gt = make_test_gt();
         let exp: Vec<f32> = vec![

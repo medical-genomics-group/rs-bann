@@ -498,7 +498,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "bias dim 1 does not match width of last added layer")]
-    fn test_build_branch_bias_dim_zero_failure() {
+    fn build_branch_bias_dim_zero_failure() {
         let _branch = BranchBuilder::new()
             .with_num_markers(3)
             .add_hidden_layer(2)
@@ -510,7 +510,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "incorrect weight dims in dim 0")]
-    fn test_build_branch_weight_dim_zero_failure() {
+    fn build_branch_weight_dim_zero_failure() {
         let _branch = BranchBuilder::new()
             .with_num_markers(3)
             .add_hidden_layer(2)
@@ -522,7 +522,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "incorrect weight dims in dim 1")]
-    fn test_build_branch_weight_dim_one_failure() {
+    fn build_branch_weight_dim_one_failure() {
         let _branch = BranchBuilder::new()
             .with_num_markers(3)
             .add_hidden_layer(2)
@@ -537,7 +537,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "incorrect summary weight dims in dim 0")]
-    fn test_build_branch_summary_weight_dim_zero_failure() {
+    fn build_branch_summary_weight_dim_zero_failure() {
         let _branch = BranchBuilder::new()
             .with_num_markers(3)
             .add_hidden_layer(2)
@@ -550,7 +550,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "incorrect summary weight dims in dim 1: has to be 1")]
-    fn test_build_branch_summary_weight_dim_one_failure() {
+    fn build_branch_summary_weight_dim_one_failure() {
         let _branch = BranchBuilder::new()
             .with_num_markers(3)
             .add_hidden_layer(2)
@@ -563,7 +563,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "incorrect output weight dims in dim 0: has to be 1")]
-    fn test_build_branch_output_weight_dim_zero_failure() {
+    fn build_branch_output_weight_dim_zero_failure() {
         let _branch = BranchBuilder::new()
             .with_num_markers(3)
             .add_hidden_layer(2)
@@ -576,7 +576,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "incorrect output weight dims in dim 1: has to be 1")]
-    fn test_build_branch_output_weight_dim_one_failure() {
+    fn build_branch_output_weight_dim_one_failure() {
         let _branch = BranchBuilder::new()
             .with_num_markers(3)
             .add_hidden_layer(2)
@@ -588,7 +588,7 @@ mod tests {
     }
 
     #[test]
-    fn test_build_branch_success() {
+    fn build_branch_success() {
         let exp_weights = [
             Array::new(&[0., 1., 2., 3., 4., 5.], dim4![3, 2, 1, 1]),
             Array::new(&[1., 2.], dim4![2, 1, 1, 1]),

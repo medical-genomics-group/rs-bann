@@ -6,7 +6,8 @@ use std::path::Path;
 
 /// Mapping from branch id to marker ids
 pub struct ExternalGrouping {
-    groups: HashMap<usize, Vec<isize>>,
+    groups: HashMap<usize, Vec<usize>>,
+    group_sizes: Vec<usize>,
 }
 
 impl ExternalGrouping {
@@ -14,6 +15,7 @@ impl ExternalGrouping {
     pub fn from_file(file: &Path) -> Self {
         let mut res = ExternalGrouping {
             groups: HashMap::new(),
+            group_sizes: Vec::new(),
         };
 
         let file = File::open(file).expect("Failed to open file with external grouping");
@@ -29,17 +31,23 @@ impl ExternalGrouping {
             // and will cause undesired behaviour if too few line entries
             buffer
                 .split_whitespace()
-                .map(|e| e.parse::<isize>().unwrap())
+                .map(|e| e.parse::<usize>().unwrap())
                 .enumerate()
                 .for_each(|(ix, e)| line_fields[ix] = e);
 
             res.groups
-                .entry(line_fields[1] as usize)
+                .entry(line_fields[1])
                 .or_default()
                 .push(line_fields[0]);
 
             buffer.clear();
         }
+
+        let mut group_sizes: Vec<usize> = vec![0; res.groups.len()];
+        res.groups
+            .iter()
+            .for_each(|(k, v)| group_sizes[*k] = v.len());
+        res.group_sizes = group_sizes;
 
         res
     }
@@ -50,7 +58,11 @@ impl MarkerGrouping for ExternalGrouping {
         self.groups.len()
     }
 
-    fn group(&self, ix: usize) -> Option<&Vec<isize>> {
+    fn group(&self, ix: usize) -> Option<&Vec<usize>> {
         self.groups.get(&ix)
+    }
+
+    fn group_sizes(&self) -> &[usize] {
+        &self.group_sizes
     }
 }
