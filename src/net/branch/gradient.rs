@@ -33,7 +33,7 @@ impl NetParamGradient for BranchLogDensityGradientJoint {
 
 impl NetPrecisionGradient for BranchLogDensityGradientJoint {
     fn wrt_bias_precisions(&self) -> &Vec<Array<f32>> {
-        &self.wrt_weight_precisions
+        &self.wrt_bias_precisions
     }
 
     fn wrt_weight_precisions(&self) -> &Vec<Array<f32>> {
