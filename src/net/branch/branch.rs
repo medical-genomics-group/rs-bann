@@ -13,13 +13,10 @@ use super::{
     step_sizes::StepSizes,
     trajectory::Trajectory,
 };
-use crate::net::params::NetworkPrecisionHyperparameters;
+use crate::af_helpers::{add_at_ix, af_scalar, scalar_to_host, subtract_at_ix, sum_of_squares};
+use crate::net::params::{BranchParamsHost, NetworkPrecisionHyperparameters};
 use crate::net::{
     gibbs_steps::ridge_multi_param_precision_posterior, params::BranchPrecisionsHost,
-};
-use crate::{
-    af_helpers::{add_at_ix, af_scalar, scalar_to_host, subtract_at_ix, sum_of_squares},
-    net::params::BranchHyperparameters,
 };
 use arrayfire::{diag_extract, dim4, dot, matmul, randu, sum, tanh, Array, MatProp};
 use log::{debug, warn};
@@ -67,12 +64,17 @@ pub trait Branch {
 
     fn training_state_mut(&mut self) -> &mut TrainingState;
 
+    /// Branch type specific function that computes meaningful summary statistic from
+    /// an array of parameter values. E.g. sum of squares, sum of abs
+    fn summary_stat_fn(vals: &[f32]) -> f32;
+
     fn precision_posterior_host(
         // k
         prior_shape: f32,
         // s or theta
         prior_scale: f32,
-        param_vals: &[f32],
+        summary_stat: f32,
+        num_vals: usize,
         rng: &mut ThreadRng,
     ) -> f32;
 
@@ -160,7 +162,7 @@ pub trait Branch {
             num_weights: self.num_weights(),
             num_markers: self.num_markers(),
             layer_widths: self.layer_widths().clone(),
-            params: self.params().param_vec(),
+            params: self.params().to_host(),
             precisions: self.precisions().to_host(),
         }
     }
@@ -1235,17 +1237,17 @@ pub struct BranchCfg {
     pub(crate) num_weights: usize,
     pub(crate) num_markers: usize,
     pub(crate) layer_widths: Vec<usize>,
-    pub(crate) params: Vec<f32>,
+    pub(crate) params: BranchParamsHost,
     pub(crate) precisions: BranchPrecisionsHost,
 }
 
 impl BranchCfg {
-    pub fn params(&self) -> &Vec<f32> {
+    pub fn params(&self) -> &BranchParamsHost {
         &self.params
     }
 
-    pub fn output_layer_weight(&self) -> f32 {
-        *self.params.last().expect("Branch params are empty!")
+    pub fn output_layer_weights(&self) -> &[f32] {
+        self.params.weights.last().unwrap()
     }
 
     pub fn precisions(&self) -> &BranchPrecisionsHost {

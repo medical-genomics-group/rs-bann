@@ -226,7 +226,12 @@ impl BranchBuilder {
             num_params: self.num_params,
             num_weights: self.num_weights(),
             num_markers: self.num_markers,
-            params: BranchParams { weights, biases },
+            params: BranchParams {
+                weights,
+                biases,
+                layer_widths: self.layer_widths.clone(),
+                num_markers: self.num_markers,
+            },
             // TODO: impl build method for setting precisions
             precisions: BranchPrecisions {
                 weight_precisions: vec![af_scalar(prec); self.num_layers],
@@ -308,7 +313,12 @@ impl BranchBuilder {
             num_params: self.num_params,
             num_weights: self.num_weights(),
             num_markers: self.num_markers,
-            params: BranchParams { weights, biases },
+            params: BranchParams {
+                weights,
+                biases,
+                layer_widths: self.layer_widths.clone(),
+                num_markers: self.num_markers,
+            },
             // TODO: impl build method for setting precisions
             precisions: BranchPrecisions {
                 weight_precisions: vec![af_scalar(prec); self.num_layers],
@@ -390,7 +400,12 @@ impl BranchBuilder {
             num_params: self.num_params,
             num_weights: self.num_weights(),
             num_markers: self.num_markers,
-            params: BranchParams { weights, biases },
+            params: BranchParams {
+                weights,
+                biases,
+                layer_widths: self.layer_widths.clone(),
+                num_markers: self.num_markers,
+            },
             // TODO: impl build method for setting precisions
             precisions: BranchPrecisions {
                 weight_precisions: widths.iter().map(|w| constant!(prec; *w as u64)).collect(),
@@ -471,7 +486,12 @@ impl BranchBuilder {
             num_params: self.num_params,
             num_weights: self.num_weights(),
             num_markers: self.num_markers,
-            params: BranchParams { weights, biases },
+            params: BranchParams {
+                weights,
+                biases,
+                layer_widths: self.layer_widths.clone(),
+                num_markers: self.num_markers,
+            },
             // TODO: impl build method for setting precisions
             precisions: BranchPrecisions {
                 weight_precisions: widths.iter().map(|w| constant!(prec; *w as u64)).collect(),

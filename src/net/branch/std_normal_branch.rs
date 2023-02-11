@@ -26,6 +26,10 @@ pub struct StdNormalBranch {
 }
 
 impl Branch for StdNormalBranch {
+    fn summary_stat_fn(_: &[f32]) -> f32 {
+        1.0
+    }
+
     fn model_type() -> ModelType {
         ModelType::StdNormal
     }
@@ -43,7 +47,7 @@ impl Branch for StdNormalBranch {
             num_layers: cfg.layer_widths.len(),
             layer_widths: cfg.layer_widths.clone(),
             precisions: BranchPrecisions::from_host(&cfg.precisions),
-            params: BranchParams::from_param_vec(&cfg.params, &cfg.layer_widths, cfg.num_markers),
+            params: BranchParams::from_host(&cfg.params),
             rng: thread_rng(),
             training_state: TrainingState::default(),
         }
@@ -234,10 +238,11 @@ impl Branch for StdNormalBranch {
     fn precision_posterior_host(
         _prior_shape: f32,
         _prior_scale: f32,
-        _param_vals: &[f32],
+        _summary_stat: f32,
+        _num_vals: usize,
         _rng: &mut ThreadRng,
     ) -> f32 {
-        0.0
+        1.0
     }
 
     /// Samples precision values from their posterior distribution in a Gibbs step.

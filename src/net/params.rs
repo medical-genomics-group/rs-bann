@@ -4,6 +4,8 @@ use super::branch::step_sizes::StepSizes;
 use super::branch::{branch::BranchCfg, momentum::Momentum};
 use crate::af_helpers::to_host;
 use arrayfire::{dim4, Array};
+use rand::Rng;
+use rand_distr::Distribution;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
@@ -276,11 +278,145 @@ impl BranchPrecisions {
     }
 }
 
+#[derive(Clone, Deserialize, Debug, PartialEq, Serialize)]
+pub struct BranchParamsHost {
+    pub weights: Vec<Vec<f32>>,
+    pub biases: Vec<Vec<f32>>,
+    pub layer_widths: Vec<usize>,
+    pub num_markers: usize,
+}
+
+impl BranchParamsHost {
+    pub fn new(layer_widths: Vec<usize>, num_markers: usize) -> Self {
+        let mut weights = Vec::new();
+        let mut prev_width = num_markers;
+        for curr_width in &layer_widths {
+            weights.push(vec![0.0; prev_width * curr_width]);
+
+            prev_width = *curr_width;
+        }
+        let biases = layer_widths
+            .iter()
+            .take(layer_widths.len() - 1)
+            .map(|l| vec![0.0; *l])
+            .collect();
+
+        Self {
+            weights,
+            biases,
+            layer_widths,
+            num_markers,
+        }
+    }
+
+    pub fn num_layers(&self) -> usize {
+        self.layer_widths.len()
+    }
+
+    pub fn set_layer_weights(&mut self, layer_ix: usize, weights: Vec<f32>) {
+        self.weights[layer_ix] = weights;
+    }
+
+    pub fn set_layer_biases(&mut self, layer_ix: usize, weights: Vec<f32>) {
+        self.weights[layer_ix] = weights;
+    }
+
+    pub fn set_all_weights_to_constant(&mut self, value: f32) {
+        for w in &mut self.weights {
+            for v in w {
+                *v = value;
+            }
+        }
+    }
+
+    pub fn set_all_biases_to_constant(&mut self, value: f32) {
+        for b in &mut self.biases {
+            for v in b {
+                *v = value;
+            }
+        }
+    }
+
+    pub fn set_layer_weights_from_distribution(
+        &mut self,
+        layer_ix: usize,
+        dist: &impl Distribution<f32>,
+        rng: &mut impl Rng,
+    ) {
+        for v in &mut self.weights[layer_ix] {
+            *v = dist.sample(rng);
+        }
+    }
+
+    pub fn set_layer_biases_from_distribution(
+        &mut self,
+        layer_ix: usize,
+        dist: &impl Distribution<f32>,
+        rng: &mut impl Rng,
+    ) {
+        for v in &mut self.biases[layer_ix] {
+            *v = dist.sample(rng);
+        }
+    }
+
+    pub fn set_all_weights_from_distribution(
+        &mut self,
+        dist: &impl Distribution<f32>,
+        rng: &mut impl Rng,
+    ) {
+        for layer_ix in 0..self.num_layers() {
+            self.set_layer_weights_from_distribution(layer_ix, dist, rng);
+        }
+    }
+
+    pub fn set_all_biases_from_distribution(
+        &mut self,
+        dist: &impl Distribution<f32>,
+        rng: &mut impl Rng,
+    ) {
+        for layer_ix in 0..self.num_layers() - 1 {
+            self.set_layer_biases_from_distribution(layer_ix, dist, rng);
+        }
+    }
+
+    pub fn num_weights_in_layer(&self, layer_ix: usize) -> usize {
+        self.weights[layer_ix].len()
+    }
+
+    pub fn num_biases_in_layer(&self, layer_ix: usize) -> usize {
+        self.biases[layer_ix].len()
+    }
+
+    pub fn set_marker_effects_to_zero(&mut self, marker_ix: usize) {
+        self.weights[0]
+            .iter_mut()
+            .skip(marker_ix)
+            .step_by(self.num_markers)
+            .for_each(|v| *v = 0.0);
+    }
+
+    pub fn ard_group(&self, layer_ix: usize, ard_group_ix: usize) -> Vec<f32> {
+        let num_ard_groups = if layer_ix == 0 {
+            self.num_markers
+        } else {
+            self.layer_widths[layer_ix - 1]
+        };
+        self.weights[layer_ix]
+            .iter()
+            .skip(ard_group_ix)
+            .step_by(num_ard_groups)
+            .cloned()
+            .collect()
+    }
+}
+
 /// Weights and biases
 #[derive(Clone)]
 pub struct BranchParams {
     pub weights: Vec<Array<f32>>,
     pub biases: Vec<Array<f32>>,
+    pub layer_widths: Vec<usize>,
+    pub num_markers: usize,
 }
 
 impl fmt::Debug for BranchParams {
@@ -290,6 +426,41 @@ impl fmt::Debug for BranchParams {
 }
 
 impl BranchParams {
+    pub fn from_host(host: &BranchParamsHost) -> Self {
+        Self {
+            weights: host
+                .weights
+                .iter()
+                .enumerate()
+                .map(|(ix, v)| {
+                    let nrow = if ix == 0 {
+                        host.num_markers
+                    } else {
+                        host.layer_widths[ix - 1]
+                    };
+                    let ncol = host.layer_widths[ix];
+                    Array::new(v, dim4!(nrow as u64, ncol as u64))
+                })
+                .collect(),
+            biases: host
+                .biases
+                .iter()
+                .map(|v| Array::new(v, dim4!(1, v.len() as u64)))
+                .collect(),
+            layer_widths: host.layer_widths.clone(),
+            num_markers: host.num_markers,
+        }
+    }
+
+    pub fn to_host(&self) -> BranchParamsHost {
+        BranchParamsHost {
+            weights: self.weights.iter().map(to_host).collect(),
+            biases: self.biases.iter().map(to_host).collect(),
+            layer_widths: self.layer_widths.clone(),
+            num_markers: self.num_markers,
+        }
+    }
+
     pub fn from_param_vec(
         param_vec: &[f32],
         layer_widths: &Vec<usize>,
@@ -316,7 +487,12 @@ impl BranchParams {
             ));
             read_ix += num_biases;
         }
-        Self { weights, biases }
+        Self {
+            weights,
+            biases,
+            layer_widths: layer_widths.clone(),
+            num_markers,
+        }
     }
 
     pub fn load_param_vec(
@@ -427,6 +603,8 @@ mod tests {
                 Array::new(&[0.3], dim4![1, 1, 1, 1]),
             ],
             biases: vec![Array::new(&[0.4], dim4![1, 1, 1, 1])],
+            layer_widths: vec![1, 1],
+            num_markers: 2,
         }
     }
 

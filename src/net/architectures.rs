@@ -1,3 +1,5 @@
+use crate::arr_helpers::sum_of_squares;
+
 use super::{
     branch::branch::Branch,
     branch::branch::BranchCfg,
@@ -145,8 +147,8 @@ impl<B: Branch> BlockNetCfg<B> {
         let output_weight_precision = cfgs.len() as f32
             / cfgs
                 .iter()
-                .map(|c| c.params[c.num_weights - 1])
-                .map(|e| e * e)
+                .map(|c| c.output_layer_weights())
+                .map(sum_of_squares)
                 .sum::<f32>();
         cfgs.iter_mut().for_each(|c| {
             *c.precisions.weight_precisions.last_mut().unwrap() = vec![output_weight_precision]

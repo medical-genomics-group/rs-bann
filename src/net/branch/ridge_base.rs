@@ -27,6 +27,10 @@ pub struct RidgeBaseBranch {
 }
 
 impl Branch for RidgeBaseBranch {
+    fn summary_stat_fn(vals: &[f32]) -> f32 {
+        crate::arr_helpers::sum_of_squares(vals)
+    }
+
     fn model_type() -> ModelType {
         ModelType::RidgeBase
     }
@@ -44,7 +48,7 @@ impl Branch for RidgeBaseBranch {
             num_layers: cfg.layer_widths.len(),
             layer_widths: cfg.layer_widths.clone(),
             precisions: BranchPrecisions::from_host(&cfg.precisions),
-            params: BranchParams::from_param_vec(&cfg.params, &cfg.layer_widths, cfg.num_markers),
+            params: BranchParams::from_host(&cfg.params),
             rng: thread_rng(),
             training_state: TrainingState::default(),
         }
@@ -248,13 +252,15 @@ impl Branch for RidgeBaseBranch {
         prior_shape: f32,
         // s or theta
         prior_scale: f32,
-        param_vals: &[f32],
+        summary_stat: f32,
+        num_vals: usize,
         rng: &mut ThreadRng,
     ) -> f32 {
-        super::super::gibbs_steps::lasso_multi_param_precision_posterior_host(
+        super::super::gibbs_steps::lasso_multi_param_precision_posterior_host_prepared_summary_stats(
             prior_shape,
             prior_scale,
-            param_vals,
+            summary_stat,
+            num_vals,
             rng,
         )
     }
@@ -362,7 +368,14 @@ mod tests {
             Array::new(&[c], dim4![1, 1, 1, 1]),
         ]
         .to_vec();
-        BranchParams { weights, biases }
+        let layer_widths = vec![2, 1, 1];
+        let num_markers = 3;
+        BranchParams {
+            weights,
+            biases,
+            layer_widths,
+            num_markers,
+        }
     }
 
     fn make_test_uniform_momenta(c: f32) -> BranchMomentum {

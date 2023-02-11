@@ -261,6 +261,15 @@ impl<B: Branch> Net<B> {
                     _ => residual -= prev_pred,
                 }
                 branch.sample_prior_precisions(&self.hyperparams);
+                self.sample_output_layer_weight_precision(&mut rng);
+
+                // update error precision
+                self.error_precision = ridge_multi_param_precision_posterior(
+                    self.hyperparams.output_layer_prior_shape(),
+                    self.hyperparams.output_layer_prior_scale(),
+                    &residual,
+                    &mut rng,
+                );
 
                 // dump branch cfg
                 self.branch_cfgs[branch_ix] = branch.to_cfg();
@@ -273,21 +282,11 @@ impl<B: Branch> Net<B> {
                 self.report_training_state_debug(chain_ix, &residual);
             }
 
-            self.sample_output_layer_weight_precision(&mut rng);
-
             // TODO:
             // this can be easily done without predicting again,
             // just by saving the last predictions of each branch
             // and combining them.
             self.record_mse(&residual, report_cfg.as_ref().unwrap().test_data);
-
-            // update error precision
-            self.error_precision = ridge_multi_param_precision_posterior(
-                self.hyperparams.output_layer_prior_shape(),
-                self.hyperparams.output_layer_prior_scale(),
-                &residual,
-                &mut rng,
-            );
 
             // save current model if done with burn in
             if chain_ix >= mcmc_cfg.burn_in {
@@ -313,17 +312,28 @@ impl<B: Branch> Net<B> {
 
     fn sample_output_layer_weight_precision(&mut self, rng: &mut ThreadRng) {
         // collect all output layer weights
-        let output_layer_weights = self
+        let mut num_vals = 0;
+        let summary_stat = self
             .branch_cfgs
             .iter()
-            .map(|cfg| cfg.output_layer_weight())
-            .collect::<Vec<f32>>();
+            .map(|cfg| {
+                let w = cfg.output_layer_weights();
+                num_vals += w.len();
+                B::summary_stat_fn(w)
+            })
+            .sum();
         let precision = B::precision_posterior_host(
             self.hyperparams.output_layer_prior_shape(),
             self.hyperparams.output_layer_prior_scale(),
-            &output_layer_weights,
+            summary_stat,
+            num_vals,
             rng,
         );
+        self.sync_output_layer_weight_precision(precision);
+    }
+
+    /// Synchronize output layer weight precision between all branch cfgs
+    pub fn sync_output_layer_weight_precision(&mut self, precision: f32) {
         for cfg in &mut self.branch_cfgs {
             cfg.set_output_layer_precision(precision);
         }

@@ -7,10 +7,13 @@ use super::{
     step_sizes::StepSizes,
     training_state::TrainingState,
 };
-use crate::af_helpers::{af_scalar, sign, to_host};
 use crate::af_helpers::{l1_norm, l1_norm_rows};
 use crate::net::mcmc_cfg::MCMCCfg;
 use crate::net::params::NetworkPrecisionHyperparameters;
+use crate::{
+    af_helpers::{af_scalar, sign, to_host},
+    arr_helpers,
+};
 use arrayfire::{abs, dim4, sqrt, sum, tile, Array, MatProp};
 use rand::prelude::ThreadRng;
 use rand::thread_rng;
@@ -31,6 +34,10 @@ pub struct LassoArdBranch {
 // Weights in this branch are grouped by the node they
 // are going out of.
 impl Branch for LassoArdBranch {
+    fn summary_stat_fn(vals: &[f32]) -> f32 {
+        arr_helpers::sum_of_abs(vals)
+    }
+
     fn model_type() -> ModelType {
         ModelType::LassoARD
     }
@@ -48,7 +55,7 @@ impl Branch for LassoArdBranch {
             num_layers: cfg.layer_widths.len(),
             layer_widths: cfg.layer_widths.clone(),
             precisions: BranchPrecisions::from_host(&cfg.precisions),
-            params: BranchParams::from_param_vec(&cfg.params, &cfg.layer_widths, cfg.num_markers),
+            params: BranchParams::from_host(&cfg.params),
             rng: thread_rng(),
             training_state: TrainingState::default(),
         }
@@ -298,13 +305,15 @@ impl Branch for LassoArdBranch {
         prior_shape: f32,
         // s or theta
         prior_scale: f32,
-        param_vals: &[f32],
+        sum_of_squares: f32,
+        num_vals: usize,
         rng: &mut ThreadRng,
     ) -> f32 {
-        super::super::gibbs_steps::lasso_multi_param_precision_posterior_host(
+        super::super::gibbs_steps::lasso_multi_param_precision_posterior_host_prepared_summary_stats(
             prior_shape,
             prior_scale,
-            param_vals,
+            sum_of_squares,
+            num_vals,
             rng,
         )
     }
@@ -470,7 +479,14 @@ mod tests {
             Array::new(&[c], dim4![1, 1, 1, 1]),
         ]
         .to_vec();
-        BranchParams { weights, biases }
+        let layer_widths = vec![2, 1, 1];
+        let num_markers = 3;
+        BranchParams {
+            weights,
+            biases,
+            layer_widths,
+            num_markers,
+        }
     }
 
     fn make_test_uniform_momenta(c: f32) -> BranchMomentum {
