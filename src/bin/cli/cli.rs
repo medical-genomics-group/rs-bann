@@ -282,6 +282,11 @@ pub(crate) struct TrainArgs {
     #[clap(long)]
     pub gradient_descent: bool,
 
+    /// Use gradient descent to optimize both params and precisions, instead of HMC.
+    /// CAUTION: this only leads to point estimates for all parameters
+    #[clap(long)]
+    pub gradient_descent_joint: bool,
+
     /// Set error precision of model before training.
     #[clap(long)]
     pub error_precision: Option<f32>,
@@ -410,9 +415,14 @@ pub(crate) struct TrainNewArgs {
     pub num_grad: bool,
 
     /// Use gradient descent instead of HMC.
-    /// CAUTION: this does only lead to point estimates for all parameters
+    /// CAUTION: this only leads to point estimates for all parameters
     #[clap(long)]
     pub gradient_descent: bool,
+
+    /// Use gradient descent to optimize both params and precisions, instead of HMC.
+    /// CAUTION: this only leads to point estimates for all parameters
+    #[clap(long)]
+    pub gradient_descent_joint: bool,
 
     /// width of summary layer. By default equal to hidden layer width
     #[clap(long)]
@@ -565,9 +575,14 @@ pub(crate) struct TrainNewBedArgs {
     pub num_grad: bool,
 
     /// Use gradient descent instead of HMC.
-    /// CAUTION: this does only lead to point estimates for all parameters
+    /// CAUTION: this only leads to point estimates for all parameters
     #[clap(long)]
     pub gradient_descent: bool,
+
+    /// Use gradient descent to optimize both params and precisions, instead of HMC.
+    /// CAUTION: this only leads to point estimates for all parameters
+    #[clap(long)]
+    pub gradient_descent_joint: bool,
 
     /// width of summary layer. By default equal to hidden layer width
     #[clap(long)]

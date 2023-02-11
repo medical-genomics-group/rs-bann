@@ -20,6 +20,8 @@ pub struct MCMCCfg {
     pub num_grad: bool,
     /// use gradient descent instead of hmc
     pub gradient_descent: bool,
+    /// use gradient descent on both parameteres and precisions, instead of hmc
+    pub gradient_descent_joint: bool,
     /// sample branch parameters and their precisions jointly
     /// instead of sampling the precisions in a gibbs step
     pub joint_hmc: bool,
@@ -41,6 +43,7 @@ impl Default for MCMCCfg {
             num_grad: false,
             // use gradient descent instead of hmc
             gradient_descent: false,
+            gradient_descent_joint: false,
             joint_hmc: false,
         }
     }

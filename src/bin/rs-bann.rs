@@ -1008,6 +1008,7 @@ where
         num_grad_traj: args.num_grad_traj,
         num_grad: args.num_grad,
         gradient_descent: args.gradient_descent,
+        gradient_descent_joint: args.gradient_descent_joint,
         joint_hmc: args.joint_hmc,
     };
     mcmc_cfg.create_out();
@@ -1111,6 +1112,7 @@ where
         num_grad_traj: args.num_grad_traj,
         num_grad: args.num_grad,
         gradient_descent: args.gradient_descent,
+        gradient_descent_joint: args.gradient_descent_joint,
         joint_hmc: args.joint_hmc,
     };
     mcmc_cfg.create_out();
@@ -1193,6 +1195,7 @@ where
         num_grad_traj: args.num_grad_traj,
         num_grad: args.num_grad,
         gradient_descent: args.gradient_descent,
+        gradient_descent_joint: args.gradient_descent_joint,
         joint_hmc: args.joint_hmc,
     };
     mcmc_cfg.create_out();

@@ -971,13 +971,44 @@ pub trait Branch {
     ) -> HMCStepResult {
         let mut ldg = self.log_density_gradient(x_train, y_train);
         for _step in 0..(mcmc_cfg.hmc_integration_length) {
-            self.params_mut().descent_gradient(GD_STEP_SIZE, &ldg);
+            self.params_mut().descend_gradient(GD_STEP_SIZE, &ldg);
             ldg = self.log_density_gradient(x_train, y_train);
         }
         let y_pred = self.predict(x_train);
         let r = &y_pred - y_train;
         let rss = arrayfire::sum_all(&(&r * &r)).0;
         let log_density = self.log_density(self.params(), self.precisions(), rss);
+        debug!("branch log density after step: {:.4}", log_density);
+        HMCStepResult::Accepted(HMCStepResultData {
+            y_pred,
+            log_density,
+        })
+    }
+
+    /// Performs gradient descent step for weights, biases and their precisions
+    fn gradient_descent_joint(
+        &mut self,
+        x_train: &Array<f32>,
+        y_train: &Array<f32>,
+        mcmc_cfg: &MCMCCfg,
+        hyperparams: &NetworkPrecisionHyperparameters,
+    ) -> HMCStepResult {
+        let mut ldg = self.log_density_gradient_joint(x_train, y_train, hyperparams);
+        for _step in 0..(mcmc_cfg.hmc_integration_length) {
+            self.params_mut().descend_gradient(GD_STEP_SIZE, &ldg);
+            self.precisions_mut().descend_gradient(GD_STEP_SIZE, &ldg);
+            ldg = self.log_density_gradient_joint(x_train, y_train, hyperparams);
+        }
+        let y_pred = self.predict(x_train);
+        let r = &y_pred - y_train;
+        let rss = arrayfire::sum_all(&(&r * &r)).0;
+        let log_density = self.log_density_joint(
+            self.params(),
+            self.precisions(),
+            rss,
+            hyperparams,
+            y_pred.elements(),
+        );
         debug!("branch log density after step: {:.4}", log_density);
         HMCStepResult::Accepted(HMCStepResultData {
             y_pred,

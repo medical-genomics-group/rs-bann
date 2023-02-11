@@ -1,4 +1,4 @@
-use super::branch::gradient::BranchLogDensityGradient;
+use super::branch::gradient::{NetParamGradient, NetPrecisionGradient};
 use super::branch::momentum::BranchMomentumJoint;
 use super::branch::step_sizes::StepSizes;
 use super::branch::{branch::BranchCfg, momentum::Momentum};
@@ -262,6 +262,18 @@ impl BranchPrecisions {
         self.error_precision +=
             step_sizes.wrt_error_precision.as_ref().unwrap() * &mom.wrt_error_precision;
     }
+
+    pub fn descend_gradient<T: NetPrecisionGradient>(&mut self, step_size: f32, gradient: &T) {
+        let gwwp = gradient.wrt_weight_precisions();
+        for i in 0..self.weight_precisions.len() {
+            self.weight_precisions[i] += step_size * &gwwp[i];
+        }
+        let gwbp = gradient.wrt_bias_precisions();
+        for i in 0..self.bias_precisions.len() {
+            self.bias_precisions[i] += step_size * &gwbp[i];
+        }
+        self.error_precision += step_size * gradient.wrt_error_precision();
+    }
 }
 
 /// Weights and biases
@@ -374,12 +386,14 @@ impl BranchParams {
         }
     }
 
-    pub fn descent_gradient(&mut self, step_size: f32, gradient: &BranchLogDensityGradient) {
+    pub fn descend_gradient<T: NetParamGradient>(&mut self, step_size: f32, gradient: &T) {
+        let gww = gradient.wrt_weights();
         for i in 0..self.weights.len() {
-            self.weights[i] += step_size * &gradient.wrt_weights[i];
+            self.weights[i] += step_size * &gww[i];
         }
+        let gwb = gradient.wrt_biases();
         for i in 0..self.biases.len() {
-            self.biases[i] += step_size * &gradient.wrt_biases[i];
+            self.biases[i] += step_size * &gwb[i];
         }
     }
 
