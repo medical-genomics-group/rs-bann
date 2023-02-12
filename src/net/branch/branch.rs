@@ -29,7 +29,7 @@ use std::{
 };
 
 const NUMERICAL_DELTA: f32 = 0.001;
-const GD_STEP_SIZE: f32 = 0.00001;
+const GD_STEP_SIZE: f32 = 0.001;
 
 pub trait Branch {
     fn model_type() -> ModelType;
