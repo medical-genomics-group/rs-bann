@@ -31,11 +31,11 @@ impl TrainingState {
     }
 
     // TODO: instead of cloning, directly modify the entries of training state on the fly
-    pub fn set_d_rss_wrt_weights(&mut self, new: &Vec<Array<f32>>) {
-        self.d_rss_wrt_weights = new.clone();
+    pub fn set_d_rss_wrt_weights(&mut self, new: &[Array<f32>]) {
+        self.d_rss_wrt_weights = new.to_vec();
     }
 
-    pub fn set_d_rss_wrt_biases(&mut self, new: &Vec<Array<f32>>) {
-        self.d_rss_wrt_biases = new.clone();
+    pub fn set_d_rss_wrt_biases(&mut self, new: &[Array<f32>]) {
+        self.d_rss_wrt_biases = new.to_vec();
     }
 }
