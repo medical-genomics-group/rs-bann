@@ -145,9 +145,6 @@ impl<B: Branch> Net<B> {
         .unwrap();
     }
 
-    // X has to be column major!
-    // TODO: X will likely have to be in compressed format on host memory, so Ill have to unpack
-    // it before loading it into device memory
     pub fn train<T: GroupedGenotypes>(
         &mut self,
         train_data: &Data<T>,
@@ -233,17 +230,9 @@ impl<B: Branch> Net<B> {
                 // load branch cfg
                 let mut branch = B::from_cfg(cfg);
                 branch.set_error_precision(self.error_precision);
-                branch.sample_error_precision(
-                    &residual,
-                    self.hyperparams.output_layer_prior_shape(),
-                    self.hyperparams.output_layer_prior_scale(),
-                    &mut rng,
-                );
-                // TODO: save last prediction contribution for each branch to reduce compute
-                // ... this might need substantial amount of memory though, probably not worth it.
                 let prev_pred = branch.predict(x);
                 residual = &residual + &prev_pred;
-                // update error precision
+
                 let step_res = if mcmc_cfg.gradient_descent {
                     branch.gradient_descent(x, &residual, mcmc_cfg)
                 } else if mcmc_cfg.gradient_descent_joint {
@@ -261,16 +250,17 @@ impl<B: Branch> Net<B> {
                     _ => residual -= prev_pred,
                 }
 
-                branch.sample_prior_precisions(&self.hyperparams);
-                self.sample_output_layer_weight_precision(&mut rng);
-
-                // update error precision
-                self.error_precision = ridge_multi_param_precision_posterior(
-                    self.hyperparams.output_layer_prior_shape(),
-                    self.hyperparams.output_layer_prior_scale(),
-                    &residual,
-                    &mut rng,
-                );
+                //
+                if !(mcmc_cfg.gradient_descent_joint || mcmc_cfg.joint_hmc) {
+                    branch.sample_prior_precisions(&self.hyperparams);
+                    self.sample_output_layer_weight_precision(&mut rng);
+                    self.error_precision = ridge_multi_param_precision_posterior(
+                        self.hyperparams.output_layer_prior_shape(),
+                        self.hyperparams.output_layer_prior_scale(),
+                        &residual,
+                        &mut rng,
+                    );
+                }
 
                 // dump branch cfg
                 self.branch_cfgs[branch_ix] = branch.to_cfg();
