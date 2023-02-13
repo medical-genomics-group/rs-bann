@@ -1,5 +1,5 @@
 use super::branch::BranchCfg;
-use crate::net::params::{BranchParamsHost, BranchPrecisionsHost};
+use crate::net::params::{BranchParamsHost, BranchPrecisionsHost, OutputWeightSummaryStatsHost};
 use rand::{distributions::Distribution, SeedableRng};
 use rand_chacha::ChaCha20Rng;
 use rand_distr::{Bernoulli, Gamma, Normal};
@@ -321,6 +321,7 @@ impl BranchCfgBuilder {
                 bias_precisions,
                 error_precision: vec![1.0],
             },
+            output_weight_summary_stats: OutputWeightSummaryStatsHost::default(),
         }
     }
 }
@@ -328,7 +329,7 @@ impl BranchCfgBuilder {
 #[cfg(test)]
 mod tests {
     use super::BranchCfgBuilder;
-    use crate::net::params::BranchParamsHost;
+    use crate::net::params::{BranchParamsHost, OutputWeightSummaryStatsHost};
 
     #[test]
     fn build_branch_cfg() {
@@ -366,6 +367,7 @@ mod tests {
             biases: vec![vec![0.0, 0.0], vec![0.0]],
             layer_widths: vec![2, 1, 1],
             num_markers: 4,
+            output_weight_summary_stats: OutputWeightSummaryStatsHost::default(),
         };
         assert_eq!(cfg.params, exp);
     }

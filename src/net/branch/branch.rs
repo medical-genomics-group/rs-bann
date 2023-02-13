@@ -14,7 +14,10 @@ use super::{
     trajectory::Trajectory,
 };
 use crate::af_helpers::{add_at_ix, af_scalar, scalar_to_host, subtract_at_ix, sum_of_squares};
-use crate::net::params::{BranchParamsHost, NetworkPrecisionHyperparameters};
+use crate::net::params::{
+    BranchParamsHost, GlobalParams, NetworkPrecisionHyperparameters, OutputWeightSummaryStats,
+    OutputWeightSummaryStatsHost,
+};
 use crate::net::{
     gibbs_steps::ridge_multi_param_precision_posterior, params::BranchPrecisionsHost,
 };
@@ -64,18 +67,22 @@ pub trait Branch {
 
     fn training_state_mut(&mut self) -> &mut TrainingState;
 
-    /// Branch type specific function that computes meaningful summary statistic from
-    /// an array of parameter values. E.g. sum of squares, sum of abs
+    fn output_weight_summary_stats(&self) -> &OutputWeightSummaryStats;
+
+    fn rng_mut(&mut self) -> &mut ThreadRng;
+
+    /// Branch type specific function that computes the value sum summary statistic
+    /// from an array of parameter values. E.g. sum of squares, sum of abs
     fn summary_stat_fn(vals: &[f32]) -> f32;
 
     fn precision_posterior_host(
+        &mut self,
         // k
         prior_shape: f32,
         // s or theta
         prior_scale: f32,
         summary_stat: f32,
         num_vals: usize,
-        rng: &mut ThreadRng,
     ) -> f32;
 
     fn rng(&mut self) -> &mut ThreadRng;
@@ -95,6 +102,10 @@ pub trait Branch {
     ) -> Vec<Array<f32>>;
 
     fn log_density_gradient_wrt_weights(&self) -> Vec<Array<f32>>;
+
+    fn output_layer_precision(&self) -> &Array<f32> {
+        self.precisions().output_layer_precision()
+    }
 
     // This should be -U(q), e.g. log P(D | Theta)P(Theta)
     fn log_density(&self, params: &BranchParams, precisions: &BranchPrecisions, rss: f32) -> f32 {
@@ -164,22 +175,45 @@ pub trait Branch {
             layer_widths: self.layer_widths().clone(),
             params: self.params().to_host(),
             precisions: self.precisions().to_host(),
+            output_weight_summary_stats: self.output_weight_summary_stats().to_host(),
         }
+    }
+
+    fn sample_precisions(
+        &mut self,
+        residual: &Array<f32>,
+        hyperparams: &NetworkPrecisionHyperparameters,
+    ) {
+        self.sample_error_precision(residual, hyperparams);
+        self.sample_prior_precisions(hyperparams);
+        self.sample_output_layer_weight_precision(hyperparams);
+    }
+
+    fn sample_output_layer_weight_precision(
+        &mut self,
+        hyperparams: &NetworkPrecisionHyperparameters,
+    ) {
+        let precision = self.precision_posterior_host(
+            hyperparams.output_layer_prior_shape(),
+            hyperparams.output_layer_prior_scale(),
+            self.output_weight_summary_stats().reg_sum_host(),
+            self.output_weight_summary_stats().num_params_host(),
+        );
+        self.precisions_mut().set_output_layer_precision(precision);
     }
 
     fn sample_error_precision(
         &mut self,
         residual: &Array<f32>,
-        prior_shape: f32,
-        prior_scale: f32,
-        rng: &mut ThreadRng,
+        hyperparams: &NetworkPrecisionHyperparameters,
     ) {
-        self.set_error_precision(ridge_multi_param_precision_posterior(
-            prior_shape,
-            prior_scale,
-            residual,
-            rng,
-        ));
+        let precision = ridge_multi_param_precision_posterior(
+            hyperparams.output_layer_prior_shape(),
+            hyperparams.output_layer_prior_scale(),
+            &residual,
+            self.rng_mut(),
+        );
+        self.set_error_precision(precision);
     }
 
     fn summary_layer_index(&self) -> usize {
@@ -1239,6 +1273,7 @@ pub struct BranchCfg {
     pub(crate) layer_widths: Vec<usize>,
     pub(crate) params: BranchParamsHost,
     pub(crate) precisions: BranchPrecisionsHost,
+    pub(crate) output_weight_summary_stats: OutputWeightSummaryStatsHost,
 }
 
 impl BranchCfg {
@@ -1256,6 +1291,32 @@ impl BranchCfg {
 
     pub fn set_output_layer_precision(&mut self, precision: f32) {
         self.precisions.set_output_layer_precision(precision);
+    }
+
+    pub fn set_error_precision(&mut self, precision: f32) {
+        self.precisions.set_error_precision(precision);
+    }
+
+    pub fn set_output_weight_summary_stats(&mut self, sstats: OutputWeightSummaryStatsHost) {
+        self.output_weight_summary_stats = sstats;
+    }
+
+    pub fn output_layer_precision(&self) -> f32 {
+        self.precisions.output_layer_precision()
+    }
+
+    pub fn output_weight_summary_stats(&self) -> OutputWeightSummaryStatsHost {
+        self.output_weight_summary_stats
+    }
+
+    pub fn error_precision(&self) -> f32 {
+        self.precisions.error_precision[0]
+    }
+
+    pub fn update_global_params(&mut self, gp: &GlobalParams) {
+        self.set_error_precision(gp.error_precision());
+        self.set_output_layer_precision(gp.output_layer_precision());
+        self.set_output_weight_summary_stats(gp.output_weight_summary_stats());
     }
 }
 

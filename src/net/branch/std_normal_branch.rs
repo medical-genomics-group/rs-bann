@@ -1,6 +1,6 @@
 use super::{
     super::model_type::ModelType,
-    super::params::{BranchParams, BranchPrecisions},
+    super::params::{BranchParams, BranchPrecisions, OutputWeightSummaryStats},
     branch::{Branch, BranchCfg},
     branch_cfg_builder::BranchCfgBuilder,
     step_sizes::StepSizes,
@@ -51,6 +51,14 @@ impl Branch for StdNormalBranch {
             rng: thread_rng(),
             training_state: TrainingState::default(),
         }
+    }
+
+    fn rng_mut(&mut self) -> &mut ThreadRng {
+        &mut self.rng
+    }
+
+    fn output_weight_summary_stats(&self) -> &OutputWeightSummaryStats {
+        &self.params.output_weight_summary_stats
     }
 
     fn training_state(&self) -> &TrainingState {
@@ -236,11 +244,11 @@ impl Branch for StdNormalBranch {
     }
 
     fn precision_posterior_host(
+        &mut self,
         _prior_shape: f32,
         _prior_scale: f32,
         _summary_stat: f32,
         _num_vals: usize,
-        _rng: &mut ThreadRng,
     ) -> f32 {
         1.0
     }

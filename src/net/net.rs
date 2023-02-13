@@ -1,7 +1,8 @@
 use super::model_type::ModelType;
+use super::params::GlobalParams;
 use super::{
     branch::branch::{Branch, BranchCfg, HMCStepResult},
-    gibbs_steps::{ridge_multi_param_precision_posterior, ridge_single_param_precision_posterior},
+    gibbs_steps::ridge_single_param_precision_posterior,
     mcmc_cfg::MCMCCfg,
     params::{ModelHyperparameters, NetworkPrecisionHyperparameters},
     train_stats::{ReportCfg, TrainingStats},
@@ -33,6 +34,10 @@ pub struct OutputBias {
 }
 
 impl OutputBias {
+    fn update_global_params(&mut self, gp: &GlobalParams) {
+        self.error_precision = gp.error_precision();
+    }
+
     fn sample_bias(&mut self, residual: &Array<f32>, n: usize, rng: &mut ThreadRng) {
         let (sum_r, _) = sum_all(residual);
         let nu = self.error_precision / (n as f32 * self.error_precision + self.precision);
@@ -42,20 +47,17 @@ impl OutputBias {
     }
 
     /// Sample lambda_theta of the output bias
-    fn sample_prior_precision(&mut self, prior_shape: f32, prior_scale: f32, rng: &mut ThreadRng) {
-        self.precision =
-            ridge_single_param_precision_posterior(prior_shape, prior_scale, self.bias, rng);
-    }
-
-    fn sample_error_precision(
+    fn sample_prior_precision(
         &mut self,
-        residual: &Array<f32>,
-        prior_shape: f32,
-        prior_scale: f32,
+        hyperparams: &NetworkPrecisionHyperparameters,
         rng: &mut ThreadRng,
     ) {
-        self.error_precision =
-            ridge_multi_param_precision_posterior(prior_shape, prior_scale, residual, rng);
+        self.precision = ridge_single_param_precision_posterior(
+            hyperparams.output_layer_prior_shape(),
+            hyperparams.output_layer_prior_shape(),
+            self.bias,
+            rng,
+        );
     }
 
     fn af_bias(&self) -> Array<f32> {
@@ -70,8 +72,8 @@ pub struct Net<B: Branch> {
     num_branches: usize,
     branch_cfgs: Vec<BranchCfg>,
     output_bias: OutputBias,
-    error_precision: f32,
     training_stats: TrainingStats,
+    global_params: GlobalParams,
     branch_type: PhantomData<B>,
 }
 
@@ -81,15 +83,15 @@ impl<B: Branch> Net<B> {
         num_branches: usize,
         branch_cfgs: Vec<BranchCfg>,
         output_bias: OutputBias,
-        error_precision: f32,
+        global_params: GlobalParams,
     ) -> Self {
         Self {
             hyperparams,
             num_branches,
             branch_cfgs,
             output_bias,
-            error_precision,
             training_stats: TrainingStats::new(),
+            global_params,
             branch_type: PhantomData,
         }
     }
@@ -116,16 +118,16 @@ impl<B: Branch> Net<B> {
         &self.branch_cfgs
     }
 
+    pub fn set_error_precision(&mut self, val: f32) {
+        self.global_params.set_error_precision(val);
+    }
+
     pub fn num_params(&self) -> usize {
         let mut res = 0;
         for cfg in &self.branch_cfgs {
             res += cfg.num_params
         }
         res
-    }
-
-    pub fn set_error_precision(&mut self, precision: f32) {
-        self.error_precision = precision;
     }
 
     pub fn num_branches(&self) -> usize {
@@ -169,14 +171,6 @@ impl<B: Branch> Net<B> {
         let mut branch_ixs = (0..self.num_branches).collect::<Vec<usize>>();
         let mut report_interval = 1;
 
-        // // initial error precision
-        self.error_precision = ridge_multi_param_precision_posterior(
-            self.hyperparams.output_layer_prior_shape(),
-            self.hyperparams.output_layer_prior_scale(),
-            &residual,
-            &mut rng,
-        );
-
         info!(
             "Training net with {:} branches, {:} params",
             self.num_branches,
@@ -203,35 +197,25 @@ impl<B: Branch> Net<B> {
         }
 
         for chain_ix in 1..=mcmc_cfg.chain_length {
-            // sample ouput bias term
-            // output bias is 0 upon initialization.
-            self.output_bias.sample_error_precision(
-                &residual,
-                self.hyperparams.output_layer_prior_shape(),
-                self.hyperparams.output_layer_prior_scale(),
-                &mut rng,
-            );
-            residual += self.output_bias.af_bias();
-            self.output_bias
-                .sample_bias(&residual, num_individuals, &mut rng);
-            self.output_bias.sample_prior_precision(
-                self.hyperparams.output_layer_prior_shape(),
-                self.hyperparams.output_layer_prior_scale(),
-                &mut rng,
-            );
-            residual -= self.output_bias.af_bias();
             // shuffle order in which branches are trained
             branch_ixs.shuffle(&mut rng);
             for &branch_ix in &branch_ixs {
                 debug!("Updating branch {:}", branch_ix);
-                let cfg = &self.branch_cfgs[branch_ix];
+
+                let cfg = &mut self.branch_cfgs[branch_ix];
+                cfg.update_global_params(&self.global_params);
+
                 // load marker data onto device
                 let x = &train_data.x_branch_af(branch_ix);
+
                 // load branch cfg
-                let mut branch = B::from_cfg(cfg);
-                branch.set_error_precision(self.error_precision);
+                let mut branch = B::from_cfg(&cfg);
                 let prev_pred = branch.predict(x);
                 residual = &residual + &prev_pred;
+
+                if !(mcmc_cfg.gradient_descent_joint || mcmc_cfg.joint_hmc) {
+                    branch.sample_precisions(&residual, &self.hyperparams);
+                }
 
                 let step_res = if mcmc_cfg.gradient_descent {
                     branch.gradient_descent(x, &residual, mcmc_cfg)
@@ -250,20 +234,10 @@ impl<B: Branch> Net<B> {
                     _ => residual -= prev_pred,
                 }
 
-                //
-                if !(mcmc_cfg.gradient_descent_joint || mcmc_cfg.joint_hmc) {
-                    branch.sample_prior_precisions(&self.hyperparams);
-                    self.sample_output_layer_weight_precision(&mut rng);
-                    self.error_precision = ridge_multi_param_precision_posterior(
-                        self.hyperparams.output_layer_prior_shape(),
-                        self.hyperparams.output_layer_prior_scale(),
-                        &residual,
-                        &mut rng,
-                    );
-                }
-
-                // dump branch cfg
-                self.branch_cfgs[branch_ix] = branch.to_cfg();
+                // update global params & dump branch cfg
+                let cfg = branch.to_cfg();
+                self.global_params.update_from_branch_cfg(&cfg);
+                self.branch_cfgs[branch_ix] = cfg;
 
                 // compute effect sizes and save
                 if chain_ix >= mcmc_cfg.burn_in {
@@ -271,6 +245,15 @@ impl<B: Branch> Net<B> {
                 }
 
                 self.report_training_state_debug(chain_ix, &residual);
+
+                // sample output bias
+                residual += self.output_bias.af_bias();
+                self.output_bias.update_global_params(&self.global_params);
+                self.output_bias
+                    .sample_prior_precision(&self.hyperparams, &mut rng);
+                self.output_bias
+                    .sample_bias(&residual, num_individuals, &mut rng);
+                residual -= self.output_bias.af_bias();
             }
 
             self.record_mse(&residual, report_cfg.as_ref().unwrap().test_data);
@@ -295,35 +278,6 @@ impl<B: Branch> Net<B> {
         info!("Completed training");
         // save training stats
         self.training_stats.to_file(&mcmc_cfg.outpath);
-    }
-
-    fn sample_output_layer_weight_precision(&mut self, rng: &mut ThreadRng) {
-        // collect all output layer weights
-        let mut num_vals = 0;
-        let summary_stat = self
-            .branch_cfgs
-            .iter()
-            .map(|cfg| {
-                let w = cfg.output_layer_weights();
-                num_vals += w.len();
-                B::summary_stat_fn(w)
-            })
-            .sum();
-        let precision = B::precision_posterior_host(
-            self.hyperparams.output_layer_prior_shape(),
-            self.hyperparams.output_layer_prior_scale(),
-            summary_stat,
-            num_vals,
-            rng,
-        );
-        self.sync_output_layer_weight_precision(precision);
-    }
-
-    /// Synchronize output layer weight precision between all branch cfgs
-    pub fn sync_output_layer_weight_precision(&mut self, precision: f32) {
-        for cfg in &mut self.branch_cfgs {
-            cfg.set_output_layer_precision(precision);
-        }
     }
 
     pub fn predict<T: GroupedGenotypes>(&self, gen: &T) -> Vec<f32> {

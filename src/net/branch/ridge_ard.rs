@@ -7,10 +7,13 @@ use super::{
     step_sizes::StepSizes,
     training_state::TrainingState,
 };
-use crate::af_helpers::{af_scalar, sum_of_squares, sum_of_squares_rows, to_host};
 use crate::net::mcmc_cfg::MCMCCfg;
 use crate::net::params::NetworkPrecisionHyperparameters;
-use arrayfire::{dim4, sqrt, sum, tile, Array, MatProp};
+use crate::{
+    af_helpers::{af_scalar, sum_of_squares, sum_of_squares_rows, to_host},
+    net::params::OutputWeightSummaryStats,
+};
+use arrayfire::{dim4, sqrt, tile, Array, MatProp};
 use rand::prelude::ThreadRng;
 use rand::thread_rng;
 use rand_distr::{Distribution, Gamma};
@@ -55,6 +58,14 @@ impl Branch for RidgeArdBranch {
             rng: thread_rng(),
             training_state: TrainingState::default(),
         }
+    }
+
+    fn rng_mut(&mut self) -> &mut ThreadRng {
+        &mut self.rng
+    }
+
+    fn output_weight_summary_stats(&self) -> &OutputWeightSummaryStats {
+        &self.params.output_weight_summary_stats
     }
 
     fn training_state(&self) -> &TrainingState {
@@ -302,74 +313,63 @@ impl Branch for RidgeArdBranch {
     }
 
     fn precision_posterior_host(
+        &mut self,
         // k
         prior_shape: f32,
         // s or theta
         prior_scale: f32,
         summary_stat: f32,
         num_vals: usize,
-        rng: &mut ThreadRng,
     ) -> f32 {
         super::super::gibbs_steps::ridge_multi_param_precision_posterior_host_prepared_summary_stats(
             prior_shape,
             prior_scale,
             summary_stat,
             num_vals,
-            rng,
+            &mut self.rng,
         )
     }
 
     /// Samples precision values from their posterior distribution in a Gibbs step.
     fn sample_prior_precisions(&mut self, hyperparams: &NetworkPrecisionHyperparameters) {
+        // wrt weights
         for i in 0..self.output_layer_index() {
+            let (prior_shape, prior_scale) =
+                hyperparams.layer_prior_hyperparams(i, self.num_layers());
+
+            // weights
             let param_group_size = self.layer_width(i) as f32;
-            let posterior_shape = param_group_size / 2. + hyperparams.dense_layer_prior_shape();
-            // compute sums of squares of all rows
+            let posterior_shape = param_group_size / 2. + prior_shape;
             self.precisions.weight_precisions[i] = Array::new(
-                &to_host(&sum(
-                    &(&self.params.weights[i] * &self.params.weights[i]),
-                    1,
-                ))
-                .iter()
-                .map(|sum_squares| {
-                    let posterior_scale = 2. * hyperparams.dense_layer_prior_scale()
-                        / (2. + hyperparams.dense_layer_prior_scale() * sum_squares);
-                    Gamma::new(posterior_shape, posterior_scale)
-                        .unwrap()
-                        .sample(self.rng())
-                })
-                .collect::<Vec<f32>>(),
+                &to_host(&sum_of_squares_rows(&self.params.weights[i]))
+                    .iter()
+                    .map(|sum_squares| {
+                        let posterior_scale = 2. * prior_scale / (2. + prior_scale * sum_squares);
+                        Gamma::new(posterior_shape, posterior_scale)
+                            .unwrap()
+                            .sample(self.rng())
+                    })
+                    .collect::<Vec<f32>>(),
                 self.precisions.weight_precisions[i].dims(),
             );
-        }
 
-        // output precision is sampled jointly for all branches, not here
-
-        for i in 0..self.summary_layer_index() {
+            // wrt biases
             self.precisions.bias_precisions[i] = af_scalar(ridge_multi_param_precision_posterior(
-                hyperparams.dense_layer_prior_shape(),
-                hyperparams.dense_layer_prior_scale(),
+                prior_shape,
+                prior_scale,
                 &self.params.biases[i],
                 &mut self.rng,
             ));
         }
-
-        let summary_layer_index = self.summary_layer_index();
-        // sample summary layer biases with summary layer hyperparams
-        self.precisions.bias_precisions[summary_layer_index] =
-            af_scalar(ridge_multi_param_precision_posterior(
-                hyperparams.summary_layer_prior_shape(),
-                hyperparams.summary_layer_prior_scale(),
-                &self.params.biases[summary_layer_index],
-                &mut self.rng,
-            ));
     }
 }
 
 #[cfg(test)]
 mod tests {
     use crate::net::mcmc_cfg::MCMCCfg;
-    use crate::net::params::{NetworkPrecisionHyperparameters, PrecisionHyperparameters};
+    use crate::net::params::{
+        NetworkPrecisionHyperparameters, OutputWeightSummaryStats, PrecisionHyperparameters,
+    };
     use arrayfire::{dim4, sum, Array};
     use assert_approx_eq::assert_approx_eq;
     // use arrayfire::{af_print, randu};
@@ -488,6 +488,7 @@ mod tests {
             biases,
             layer_widths,
             num_markers,
+            output_weight_summary_stats: OutputWeightSummaryStats::new_single_branch(1),
         }
     }
 

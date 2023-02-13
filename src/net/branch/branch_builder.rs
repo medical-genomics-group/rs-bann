@@ -1,4 +1,4 @@
-use super::super::params::{BranchParams, BranchPrecisions};
+use super::super::params::{BranchParams, BranchPrecisions, OutputWeightSummaryStats};
 use super::lasso_ard::LassoArdBranch;
 use super::lasso_base::LassoBaseBranch;
 use super::ridge_ard::RidgeArdBranch;
@@ -231,6 +231,7 @@ impl BranchBuilder {
                 biases,
                 layer_widths: self.layer_widths.clone(),
                 num_markers: self.num_markers,
+                output_weight_summary_stats: OutputWeightSummaryStats::default(),
             },
             // TODO: impl build method for setting precisions
             precisions: BranchPrecisions {
@@ -318,6 +319,7 @@ impl BranchBuilder {
                 biases,
                 layer_widths: self.layer_widths.clone(),
                 num_markers: self.num_markers,
+                output_weight_summary_stats: OutputWeightSummaryStats::default(),
             },
             // TODO: impl build method for setting precisions
             precisions: BranchPrecisions {
@@ -405,6 +407,7 @@ impl BranchBuilder {
                 biases,
                 layer_widths: self.layer_widths.clone(),
                 num_markers: self.num_markers,
+                output_weight_summary_stats: OutputWeightSummaryStats::default(),
             },
             // TODO: impl build method for setting precisions
             precisions: BranchPrecisions {
@@ -491,6 +494,7 @@ impl BranchBuilder {
                 biases,
                 layer_widths: self.layer_widths.clone(),
                 num_markers: self.num_markers,
+                output_weight_summary_stats: OutputWeightSummaryStats::default(),
             },
             // TODO: impl build method for setting precisions
             precisions: BranchPrecisions {

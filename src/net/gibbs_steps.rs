@@ -2,7 +2,7 @@
 
 use crate::af_helpers::{l1_norm, sum_of_squares};
 use arrayfire::Array;
-use rand::rngs::ThreadRng;
+use rand::{rngs::ThreadRng, Rng};
 use rand_distr::{Distribution, Gamma};
 
 pub(crate) fn ridge_single_param_precision_posterior(
@@ -78,7 +78,7 @@ pub(crate) fn ridge_multi_param_precision_posterior(
     // s or theta
     prior_scale: f32,
     param_vals: &Array<f32>,
-    rng: &mut ThreadRng,
+    rng: &mut impl Rng,
 ) -> f32 {
     let num_params = param_vals.elements();
     let posterior_shape = prior_shape + num_params as f32 / 2.;

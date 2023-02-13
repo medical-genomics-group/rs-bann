@@ -2,12 +2,53 @@ use super::branch::gradient::{NetParamGradient, NetPrecisionGradient};
 use super::branch::momentum::BranchMomentumJoint;
 use super::branch::step_sizes::StepSizes;
 use super::branch::{branch::BranchCfg, momentum::Momentum};
-use crate::af_helpers::to_host;
+use crate::af_helpers::{af_scalar, scalar_to_host, to_host};
 use arrayfire::{dim4, Array};
 use rand::Rng;
 use rand_distr::Distribution;
 use serde::{Deserialize, Serialize};
 use std::fmt;
+
+#[derive(Clone, Copy, Deserialize, Serialize)]
+pub struct GlobalParams {
+    pub error_precision: f32,
+    pub output_layer_precision: f32,
+    pub output_weight_summary_stats: OutputWeightSummaryStatsHost,
+}
+
+impl GlobalParams {
+    pub fn error_precision(&self) -> f32 {
+        self.error_precision
+    }
+
+    pub fn output_layer_precision(self) -> f32 {
+        self.output_layer_precision
+    }
+
+    pub fn output_weight_summary_stats(&self) -> OutputWeightSummaryStatsHost {
+        self.output_weight_summary_stats
+    }
+
+    pub fn set_error_precision(&mut self, val: f32) {
+        self.error_precision = val;
+    }
+
+    pub fn set_output_layer_precision(&mut self, val: f32) {
+        self.output_layer_precision = val;
+    }
+
+    pub fn update_from_branch_cfg(&mut self, cfg: &BranchCfg) {
+        self.error_precision = cfg.error_precision();
+        self.output_layer_precision = cfg.output_layer_precision();
+        self.output_weight_summary_stats = cfg.output_weight_summary_stats();
+    }
+
+    // fn update_from_branch(&mut self, branch: &impl Branch) {
+    //     self.error_precision = scalar_to_host(branch.error_precision());
+    //     self.output_layer_precision = scalar_to_host(branch.output_layer_precision());
+    //     self.output_weight_summary_stats = branch.out
+    // }
+}
 
 /// Branch specific model hyperparameters
 #[derive(Clone, Serialize, Deserialize)]
@@ -142,11 +183,21 @@ pub struct BranchPrecisionsHost {
 }
 
 impl BranchPrecisionsHost {
+    pub fn set_error_precision(&mut self, precision: f32) {
+        self.error_precision[0] = precision;
+    }
+
     pub fn set_output_layer_precision(&mut self, precision: f32) {
         *self
             .weight_precisions
             .last_mut()
             .expect("Branch weight precisions is empty!") = vec![precision];
+    }
+
+    pub fn output_layer_precision(&self) -> f32 {
+        self.weight_precisions
+            .last()
+            .expect("Branch weight precisions is empty!")[0]
     }
 }
 
@@ -223,6 +274,12 @@ impl BranchPrecisions {
             .expect("Branch weight precisions is empty!") = Array::new(&[precision], dim4!(1));
     }
 
+    pub fn output_layer_precision(&self) -> &Array<f32> {
+        self.weight_precisions
+            .last()
+            .expect("Branch weight precisions is empty!")
+    }
+
     pub fn num_precisions(&self) -> usize {
         1 + self.bias_precisions.len()
             + self
@@ -278,12 +335,96 @@ impl BranchPrecisions {
     }
 }
 
+#[derive(Clone, Deserialize, Debug, PartialEq, Serialize, Copy)]
+pub struct OutputWeightSummaryStatsHost {
+    reg_sum: f32,
+    num_params: usize,
+}
+
+impl Default for OutputWeightSummaryStatsHost {
+    fn default() -> Self {
+        Self {
+            reg_sum: 0.0,
+            num_params: 0,
+        }
+    }
+}
+
+impl OutputWeightSummaryStatsHost {
+    pub fn incr_num_params(&mut self, num: usize) {
+        self.num_params += num;
+    }
+
+    pub fn incr_reg_sum(&mut self, by: f32) {
+        self.reg_sum += by;
+    }
+}
+
+#[derive(Clone)]
+pub struct OutputWeightSummaryStats {
+    reg_sum: Array<f32>,
+    num_params: Array<f32>,
+}
+
+impl Default for OutputWeightSummaryStats {
+    fn default() -> Self {
+        Self {
+            reg_sum: af_scalar(0.0),
+            num_params: af_scalar(0.0),
+        }
+    }
+}
+
+impl OutputWeightSummaryStats {
+    pub fn new_single_branch(num_output_weights: usize) -> Self {
+        Self {
+            reg_sum: af_scalar(0.0),
+            num_params: af_scalar(num_output_weights as f32),
+        }
+    }
+}
+
+impl OutputWeightSummaryStats {
+    pub fn from_host(host: OutputWeightSummaryStatsHost) -> Self {
+        Self {
+            reg_sum: af_scalar(host.reg_sum),
+            num_params: af_scalar(host.num_params as f32),
+        }
+    }
+
+    pub fn to_host(&self) -> OutputWeightSummaryStatsHost {
+        OutputWeightSummaryStatsHost {
+            reg_sum: scalar_to_host(&self.reg_sum),
+            num_params: scalar_to_host(&self.num_params) as usize,
+        }
+    }
+
+    pub fn num_params(&self) -> &Array<f32> {
+        &self.num_params
+    }
+
+    pub fn reg_sum(&self) -> &Array<f32> {
+        &self.reg_sum
+    }
+
+    pub fn num_params_host(&self) -> usize {
+        scalar_to_host(&self.num_params) as usize
+    }
+
+    pub fn reg_sum_host(&self) -> f32 {
+        scalar_to_host(&self.reg_sum)
+    }
+}
+
 #[derive(Clone, Deserialize, Debug, PartialEq, Serialize)]
 pub struct BranchParamsHost {
     pub weights: Vec<Vec<f32>>,
     pub biases: Vec<Vec<f32>>,
     pub layer_widths: Vec<usize>,
     pub num_markers: usize,
+    /// Sum of abs or squares of output weights of other branches,
+    /// needed for correct precision updates in joint sampling methods.
+    pub output_weight_summary_stats: OutputWeightSummaryStatsHost,
 }
 
 impl BranchParamsHost {
@@ -306,6 +447,7 @@ impl BranchParamsHost {
             biases,
             layer_widths,
             num_markers,
+            output_weight_summary_stats: OutputWeightSummaryStatsHost::default(),
         }
     }
 
@@ -417,6 +559,7 @@ pub struct BranchParams {
     pub biases: Vec<Array<f32>>,
     pub layer_widths: Vec<usize>,
     pub num_markers: usize,
+    pub output_weight_summary_stats: OutputWeightSummaryStats,
 }
 
 impl fmt::Debug for BranchParams {
@@ -449,6 +592,9 @@ impl BranchParams {
                 .collect(),
             layer_widths: host.layer_widths.clone(),
             num_markers: host.num_markers,
+            output_weight_summary_stats: OutputWeightSummaryStats::from_host(
+                host.output_weight_summary_stats,
+            ),
         }
     }
 
@@ -458,40 +604,7 @@ impl BranchParams {
             biases: self.biases.iter().map(to_host).collect(),
             layer_widths: self.layer_widths.clone(),
             num_markers: self.num_markers,
-        }
-    }
-
-    pub fn from_param_vec(
-        param_vec: &[f32],
-        layer_widths: &Vec<usize>,
-        num_markers: usize,
-    ) -> Self {
-        let mut weights: Vec<Array<f32>> = vec![];
-        let mut biases: Vec<Array<f32>> = vec![];
-        let mut prev_width = num_markers;
-        let mut read_ix: usize = 0;
-        for width in layer_widths {
-            let num_weights = prev_width * width;
-            weights.push(Array::new(
-                &param_vec[read_ix..read_ix + num_weights],
-                dim4!(prev_width as u64, *width as u64, 1, 1),
-            ));
-            prev_width = *width;
-            read_ix += num_weights;
-        }
-        for width in &layer_widths[..layer_widths.len() - 1] {
-            let num_biases = width;
-            biases.push(Array::new(
-                &param_vec[read_ix..read_ix + num_biases],
-                dim4!(1, *width as u64, 1, 1),
-            ));
-            read_ix += num_biases;
-        }
-        Self {
-            weights,
-            biases,
-            layer_widths: layer_widths.clone(),
-            num_markers,
+            output_weight_summary_stats: self.output_weight_summary_stats.to_host(),
         }
     }
 
@@ -593,7 +706,6 @@ impl BranchParams {
 #[cfg(test)]
 mod tests {
     use super::BranchParams;
-    use crate::af_helpers::to_host;
     use arrayfire::{dim4, Array};
 
     fn make_test_params() -> BranchParams {
@@ -605,6 +717,7 @@ mod tests {
             biases: vec![Array::new(&[0.4], dim4![1, 1, 1, 1])],
             layer_widths: vec![1, 1],
             num_markers: 2,
+            output_weight_summary_stats: super::OutputWeightSummaryStats::default(),
         }
     }
 
@@ -613,26 +726,5 @@ mod tests {
         let params = make_test_params();
         let exp = vec![0.1, 0.2, 0.3, 0.4];
         assert_eq!(params.param_vec(), exp);
-    }
-
-    #[test]
-    fn from_param_vec() {
-        let params = make_test_params();
-        let param_vec = params.param_vec();
-        let params_loaded = BranchParams::from_param_vec(&param_vec, &vec![1, 1], 2);
-        assert_eq!(params.weights.len(), params_loaded.weights.len());
-        for ix in 0..params.weights.len() {
-            assert_eq!(
-                to_host(&params.weights[ix]),
-                to_host(&params_loaded.weights[ix])
-            );
-        }
-        assert_eq!(params.biases.len(), params_loaded.biases.len());
-        for ix in 0..params.biases.len() {
-            assert_eq!(
-                to_host(&params.biases[ix]),
-                to_host(&params_loaded.biases[ix])
-            );
-        }
     }
 }

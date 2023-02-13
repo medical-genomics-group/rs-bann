@@ -602,11 +602,11 @@ pub(crate) struct TrainNewBedArgs {
 }
 
 impl TrainNewBedArgs {
-    pub fn from_file(path: &Path) -> Self {
-        let file = File::open(path).expect("Failed to open args.json");
-        let reader = BufReader::new(file);
-        serde_json::from_reader(reader).unwrap()
-    }
+    // pub fn from_file(path: &Path) -> Self {
+    //     let file = File::open(path).expect("Failed to open args.json");
+    //     let reader = BufReader::new(file);
+    //     serde_json::from_reader(reader).unwrap()
+    // }
 
     pub fn to_file(&self, path: &Path) {
         info!("Creating: {:?}", path);

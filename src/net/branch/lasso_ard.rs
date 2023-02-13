@@ -1,7 +1,7 @@
 use super::{
-    super::gibbs_steps::lasso_multi_param_precision_posterior,
+    super::gibbs_steps::ridge_multi_param_precision_posterior,
     super::model_type::ModelType,
-    super::params::{BranchParams, BranchPrecisions},
+    super::params::{BranchParams, BranchPrecisions, OutputWeightSummaryStats},
     branch::{Branch, BranchCfg},
     branch_cfg_builder::BranchCfgBuilder,
     step_sizes::StepSizes,
@@ -14,7 +14,7 @@ use crate::{
     af_helpers::{af_scalar, sign, to_host},
     arr_helpers,
 };
-use arrayfire::{abs, dim4, sqrt, sum, tile, Array, MatProp};
+use arrayfire::{dim4, sqrt, tile, Array, MatProp};
 use rand::prelude::ThreadRng;
 use rand::thread_rng;
 use rand_distr::{Distribution, Gamma};
@@ -59,6 +59,14 @@ impl Branch for LassoArdBranch {
             rng: thread_rng(),
             training_state: TrainingState::default(),
         }
+    }
+
+    fn rng_mut(&mut self) -> &mut ThreadRng {
+        &mut self.rng
+    }
+
+    fn output_weight_summary_stats(&self) -> &OutputWeightSummaryStats {
+        &self.params.output_weight_summary_stats
     }
 
     fn num_weights(&self) -> usize {
@@ -301,35 +309,38 @@ impl Branch for LassoArdBranch {
     }
 
     fn precision_posterior_host(
+        &mut self,
         // k
         prior_shape: f32,
         // s or theta
         prior_scale: f32,
         sum_of_squares: f32,
         num_vals: usize,
-        rng: &mut ThreadRng,
     ) -> f32 {
         super::super::gibbs_steps::lasso_multi_param_precision_posterior_host_prepared_summary_stats(
             prior_shape,
             prior_scale,
             sum_of_squares,
             num_vals,
-            rng,
+            self.rng(),
         )
     }
 
     /// Samples precision values from their posterior distribution in a Gibbs step.
     fn sample_prior_precisions(&mut self, hyperparams: &NetworkPrecisionHyperparameters) {
         for i in 0..self.output_layer_index() {
+            let (prior_shape, prior_scale) =
+                hyperparams.layer_prior_hyperparams(i, self.num_layers());
+
+            // wrt weights
             let param_group_size = self.layer_width(i) as f32;
-            let posterior_shape = param_group_size + hyperparams.dense_layer_prior_shape();
+            let posterior_shape = param_group_size + prior_shape;
             // compute l1 norm of all rows
             self.precisions.weight_precisions[i] = Array::new(
-                &to_host(&sum(&abs(&self.params.weights[i]), 1))
+                &to_host(&l1_norm_rows(&self.params.weights[i]))
                     .iter()
                     .map(|l1_norm| {
-                        let posterior_scale = hyperparams.dense_layer_prior_scale()
-                            / (1. + hyperparams.dense_layer_prior_scale() * l1_norm);
+                        let posterior_scale = prior_scale / (1. + prior_scale * l1_norm);
                         Gamma::new(posterior_shape, posterior_scale)
                             .unwrap()
                             .sample(self.rng())
@@ -337,28 +348,15 @@ impl Branch for LassoArdBranch {
                     .collect::<Vec<f32>>(),
                 self.precisions.weight_precisions[i].dims(),
             );
-        }
 
-        // output precision is sampled jointly for all branches, not here
-
-        for i in 0..self.summary_layer_index() {
-            self.precisions.bias_precisions[i] = af_scalar(lasso_multi_param_precision_posterior(
-                hyperparams.dense_layer_prior_shape(),
-                hyperparams.dense_layer_prior_scale(),
+            // wrt biases (always l2 regularized)
+            self.precisions.bias_precisions[i] = af_scalar(ridge_multi_param_precision_posterior(
+                prior_shape,
+                prior_scale,
                 &self.params.biases[i],
                 &mut self.rng,
             ));
         }
-
-        let summary_layer_index = self.summary_layer_index();
-        // sample summary layer biases with summary layer hyperparams
-        self.precisions.bias_precisions[summary_layer_index] =
-            af_scalar(lasso_multi_param_precision_posterior(
-                hyperparams.summary_layer_prior_shape(),
-                hyperparams.summary_layer_prior_scale(),
-                &self.params.biases[summary_layer_index],
-                &mut self.rng,
-            ));
     }
 }
 
@@ -375,7 +373,8 @@ mod tests {
     use crate::net::branch::momentum::BranchMomentum;
     use crate::net::mcmc_cfg::MCMCCfg;
     use crate::net::params::{
-        BranchParams, NetworkPrecisionHyperparameters, PrecisionHyperparameters,
+        BranchParams, NetworkPrecisionHyperparameters, OutputWeightSummaryStats,
+        PrecisionHyperparameters,
     };
 
     fn assert_approx_eq_slice(a: &[f32], b: &[f32], tol: f32) {
@@ -486,6 +485,7 @@ mod tests {
             biases,
             layer_widths,
             num_markers,
+            output_weight_summary_stats: OutputWeightSummaryStats::new_single_branch(1),
         }
     }
 
