@@ -33,8 +33,12 @@ pub struct RidgeArdBranch {
 // Weights in this branch are grouped by the node they
 // are going out of.
 impl Branch for RidgeArdBranch {
-    fn summary_stat_fn(vals: &[f32]) -> f32 {
+    fn summary_stat_fn_host(vals: &[f32]) -> f32 {
         crate::arr_helpers::sum_of_squares(vals)
+    }
+
+    fn summary_stat_fn(&self, vals: &Array<f32>) -> Array<f32> {
+        af_scalar(sum_of_squares(vals))
     }
 
     fn model_type() -> ModelType {
@@ -66,6 +70,10 @@ impl Branch for RidgeArdBranch {
 
     fn output_weight_summary_stats(&self) -> &OutputWeightSummaryStats {
         &self.params.output_weight_summary_stats
+    }
+
+    fn output_weight_summary_stats_mut(&mut self) -> &mut OutputWeightSummaryStats {
+        &mut self.params.output_weight_summary_stats
     }
 
     fn training_state(&self) -> &TrainingState {
@@ -304,9 +312,10 @@ impl Branch for RidgeArdBranch {
         let params: &Array<f32> = self.layer_weights(layer_index);
         let (shape, scale) = hyperparams.layer_prior_hyperparams(layer_index, self.num_layers);
         ldg_wrt_weight_precisions.push(
-            (2.0f32 * shape + precisions.elements() as f32 - 2.0) / (2.0f32 * precisions)
+            (2.0f32 * shape + self.output_weight_summary_stats().num_params() - 2.0f32)
+                / (2.0f32 * precisions)
                 - (1.0f32 / scale)
-                - sum_of_squares(params) / 2.0f32,
+                - (sum_of_squares(params) + self.output_weight_summary_stats().reg_sum()) / 2.0f32,
         );
 
         ldg_wrt_weight_precisions

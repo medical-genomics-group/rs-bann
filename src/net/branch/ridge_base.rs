@@ -27,8 +27,12 @@ pub struct RidgeBaseBranch {
 }
 
 impl Branch for RidgeBaseBranch {
-    fn summary_stat_fn(vals: &[f32]) -> f32 {
+    fn summary_stat_fn_host(vals: &[f32]) -> f32 {
         crate::arr_helpers::sum_of_squares(vals)
+    }
+
+    fn summary_stat_fn(&self, vals: &Array<f32>) -> Array<f32> {
+        af_scalar(sum_of_squares(vals))
     }
 
     fn model_type() -> ModelType {
@@ -60,6 +64,10 @@ impl Branch for RidgeBaseBranch {
 
     fn output_weight_summary_stats(&self) -> &OutputWeightSummaryStats {
         &self.params.output_weight_summary_stats
+    }
+
+    fn output_weight_summary_stats_mut(&mut self) -> &mut OutputWeightSummaryStats {
+        &mut self.params.output_weight_summary_stats
     }
 
     fn training_state(&self) -> &TrainingState {

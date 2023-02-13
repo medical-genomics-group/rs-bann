@@ -26,8 +26,12 @@ pub struct StdNormalBranch {
 }
 
 impl Branch for StdNormalBranch {
-    fn summary_stat_fn(_: &[f32]) -> f32 {
+    fn summary_stat_fn_host(_: &[f32]) -> f32 {
         1.0
+    }
+
+    fn summary_stat_fn(&self, vals: &Array<f32>) -> Array<f32> {
+        af_scalar(sum_of_squares(vals))
     }
 
     fn model_type() -> ModelType {
@@ -59,6 +63,10 @@ impl Branch for StdNormalBranch {
 
     fn output_weight_summary_stats(&self) -> &OutputWeightSummaryStats {
         &self.params.output_weight_summary_stats
+    }
+
+    fn output_weight_summary_stats_mut(&mut self) -> &mut OutputWeightSummaryStats {
+        &mut self.params.output_weight_summary_stats
     }
 
     fn training_state(&self) -> &TrainingState {

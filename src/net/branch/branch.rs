@@ -69,11 +69,17 @@ pub trait Branch {
 
     fn output_weight_summary_stats(&self) -> &OutputWeightSummaryStats;
 
+    fn output_weight_summary_stats_mut(&mut self) -> &mut OutputWeightSummaryStats;
+
     fn rng_mut(&mut self) -> &mut ThreadRng;
 
     /// Branch type specific function that computes the value sum summary statistic
     /// from an array of parameter values. E.g. sum of squares, sum of abs
-    fn summary_stat_fn(vals: &[f32]) -> f32;
+    fn summary_stat_fn_host(vals: &[f32]) -> f32;
+
+    /// Branch type specific function that computes the value sum summary statistic
+    /// from an array of parameter values. E.g. sum of squares, sum of abs
+    fn summary_stat_fn(&self, vals: &Array<f32>) -> Array<f32>;
 
     fn precision_posterior_host(
         &mut self,
@@ -186,13 +192,10 @@ pub trait Branch {
     ) {
         self.sample_error_precision(residual, hyperparams);
         self.sample_prior_precisions(hyperparams);
-        self.sample_output_layer_weight_precision(hyperparams);
+        self.sample_output_weight_precisions(hyperparams);
     }
 
-    fn sample_output_layer_weight_precision(
-        &mut self,
-        hyperparams: &NetworkPrecisionHyperparameters,
-    ) {
+    fn sample_output_weight_precisions(&mut self, hyperparams: &NetworkPrecisionHyperparameters) {
         let precision = self.precision_posterior_host(
             hyperparams.output_layer_prior_shape(),
             hyperparams.output_layer_prior_scale(),
@@ -1005,6 +1008,8 @@ pub trait Branch {
         y_train: &Array<f32>,
         mcmc_cfg: &MCMCCfg,
     ) -> HMCStepResult {
+        self.subtract_output_weight_summary_stat_from_global();
+
         let mut ldg = self.log_density_gradient(x_train, y_train);
         for _step in 0..(mcmc_cfg.hmc_integration_length) {
             self.params_mut().descend_gradient(GD_STEP_SIZE, &ldg);
@@ -1015,6 +1020,9 @@ pub trait Branch {
         let rss = arrayfire::sum_all(&(&r * &r)).0;
         let log_density = self.log_density(self.params(), self.precisions(), rss);
         debug!("branch log density after step: {:.4}", log_density);
+
+        self.add_output_weight_summary_stat_to_global();
+
         HMCStepResult::Accepted(HMCStepResultData {
             y_pred,
             log_density,
@@ -1029,6 +1037,8 @@ pub trait Branch {
         mcmc_cfg: &MCMCCfg,
         hyperparams: &NetworkPrecisionHyperparameters,
     ) -> HMCStepResult {
+        self.subtract_output_weight_summary_stat_from_global();
+
         let mut ldg = self.log_density_gradient_joint(x_train, y_train, hyperparams);
         for _step in 0..(mcmc_cfg.hmc_integration_length) {
             self.params_mut().descend_gradient(GD_STEP_SIZE, &ldg);
@@ -1046,6 +1056,9 @@ pub trait Branch {
             y_pred.elements(),
         );
         debug!("branch log density after step: {:.4}", log_density);
+
+        self.add_output_weight_summary_stat_to_global();
+
         HMCStepResult::Accepted(HMCStepResultData {
             y_pred,
             log_density,
@@ -1061,6 +1074,9 @@ pub trait Branch {
         mcmc_cfg: &MCMCCfg,
         hyperparams: &NetworkPrecisionHyperparameters,
     ) -> HMCStepResult {
+        // adjust output weight reg_sum for own branch output weight sum
+        self.subtract_output_weight_summary_stat_from_global();
+
         let mut traj_file = None;
         let mut traj = Trajectory::new();
         if mcmc_cfg.trajectories {
@@ -1144,13 +1160,33 @@ pub trait Branch {
             traj_file.as_mut().unwrap().write_all(b"\n").unwrap();
         }
 
-        match self.accept_or_reject_hmc_state(&momentum, x_train, y_train, init_neg_hamiltonian) {
+        let res = match self.accept_or_reject_hmc_state(
+            &momentum,
+            x_train,
+            y_train,
+            init_neg_hamiltonian,
+        ) {
             res @ HMCStepResult::Rejected => {
                 self.set_params(&init_params);
                 res
             }
             res => res,
-        }
+        };
+
+        // add own branch output weight sum to summary reg sum
+        self.add_output_weight_summary_stat_to_global();
+
+        res
+    }
+
+    fn subtract_output_weight_summary_stat_from_global(&mut self) {
+        let by = self.summary_stat_fn(&self.params().output_layer_weights());
+        self.output_weight_summary_stats_mut().decr_reg_sum(&by);
+    }
+
+    fn add_output_weight_summary_stat_to_global(&mut self) {
+        let by = self.summary_stat_fn(&self.params().output_layer_weights());
+        self.output_weight_summary_stats_mut().incr_reg_sum(&by);
     }
 
     /// Takes a single parameter sample using HMC.
@@ -1172,6 +1208,8 @@ pub trait Branch {
                     .unwrap(),
             ));
         }
+
+        self.subtract_output_weight_summary_stat_from_global();
 
         let mut u_turned = false;
         let init_params = self.params().clone();
@@ -1248,6 +1286,8 @@ pub trait Branch {
                 warn!("U turn in HMC trajectory at step {}", _step);
                 u_turned = true;
             }
+
+            self.add_output_weight_summary_stat_to_global();
         }
 
         if mcmc_cfg.trajectories {

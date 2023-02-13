@@ -184,7 +184,7 @@ impl<B: Branch> BlockNetCfg<B> {
             }
             branch_cfgs.push(B::build_cfg(cfg_bld));
             self.output_weight_summary_stats
-                .incr_reg_sum(B::summary_stat_fn(
+                .incr_reg_sum(B::summary_stat_fn_host(
                     branch_cfgs.last().unwrap().output_layer_weights(),
                 ));
         }

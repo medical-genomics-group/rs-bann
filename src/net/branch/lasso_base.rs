@@ -29,8 +29,12 @@ pub struct LassoBaseBranch {
 }
 
 impl Branch for LassoBaseBranch {
-    fn summary_stat_fn(vals: &[f32]) -> f32 {
+    fn summary_stat_fn_host(vals: &[f32]) -> f32 {
         crate::arr_helpers::sum_of_abs(vals)
+    }
+
+    fn summary_stat_fn(&self, vals: &Array<f32>) -> Array<f32> {
+        af_scalar(l1_norm(vals))
     }
 
     fn model_type() -> ModelType {
@@ -62,6 +66,10 @@ impl Branch for LassoBaseBranch {
 
     fn output_weight_summary_stats(&self) -> &OutputWeightSummaryStats {
         &self.params.output_weight_summary_stats
+    }
+
+    fn output_weight_summary_stats_mut(&mut self) -> &mut OutputWeightSummaryStats {
+        &mut self.params.output_weight_summary_stats
     }
 
     fn training_state(&self) -> &TrainingState {

@@ -414,6 +414,14 @@ impl OutputWeightSummaryStats {
     pub fn reg_sum_host(&self) -> f32 {
         scalar_to_host(&self.reg_sum)
     }
+
+    pub fn decr_reg_sum(&mut self, by: &Array<f32>) {
+        self.reg_sum = &self.reg_sum - by;
+    }
+
+    pub fn incr_reg_sum(&mut self, by: &Array<f32>) {
+        self.reg_sum = &self.reg_sum + by;
+    }
 }
 
 #[derive(Clone, Deserialize, Debug, PartialEq, Serialize)]
@@ -700,6 +708,10 @@ impl BranchParams {
 
     pub fn layer_biases_mut(&mut self, index: usize) -> &mut Array<f32> {
         &mut self.biases[index]
+    }
+
+    pub fn output_layer_weights(&self) -> &Array<f32> {
+        &self.weights.last().unwrap()
     }
 }
 
