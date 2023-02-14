@@ -200,7 +200,16 @@ impl Branch for StdNormalBranch {
         }
     }
 
-    fn log_density_joint_wrt_weights(
+    fn log_density_joint_wrt_local_weights(
+        &self,
+        _params: &BranchParams,
+        _precisions: &BranchPrecisions,
+        _hyperparams: &NetworkPrecisionHyperparameters,
+    ) -> Array<f32> {
+        unimplemented!("Joint sampling is not implemented for std normal priors, since the precisions are fixed to 1.0");
+    }
+
+    fn log_density_joint_wrt_output_weights(
         &self,
         _params: &BranchParams,
         _precisions: &BranchPrecisions,

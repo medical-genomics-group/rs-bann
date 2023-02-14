@@ -204,7 +204,7 @@ impl Branch for LassoBaseBranch {
         }
     }
 
-    fn log_density_joint_wrt_weights(
+    fn log_density_joint_wrt_local_weights(
         &self,
         params: &BranchParams,
         precisions: &BranchPrecisions,
@@ -221,6 +221,17 @@ impl Branch for LassoBaseBranch {
             log_density += (shape + nvar as f32 - 1.0f32)
                 * arrayfire::log(precisions.layer_weight_precisions(i));
         }
+
+        log_density
+    }
+
+    fn log_density_joint_wrt_output_weights(
+        &self,
+        params: &BranchParams,
+        precisions: &BranchPrecisions,
+        hyperparams: &NetworkPrecisionHyperparameters,
+    ) -> Array<f32> {
+        let mut log_density: Array<f32> = af_scalar(0.0);
 
         let i = self.output_layer_index();
         let (shape, scale) = hyperparams.layer_prior_hyperparams(i, self.num_layers());

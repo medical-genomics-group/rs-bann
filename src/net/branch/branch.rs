@@ -233,13 +233,32 @@ pub trait Branch {
         self.num_layers() - 1
     }
 
+    /// Portion of log density attributable to weights local to the branch and their precisions
+    fn log_density_joint_wrt_local_weights(
+        &self,
+        params: &BranchParams,
+        precisions: &BranchPrecisions,
+        hyperparams: &NetworkPrecisionHyperparameters,
+    ) -> Array<f32>;
+
+    /// Portion of log density attributable to output weights and their precision
+    fn log_density_joint_wrt_output_weights(
+        &self,
+        params: &BranchParams,
+        precisions: &BranchPrecisions,
+        hyperparams: &NetworkPrecisionHyperparameters,
+    ) -> Array<f32>;
+
     /// Portion of log density attributable to weights and their precisions
     fn log_density_joint_wrt_weights(
         &self,
         params: &BranchParams,
         precisions: &BranchPrecisions,
         hyperparams: &NetworkPrecisionHyperparameters,
-    ) -> Array<f32>;
+    ) -> Array<f32> {
+        self.log_density_joint_wrt_local_weights(params, precisions, hyperparams)
+            + self.log_density_joint_wrt_output_weights(params, precisions, hyperparams)
+    }
 
     /// Portion of log density attributable to rss and the error precision
     fn log_density_joint_wrt_rss(

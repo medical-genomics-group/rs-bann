@@ -201,7 +201,7 @@ impl Branch for RidgeBaseBranch {
         }
     }
 
-    fn log_density_joint_wrt_weights(
+    fn log_density_joint_wrt_local_weights(
         &self,
         params: &BranchParams,
         precisions: &BranchPrecisions,
@@ -218,6 +218,17 @@ impl Branch for RidgeBaseBranch {
             log_density += (shape + (nvar as f32 - 2.0f32) / 2.0)
                 * arrayfire::log(&precisions.layer_weight_precisions(i));
         }
+
+        log_density
+    }
+
+    fn log_density_joint_wrt_output_weights(
+        &self,
+        params: &BranchParams,
+        precisions: &BranchPrecisions,
+        hyperparams: &NetworkPrecisionHyperparameters,
+    ) -> Array<f32> {
+        let mut log_density: Array<f32> = af_scalar(0.0);
 
         let i = self.output_layer_index();
         let (shape, scale) = hyperparams.layer_prior_hyperparams(i, self.num_layers());
@@ -525,7 +536,7 @@ mod tests {
             &hyperparams,
         );
 
-        assert_eq!(scalar_to_host(&ld_wrt_w), -58.42881);
+        assert_eq!(scalar_to_host(&ld_wrt_w), -58.428806);
 
         let ld_wrt_b =
             branch.log_density_joint_wrt_biases(branch.params(), branch.precisions(), &hyperparams);
@@ -540,7 +551,7 @@ mod tests {
             num_individuals as usize,
         );
 
-        assert_eq!(ld, -63.79901);
+        assert_eq!(ld, -63.799007);
     }
 
     #[test]
