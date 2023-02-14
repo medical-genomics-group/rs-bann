@@ -155,7 +155,8 @@ impl<B: Branch> Net<B> {
         let mut residual = y - self.output_bias.af_bias();
         // add all branch predictions
         for branch_ix in 0..self.num_branches {
-            let cfg = &self.branch_cfgs[branch_ix];
+            let cfg = &mut self.branch_cfgs[branch_ix];
+            cfg.update_global_params(&self.global_params);
             let branch = B::from_cfg(cfg);
             residual -= branch.predict(&x.x_group_af(branch_ix));
             self.update_lpd_from_branch(branch_ix, &branch, &residual);
@@ -241,12 +242,12 @@ impl<B: Branch> Net<B> {
 
                 // load branch cfg
                 let mut branch = B::from_cfg(&cfg);
-                let prev_pred = branch.predict(x);
-                residual = &residual + &prev_pred;
-
                 if !(mcmc_cfg.gradient_descent_joint || mcmc_cfg.joint_hmc) {
                     branch.sample_precisions(&residual, &self.hyperparams);
                 }
+
+                let prev_pred = branch.predict(x);
+                residual = &residual + &prev_pred;
 
                 let step_res = if mcmc_cfg.gradient_descent {
                     branch.gradient_descent(x, &residual, mcmc_cfg)
