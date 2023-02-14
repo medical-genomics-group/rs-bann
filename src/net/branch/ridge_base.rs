@@ -210,7 +210,7 @@ impl Branch for RidgeBaseBranch {
         let mut log_density: Array<f32> = af_scalar(0.0);
 
         // weight terms
-        for i in 0..self.num_layers() {
+        for i in 0..self.output_layer_index() {
             let (shape, scale) = hyperparams.layer_prior_hyperparams(i, self.num_layers());
             log_density -= (sum_of_squares(params.layer_weights(i)) / 2.0f32 + 1.0f32 / scale)
                 * precisions.layer_weight_precisions(i);
@@ -218,6 +218,16 @@ impl Branch for RidgeBaseBranch {
             log_density += (shape + (nvar as f32 - 2.0f32) / 2.0)
                 * arrayfire::log(&precisions.layer_weight_precisions(i));
         }
+
+        let i = self.output_layer_index();
+        let (shape, scale) = hyperparams.layer_prior_hyperparams(i, self.num_layers());
+        let global_sum_of_squares =
+            sum_of_squares(params.layer_weights(i)) + self.output_weight_summary_stats().reg_sum();
+        log_density -= ((0.5f32 * global_sum_of_squares) + 1.0 / scale)
+            * precisions.layer_weight_precisions(i);
+
+        log_density += (shape + (self.output_weight_summary_stats().num_params() - 2.0f32) / 2.0)
+            * &arrayfire::log(precisions.layer_weight_precisions(i));
 
         log_density
     }

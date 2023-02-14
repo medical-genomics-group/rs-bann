@@ -233,12 +233,12 @@ impl Branch for RidgeArdBranch {
 
         let i = self.output_layer_index();
         let (shape, scale) = hyperparams.layer_prior_hyperparams(i, self.num_layers());
-        log_density -= (0.5f32 * sum_of_squares(params.layer_weights(i)) + 1.0 / scale)
+        let global_sum_of_squares =
+            sum_of_squares(params.layer_weights(i)) + self.output_weight_summary_stats().reg_sum();
+        log_density -= ((0.5f32 * global_sum_of_squares) + 1.0 / scale)
             * precisions.layer_weight_precisions(i);
 
-        let ncols = params.layer_weights(i).dims().get()[1];
-
-        log_density += (shape + (ncols as f32 - 2.0f32) / 2.0)
+        log_density += (shape + (self.output_weight_summary_stats().num_params() - 2.0f32) / 2.0)
             * &arrayfire::log(precisions.layer_weight_precisions(i));
 
         log_density

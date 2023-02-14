@@ -233,12 +233,11 @@ impl Branch for LassoArdBranch {
 
         let i = self.output_layer_index();
         let (shape, scale) = hyperparams.layer_prior_hyperparams(i, self.num_layers());
-        log_density -= (l1_norm(params.layer_weights(i)) + 1.0 / scale)
-            * precisions.layer_weight_precisions(i);
+        let global_sum_abs =
+            l1_norm(params.layer_weights(i)) + self.output_weight_summary_stats().reg_sum();
+        log_density -= (global_sum_abs + 1.0 / scale) * precisions.layer_weight_precisions(i);
 
-        let ncols = params.layer_weights(i).dims().get()[1];
-
-        log_density += (shape + ncols as f32 - 1.0f32)
+        log_density += (shape + self.output_weight_summary_stats().num_params() - 1.0f32)
             * &arrayfire::log(precisions.layer_weight_precisions(i));
 
         log_density
