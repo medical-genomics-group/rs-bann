@@ -253,7 +253,7 @@ impl Branch for LassoBaseBranch {
         hyperparams: &NetworkPrecisionHyperparameters,
     ) -> Vec<Array<f32>> {
         let mut ldg_wrt_weight_precisions: Vec<Array<f32>> = Vec::with_capacity(self.num_layers);
-        for layer_index in 0..self.num_layers() {
+        for layer_index in 0..self.output_layer_index() {
             let precisions: &Array<f32> = self.weight_precisions(layer_index);
             let params: &Array<f32> = self.layer_weights(layer_index);
             let (shape, scale) = hyperparams.layer_prior_hyperparams(layer_index, self.num_layers);
@@ -263,6 +263,17 @@ impl Branch for LassoBaseBranch {
                     - l1_norm(params),
             );
         }
+
+        let layer_index = self.output_layer_index();
+        let precisions: &Array<f32> = self.weight_precisions(layer_index);
+        let params: &Array<f32> = self.layer_weights(layer_index);
+        let (shape, scale) = hyperparams.layer_prior_hyperparams(layer_index, self.num_layers);
+        ldg_wrt_weight_precisions.push(
+            (shape + self.output_weight_summary_stats().num_params() - 1.0f32) / (precisions)
+                - (1.0f32 / scale)
+                - (l1_norm(params) + self.output_weight_summary_stats().reg_sum()),
+        );
+
         ldg_wrt_weight_precisions
     }
 
@@ -395,7 +406,8 @@ mod tests {
             biases,
             layer_widths,
             num_markers,
-            output_weight_summary_stats: OutputWeightSummaryStats::new_single_branch(1),
+            // this simulates the situation in which the branches reg sum has been subtracted already, withing a sampling fn
+            output_weight_summary_stats: OutputWeightSummaryStats::new_single_branch(0.0, 1),
         }
     }
 

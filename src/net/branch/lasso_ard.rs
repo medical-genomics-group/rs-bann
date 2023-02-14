@@ -308,9 +308,9 @@ impl Branch for LassoArdBranch {
         let params: &Array<f32> = self.layer_weights(layer_index);
         let (shape, scale) = hyperparams.layer_prior_hyperparams(layer_index, self.num_layers);
         ldg_wrt_weight_precisions.push(
-            (shape + precisions.elements() as f32 - 1.0) / (precisions)
+            (shape + self.output_weight_summary_stats().num_params() - 1.0f32) / (precisions)
                 - (1.0f32 / scale)
-                - l1_norm(params),
+                - (l1_norm(params) + self.output_weight_summary_stats().reg_sum()),
         );
 
         ldg_wrt_weight_precisions
@@ -493,7 +493,8 @@ mod tests {
             biases,
             layer_widths,
             num_markers,
-            output_weight_summary_stats: OutputWeightSummaryStats::new_single_branch(1),
+            // this simulates the situation in which the branches reg sum has been subtracted already, withing a sampling fn
+            output_weight_summary_stats: OutputWeightSummaryStats::new_single_branch(0.0, 1),
         }
     }
 

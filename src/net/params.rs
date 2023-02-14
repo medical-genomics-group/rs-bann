@@ -376,9 +376,9 @@ impl Default for OutputWeightSummaryStats {
 }
 
 impl OutputWeightSummaryStats {
-    pub fn new_single_branch(num_output_weights: usize) -> Self {
+    pub fn new_single_branch(reg_sum: f32, num_output_weights: usize) -> Self {
         Self {
-            reg_sum: af_scalar(0.0),
+            reg_sum: af_scalar(reg_sum),
             num_params: af_scalar(num_output_weights as f32),
         }
     }

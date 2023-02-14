@@ -5,6 +5,7 @@ use super::ridge_ard::RidgeArdBranch;
 use super::ridge_base::RidgeBaseBranch;
 use super::training_state::TrainingState;
 use crate::af_helpers::af_scalar;
+use crate::arr_helpers::sum_of_squares;
 use arrayfire::{constant, dim4, Array};
 use rand::thread_rng;
 
@@ -222,6 +223,8 @@ impl BranchBuilder {
 
         let prec = self.initial_precision_value.unwrap_or(1.0);
 
+        let num_output_weights = weights.last().unwrap().elements();
+
         RidgeBaseBranch {
             num_params: self.num_params,
             num_weights: self.num_weights(),
@@ -231,7 +234,10 @@ impl BranchBuilder {
                 biases,
                 layer_widths: self.layer_widths.clone(),
                 num_markers: self.num_markers,
-                output_weight_summary_stats: OutputWeightSummaryStats::default(),
+                output_weight_summary_stats: OutputWeightSummaryStats::new_single_branch(
+                    0.0,
+                    num_output_weights,
+                ),
             },
             // TODO: impl build method for setting precisions
             precisions: BranchPrecisions {
@@ -310,6 +316,8 @@ impl BranchBuilder {
 
         let prec = self.initial_precision_value.unwrap_or(1.0);
 
+        let num_output_weights = weights.last().unwrap().elements();
+
         LassoBaseBranch {
             num_params: self.num_params,
             num_weights: self.num_weights(),
@@ -319,7 +327,10 @@ impl BranchBuilder {
                 biases,
                 layer_widths: self.layer_widths.clone(),
                 num_markers: self.num_markers,
-                output_weight_summary_stats: OutputWeightSummaryStats::default(),
+                output_weight_summary_stats: OutputWeightSummaryStats::new_single_branch(
+                    0.0,
+                    num_output_weights,
+                ),
             },
             // TODO: impl build method for setting precisions
             precisions: BranchPrecisions {
@@ -398,6 +409,8 @@ impl BranchBuilder {
 
         let prec = self.initial_precision_value.unwrap_or(1.0);
 
+        let num_output_weights = weights.last().unwrap().elements();
+
         LassoArdBranch {
             num_params: self.num_params,
             num_weights: self.num_weights(),
@@ -407,7 +420,10 @@ impl BranchBuilder {
                 biases,
                 layer_widths: self.layer_widths.clone(),
                 num_markers: self.num_markers,
-                output_weight_summary_stats: OutputWeightSummaryStats::default(),
+                output_weight_summary_stats: OutputWeightSummaryStats::new_single_branch(
+                    0.0,
+                    num_output_weights,
+                ),
             },
             // TODO: impl build method for setting precisions
             precisions: BranchPrecisions {
@@ -485,6 +501,8 @@ impl BranchBuilder {
 
         let prec = self.initial_precision_value.unwrap_or(1.0);
 
+        let num_output_weights = weights.last().unwrap().elements();
+
         RidgeArdBranch {
             num_params: self.num_params,
             num_weights: self.num_weights(),
@@ -494,7 +512,10 @@ impl BranchBuilder {
                 biases,
                 layer_widths: self.layer_widths.clone(),
                 num_markers: self.num_markers,
-                output_weight_summary_stats: OutputWeightSummaryStats::default(),
+                output_weight_summary_stats: OutputWeightSummaryStats::new_single_branch(
+                    0.0,
+                    num_output_weights,
+                ),
             },
             // TODO: impl build method for setting precisions
             precisions: BranchPrecisions {

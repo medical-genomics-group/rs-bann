@@ -497,7 +497,8 @@ mod tests {
             biases,
             layer_widths,
             num_markers,
-            output_weight_summary_stats: OutputWeightSummaryStats::new_single_branch(1),
+            // this simulates the situation in which the branches reg sum has been subtracted already, withing a sampling fn
+            output_weight_summary_stats: OutputWeightSummaryStats::new_single_branch(0.0, 1),
         }
     }
 
