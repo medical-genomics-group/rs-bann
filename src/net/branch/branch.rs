@@ -302,15 +302,16 @@ pub trait Branch {
         log_density
     }
 
-    // fn log_density_joint_wrt_local_params(
-    //     &self,
-    //     hyperparams: &NetworkPrecisionHyperparameters,
-    // ) -> f32 {
-    //     let wrt_b =
-    //         self.log_density_joint_wrt_biases(self.params(), self.precisions(), hyperparams);
-    //     let wrt_local_w =
-    //     0.0
-    // }
+    fn log_density_joint_wrt_local_params(
+        &self,
+        hyperparams: &NetworkPrecisionHyperparameters,
+    ) -> f32 {
+        let wrt_b =
+            self.log_density_joint_wrt_biases(self.params(), self.precisions(), hyperparams);
+        let wrt_local_w =
+            self.log_density_joint_wrt_local_weights(self.params(), self.precisions(), hyperparams);
+        scalar_to_host(&(wrt_b + wrt_local_w))
+    }
 
     fn log_density_joint(
         &self,
