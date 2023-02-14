@@ -328,6 +328,19 @@ pub trait Branch {
         scalar_to_host(&(wrt_w + wrt_b + wrt_e))
     }
 
+    fn log_density_joint_components_curr_internal_state(
+        &self,
+        hyperparams: &NetworkPrecisionHyperparameters,
+    ) -> (f32, f32) {
+        let wrt_output_w = self.log_density_joint_wrt_output_weights(
+            self.params(),
+            self.precisions(),
+            hyperparams,
+        );
+        let wrt_local = self.log_density_joint_wrt_local_params(hyperparams);
+        (scalar_to_host(&wrt_output_w), wrt_local)
+    }
+
     /// Gradient w.r.t l2 regularized biases
     fn log_density_gradient_wrt_biases(&self) -> Vec<Array<f32>> {
         let mut ldg_wrt_biases: Vec<Array<f32>> = Vec::with_capacity(self.num_layers() - 1);

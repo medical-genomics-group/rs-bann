@@ -28,7 +28,7 @@ pub(crate) struct TrainingStats {
     pub(crate) num_early_rejected: usize,
     pub(crate) mse_train: Vec<f32>,
     pub(crate) mse_test: Option<Vec<f32>>,
-    // Vector of vectors of branch log densities.
+    pub(crate) lpd: Vec<f32>,
 }
 
 impl TrainingStats {
@@ -39,6 +39,7 @@ impl TrainingStats {
             num_early_rejected: 0,
             mse_train: Vec::new(),
             mse_test: None,
+            lpd: Vec::new(),
         }
     }
 
@@ -49,6 +50,10 @@ impl TrainingStats {
             HMCStepResult::RejectedEarly => self.num_early_rejected += 1,
             HMCStepResult::Rejected => {}
         }
+    }
+
+    pub(crate) fn add_lpd(&mut self, lpd: f32) {
+        self.lpd.push(lpd)
     }
 
     pub(crate) fn add_mse_test(&mut self, mse: f32) {

@@ -5,7 +5,6 @@ use super::ridge_ard::RidgeArdBranch;
 use super::ridge_base::RidgeBaseBranch;
 use super::training_state::TrainingState;
 use crate::af_helpers::af_scalar;
-use crate::arr_helpers::sum_of_squares;
 use arrayfire::{constant, dim4, Array};
 use rand::thread_rng;
 

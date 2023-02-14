@@ -1,3 +1,4 @@
+use super::log_posterior_density::LogPosteriorDensity;
 use super::model_type::ModelType;
 use super::params::GlobalParams;
 use super::{
@@ -73,6 +74,7 @@ pub struct Net<B: Branch> {
     branch_cfgs: Vec<BranchCfg>,
     output_bias: OutputBias,
     training_stats: TrainingStats,
+    log_posterior_density: LogPosteriorDensity,
     global_params: GlobalParams,
     branch_type: PhantomData<B>,
 }
@@ -91,6 +93,7 @@ impl<B: Branch> Net<B> {
             branch_cfgs,
             output_bias,
             training_stats: TrainingStats::new(),
+            log_posterior_density: LogPosteriorDensity::new(num_branches),
             global_params,
             branch_type: PhantomData,
         }
@@ -147,6 +150,34 @@ impl<B: Branch> Net<B> {
         .unwrap();
     }
 
+    fn initialize_stats<T: GroupedGenotypes>(&mut self, x: &T, y: &Array<f32>) -> Array<f32> {
+        // add bias
+        let mut residual = y - self.output_bias.af_bias();
+        // add all branch predictions
+        for branch_ix in 0..self.num_branches {
+            let cfg = &self.branch_cfgs[branch_ix];
+            let branch = B::from_cfg(cfg);
+            residual -= branch.predict(&x.x_group_af(branch_ix));
+            self.update_lpd_from_branch(branch_ix, &branch, &residual);
+        }
+
+        residual
+    }
+
+    fn update_lpd_from_branch(
+        &mut self,
+        branch_ix: usize,
+        branch: &impl Branch,
+        residual: &Array<f32>,
+    ) {
+        self.log_posterior_density.update_from_branch(
+            branch_ix,
+            branch,
+            &residual,
+            &self.hyperparams,
+        );
+    }
+
     pub fn train<T: GroupedGenotypes>(
         &mut self,
         train_data: &Data<T>,
@@ -167,7 +198,7 @@ impl<B: Branch> Net<B> {
         let mut rng = thread_rng();
         let num_individuals = train_data.num_individuals();
         let y_train = &Array::new(train_data.y(), dim4!(num_individuals as u64, 1, 1, 1));
-        let mut residual = self.residual(&train_data.gen, y_train);
+        let mut residual = self.initialize_stats(&train_data.gen, y_train);
         let mut branch_ixs = (0..self.num_branches).collect::<Vec<usize>>();
         let mut report_interval = 1;
 
@@ -178,7 +209,7 @@ impl<B: Branch> Net<B> {
         );
 
         // initial loss
-        self.record_mse(&residual, report_cfg.as_ref().unwrap().test_data);
+        self.record_perf(&residual, report_cfg.as_ref().unwrap().test_data);
 
         // report
         if verbose {
@@ -229,7 +260,10 @@ impl<B: Branch> Net<B> {
                 self.note_hmc_step_result(&step_res);
                 match step_res {
                     // update residual
-                    HMCStepResult::Accepted(state) => residual -= state.y_pred,
+                    HMCStepResult::Accepted(state) => {
+                        residual -= state.y_pred;
+                        self.update_lpd_from_branch(branch_ix, &branch, &residual);
+                    }
                     // not accepted, just remove previous prediction
                     _ => residual -= prev_pred,
                 }
@@ -256,7 +290,7 @@ impl<B: Branch> Net<B> {
                 residual -= self.output_bias.af_bias();
             }
 
-            self.record_mse(&residual, report_cfg.as_ref().unwrap().test_data);
+            self.record_perf(&residual, report_cfg.as_ref().unwrap().test_data);
 
             // save current model if done with burn in
             if chain_ix >= mcmc_cfg.burn_in {
@@ -324,11 +358,13 @@ impl<B: Branch> Net<B> {
         create_dir_all(mcmc_cfg.effect_sizes_path()).expect("Failed to create effect size outdir");
     }
 
-    fn record_mse<T: GroupedGenotypes>(
+    fn record_perf<T: GroupedGenotypes>(
         &mut self,
         residual: &Array<f32>,
         test_data: Option<&Data<T>>,
     ) {
+        self.training_stats
+            .add_lpd(self.log_posterior_density.lpd());
         self.training_stats.add_mse_train(
             crate::af_helpers::sum_of_squares(residual) / residual.elements() as f32,
         );
@@ -337,9 +373,9 @@ impl<B: Branch> Net<B> {
         }
     }
 
-    fn residual<T: GroupedGenotypes>(&self, x: &T, y: &Array<f32>) -> Array<f32> {
-        y - self.predict_device(x, y.elements())
-    }
+    // fn residual<T: GroupedGenotypes>(&self, x: &T, y: &Array<f32>) -> Array<f32> {
+    //     y - self.predict_device(x, y.elements())
+    // }
 
     // TODO: predict using posterior predictive distribution instead of point estimate
     fn predict_device<T: GroupedGenotypes>(
@@ -385,32 +421,38 @@ impl<B: Branch> Net<B> {
 
     fn report_training_state_debug(&self, iteration: usize, residual: &Array<f32>) {
         debug!(
-                "iteration: {:} \t | acc: {:.2} \t | early_rej: {:.2} \t | end_rej: {:.2} \t | mse(trn): {:.4}",
+                "i: {:} \t | acc: {:.2} \t | early_rej: {:.2} \t | end_rej: {:.2} \t | mse(trn): {:.4} | lpd: {:.4}",
                 iteration,
                 self.training_stats.acceptance_rate(),
                 self.training_stats.early_rejection_rate(),
                 self.training_stats.end_rejection_rate(),
-                crate::af_helpers::sum_of_squares(residual) / residual.elements() as f32);
+                crate::af_helpers::sum_of_squares(residual) / residual.elements() as f32,
+                self.log_posterior_density.lpd()
+            );
     }
 
     fn report_training_state(&self, iteration: usize) {
         if let Some(tst_mse) = &self.training_stats.mse_test {
             info!(
-                "iteration: {:} \t | acc: {:.2} \t | early_rej: {:.2} \t | end_rej: {:.2} \t | mse(trn): {:.4} \t | mse(tst): {:.4}",
+                "i: {:} \t | acc: {:.2} \t | early_rej: {:.2} \t | end_rej: {:.2} \t | mse(trn): {:.4} \t | mse(tst): {:.4} | lpd: {:.4}",
                 iteration,
                 self.training_stats.acceptance_rate(),
                 self.training_stats.early_rejection_rate(),
                 self.training_stats.end_rejection_rate(),
                 self.training_stats.mse_train.last().unwrap(),
-                tst_mse.last().unwrap());
+                tst_mse.last().unwrap(),
+                self.log_posterior_density.lpd()
+            );
         } else {
             info!(
-                "iteration: {:} \t | acc: {:.2} \t | early_rej: {:.2} \t | end_rej: {:.2} \t | mse(trn): {:.4}",
+                "i: {:} \t | acc: {:.2} \t | early_rej: {:.2} \t | end_rej: {:.2} \t | mse(trn): {:.4} | lpd: {:.4}",
                 iteration,
                 self.training_stats.acceptance_rate(),
                 self.training_stats.early_rejection_rate(),
                 self.training_stats.end_rejection_rate(),
-                self.training_stats.mse_train.last().unwrap());
+                self.training_stats.mse_train.last().unwrap(),
+                self.log_posterior_density.lpd()
+            );
         }
     }
 
