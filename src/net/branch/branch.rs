@@ -173,8 +173,10 @@ pub trait Branch {
     }
 
     /// Dumps all branch info into a BranchCfg object stored in host memory.
-    fn to_cfg(&self) -> BranchCfg {
-        BranchCfg {
+    fn to_cfg(&mut self) -> BranchCfg {
+        self.add_output_weight_summary_stat_to_global();
+
+        let res = BranchCfg {
             num_params: self.num_params(),
             num_weights: self.num_weights(),
             num_markers: self.num_markers(),
@@ -182,7 +184,11 @@ pub trait Branch {
             params: self.params().to_host(),
             precisions: self.precisions().to_host(),
             output_weight_summary_stats: self.output_weight_summary_stats().to_host(),
-        }
+        };
+
+        self.subtract_output_weight_summary_stat_from_global();
+
+        res
     }
 
     fn sample_precisions(
@@ -276,6 +282,16 @@ pub trait Branch {
 
         log_density
     }
+
+    // fn log_density_joint_wrt_local_params(
+    //     &self,
+    //     hyperparams: &NetworkPrecisionHyperparameters,
+    // ) -> f32 {
+    //     let wrt_b =
+    //         self.log_density_joint_wrt_biases(self.params(), self.precisions(), hyperparams);
+    //     let wrt_local_w =
+    //     0.0
+    // }
 
     fn log_density_joint(
         &self,
@@ -1008,8 +1024,6 @@ pub trait Branch {
         y_train: &Array<f32>,
         mcmc_cfg: &MCMCCfg,
     ) -> HMCStepResult {
-        self.subtract_output_weight_summary_stat_from_global();
-
         let mut ldg = self.log_density_gradient(x_train, y_train);
         for _step in 0..(mcmc_cfg.hmc_integration_length) {
             self.params_mut().descend_gradient(GD_STEP_SIZE, &ldg);
@@ -1020,8 +1034,6 @@ pub trait Branch {
         let rss = arrayfire::sum_all(&(&r * &r)).0;
         let log_density = self.log_density(self.params(), self.precisions(), rss);
         debug!("branch log density after step: {:.4}", log_density);
-
-        self.add_output_weight_summary_stat_to_global();
 
         HMCStepResult::Accepted(HMCStepResultData {
             y_pred,
@@ -1037,8 +1049,6 @@ pub trait Branch {
         mcmc_cfg: &MCMCCfg,
         hyperparams: &NetworkPrecisionHyperparameters,
     ) -> HMCStepResult {
-        self.subtract_output_weight_summary_stat_from_global();
-
         let mut ldg = self.log_density_gradient_joint(x_train, y_train, hyperparams);
         for _step in 0..(mcmc_cfg.hmc_integration_length) {
             self.params_mut().descend_gradient(GD_STEP_SIZE, &ldg);
@@ -1057,8 +1067,6 @@ pub trait Branch {
         );
         debug!("branch log density after step: {:.4}", log_density);
 
-        self.add_output_weight_summary_stat_to_global();
-
         HMCStepResult::Accepted(HMCStepResultData {
             y_pred,
             log_density,
@@ -1075,8 +1083,6 @@ pub trait Branch {
         hyperparams: &NetworkPrecisionHyperparameters,
     ) -> HMCStepResult {
         // adjust output weight reg_sum for own branch output weight sum
-        self.subtract_output_weight_summary_stat_from_global();
-
         let mut traj_file = None;
         let mut traj = Trajectory::new();
         if mcmc_cfg.trajectories {
@@ -1174,7 +1180,6 @@ pub trait Branch {
         };
 
         // add own branch output weight sum to summary reg sum
-        self.add_output_weight_summary_stat_to_global();
 
         res
     }
@@ -1208,8 +1213,6 @@ pub trait Branch {
                     .unwrap(),
             ));
         }
-
-        self.subtract_output_weight_summary_stat_from_global();
 
         let mut u_turned = false;
         let init_params = self.params().clone();
@@ -1286,8 +1289,6 @@ pub trait Branch {
                 warn!("U turn in HMC trajectory at step {}", _step);
                 u_turned = true;
             }
-
-            self.add_output_weight_summary_stat_to_global();
         }
 
         if mcmc_cfg.trajectories {

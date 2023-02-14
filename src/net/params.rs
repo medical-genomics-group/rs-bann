@@ -360,6 +360,14 @@ impl OutputWeightSummaryStatsHost {
     }
 }
 
+/// Summary stats of the output weights stored on device.
+///
+/// This struct is only used for storage inside branches,
+/// where the local reg sum has to be subtracted from the reg_sum
+/// stored in the struct. This cannot be managed here, because
+/// the branch type, and therefore the branch summary stat fn
+/// is unknown. Therefore, the branch impl have to manage
+/// the subtraction and addition themselves.
 #[derive(Clone)]
 pub struct OutputWeightSummaryStats {
     reg_sum: Array<f32>,

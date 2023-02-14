@@ -8,15 +8,18 @@ use super::params::NetworkPrecisionHyperparameters;
 pub struct LogPosteriorDensity {
     /// single term for all branches
     wrt_rss_and_error_precision: f32,
-    /// one term per branch
-    wrt_params_and_param_precisions: Vec<f32>,
+    /// shared log density term
+    wrt_output_weights_and_precision: f32,
+    /// log density terms that are branch specific, one per branch
+    wrt_local_params: Vec<f32>,
 }
 
 impl LogPosteriorDensity {
     fn new(num_branches: usize) -> Self {
         Self {
             wrt_rss_and_error_precision: f32::NEG_INFINITY,
-            wrt_params_and_param_precisions: vec![f32::NEG_INFINITY; num_branches],
+            wrt_output_weights_and_precision: f32::NEG_INFINITY,
+            wrt_local_params: vec![f32::NEG_INFINITY; num_branches],
         }
     }
 
@@ -33,11 +36,11 @@ impl LogPosteriorDensity {
             - error_precision * (rss / 2.0 + 1.0 / hyperparams.output_layer_prior_scale());
     }
 
-    fn update_params_and_param_precisions_term(&mut self, branch_ix: usize, log_density: f32) {
-        self.wrt_params_and_param_precisions[branch_ix] = log_density;
-    }
+    // fn update_params_and_param_precisions_term(&mut self, branch_ix: usize, log_density: f32) {
+    //     self.wrt_params_and_param_precisions[branch_ix] = log_density;
+    // }
 
-    fn log_density(&self) -> f32 {
-        self.wrt_rss_and_error_precision + self.wrt_params_and_param_precisions.iter().sum::<f32>()
-    }
+    // fn log_density(&self) -> f32 {
+    //     self.wrt_rss_and_error_precision + self.wrt_params_and_param_precisions.iter().sum::<f32>()
+    // }
 }

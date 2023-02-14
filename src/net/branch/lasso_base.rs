@@ -47,7 +47,7 @@ impl Branch for LassoBaseBranch {
 
     /// Creates Branch on device with BranchCfg from host memory.
     fn from_cfg(cfg: &BranchCfg) -> Self {
-        Self {
+        let mut res = Self {
             num_params: cfg.num_params,
             num_weights: cfg.num_weights,
             num_markers: cfg.num_markers,
@@ -57,7 +57,11 @@ impl Branch for LassoBaseBranch {
             params: BranchParams::from_host(&cfg.params),
             rng: thread_rng(),
             training_state: TrainingState::default(),
-        }
+        };
+
+        res.subtract_output_weight_summary_stat_from_global();
+
+        res
     }
 
     fn rng_mut(&mut self) -> &mut ThreadRng {
