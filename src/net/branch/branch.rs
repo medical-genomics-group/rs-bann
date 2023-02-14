@@ -1194,6 +1194,7 @@ pub trait Branch {
         ) {
             res @ HMCStepResult::Rejected => {
                 self.set_params(&init_params);
+                self.set_precisions(&init_precisions);
                 res
             }
             res => res,
