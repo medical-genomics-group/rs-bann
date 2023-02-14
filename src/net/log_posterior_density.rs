@@ -33,6 +33,13 @@ impl LogPosteriorDensity {
     ) {
         let (wrt_out_w, wrt_local) =
             branch.log_density_joint_components_curr_internal_state(hyperparams);
+
+        log::debug!(
+            "Received from branch: wrt_out_w: {:?}, wrt_local: {:?}",
+            wrt_out_w,
+            wrt_local
+        );
+
         self.wrt_local_params[branch_ix] = wrt_local;
         self.wrt_output_weights_and_precision = wrt_out_w;
         self.update_rss_and_error_precision_term(residual, branch.error_precision(), hyperparams);
