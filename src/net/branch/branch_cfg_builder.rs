@@ -321,7 +321,6 @@ impl BranchCfgBuilder {
                 bias_precisions,
                 error_precision: vec![1.0],
             },
-            output_weight_summary_stats: OutputWeightSummaryStatsHost::default(),
         }
     }
 }

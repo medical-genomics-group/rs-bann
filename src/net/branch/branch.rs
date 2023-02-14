@@ -183,7 +183,6 @@ pub trait Branch {
             layer_widths: self.layer_widths().clone(),
             params: self.params().to_host(),
             precisions: self.precisions().to_host(),
-            output_weight_summary_stats: self.output_weight_summary_stats().to_host(),
         };
 
         self.subtract_output_weight_summary_stat_from_global();
@@ -202,12 +201,14 @@ pub trait Branch {
     }
 
     fn sample_output_weight_precisions(&mut self, hyperparams: &NetworkPrecisionHyperparameters) {
+        self.add_output_weight_summary_stat_to_global();
         let precision = self.precision_posterior_host(
             hyperparams.output_layer_prior_shape(),
             hyperparams.output_layer_prior_scale(),
             self.output_weight_summary_stats().reg_sum_host(),
             self.output_weight_summary_stats().num_params_host(),
         );
+        self.subtract_output_weight_summary_stat_from_global();
         self.precisions_mut().set_output_layer_precision(precision);
     }
 
@@ -1348,7 +1349,6 @@ pub struct BranchCfg {
     pub(crate) layer_widths: Vec<usize>,
     pub(crate) params: BranchParamsHost,
     pub(crate) precisions: BranchPrecisionsHost,
-    pub(crate) output_weight_summary_stats: OutputWeightSummaryStatsHost,
 }
 
 impl BranchCfg {
@@ -1372,8 +1372,12 @@ impl BranchCfg {
         self.precisions.set_error_precision(precision);
     }
 
+    pub fn output_weight_summary_stats_mut(&mut self) -> &mut OutputWeightSummaryStatsHost {
+        &mut self.params.output_weight_summary_stats
+    }
+
     pub fn set_output_weight_summary_stats(&mut self, sstats: OutputWeightSummaryStatsHost) {
-        self.output_weight_summary_stats = sstats;
+        *self.output_weight_summary_stats_mut() = sstats;
     }
 
     pub fn output_layer_precision(&self) -> f32 {
@@ -1381,7 +1385,7 @@ impl BranchCfg {
     }
 
     pub fn output_weight_summary_stats(&self) -> OutputWeightSummaryStatsHost {
-        self.output_weight_summary_stats
+        self.params.output_weight_summary_stats
     }
 
     pub fn error_precision(&self) -> f32 {

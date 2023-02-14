@@ -336,13 +336,13 @@ impl Branch for LassoArdBranch {
         prior_shape: f32,
         // s or theta
         prior_scale: f32,
-        sum_of_squares: f32,
+        reg_sum: f32,
         num_vals: usize,
     ) -> f32 {
         super::super::gibbs_steps::lasso_multi_param_precision_posterior_host_prepared_summary_stats(
             prior_shape,
             prior_scale,
-            sum_of_squares,
+            reg_sum,
             num_vals,
             self.rng(),
         )

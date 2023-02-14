@@ -188,6 +188,7 @@ impl<B: Branch> BlockNetCfg<B> {
                     branch_cfgs.last().unwrap().output_layer_weights(),
                 ));
         }
+
         self.update_branch_cfgs_output_weight_precision(&mut branch_cfgs);
         Net::new(
             NetworkPrecisionHyperparameters {

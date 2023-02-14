@@ -309,7 +309,7 @@ impl Branch for RidgeBaseBranch {
         summary_stat: f32,
         num_vals: usize,
     ) -> f32 {
-        super::super::gibbs_steps::lasso_multi_param_precision_posterior_host_prepared_summary_stats(
+        super::super::gibbs_steps::ridge_multi_param_precision_posterior_host_prepared_summary_stats(
             prior_shape,
             prior_scale,
             summary_stat,
