@@ -334,7 +334,7 @@ def load_json_trace(wdir: str, branch_ix=0):
             for lix, p in enumerate(l["precisions"]["weight_precisions"]):
                 if len(wp) <= lix:
                     wp.append([])
-                wp[lix].append(p["data"])
+                wp[lix].append(p)
             bp.append(l["precisions"]["bias_precisions"])
             ep.append(l["precisions"]["error_precision"])
     for lix in range(len(wp)):
@@ -840,3 +840,38 @@ def autocorr(arr):
     v = (arr - np.mean(arr)) / (np.std(arr) * len(arr))
     res = np.correlate(v, v, mode='full')
     return res[res.size // 2:]
+
+
+# assuminga single branch
+def load_lm_true_effects(wdir: str):
+    with open(data_dir(wdir) + "/model.params", 'r') as fin:
+        model_params = json.load(fin)
+
+    return np.array(model_params['effects'][0])
+
+
+# this only works for linear model simulations
+def plot_est_effect_sizes(wdir: str, burn_in: int, integration_length: int):
+    true_effects = load_lm_true_effects(wdir)
+
+    means = []
+
+    for mix in range(burn_in, integration_length):
+        f = wdir + f"effect_sizes/{mix}"
+        df = pd.read_csv(f, header=None)
+        m = df.values
+        means.append(m.mean(axis=0))
+
+    am = np.array(means)
+    est_effects = am.mean(axis=0)
+    lm = LinearRegression().fit(true_effects.reshape(-1, 1), est_effects)
+
+    pred_x = np.linspace(true_effects.min(), true_effects.max(), 10)
+    pred_lm = lm.predict(pred_x.reshape(-1, 1))
+
+    plt.figure()
+    plt.plot(pred_x, pred_lm, ":")
+    # print(np.corrcoef(est_effects, true_effects))
+    plt.plot(true_effects, est_effects, '.')
+    plt.xlabel(r"$\beta_i$")
+    plt.ylabel(r"$\frac{\partial \hat{y}}{\partial x_i}$")
