@@ -680,7 +680,8 @@ def plot_perf_r2(wdir: str, burn_in, full_r2_yrange=False):
         linestyle="dotted",
         label="ridge test"
     )
-    axes[1].legend()
+    axes[1].legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    # axes[1].legend()
     if not full_r2_yrange:
         axes[1].set_ylim(0.0, 1.0)
     # axes[1].set_yscale("log")
