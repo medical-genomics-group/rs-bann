@@ -294,15 +294,15 @@ class Data:
         x = []
         for bix, branch_data in enumerate(gen["x"]):
             x.append(np.array(branch_data).reshape(
-                (gen["num_individuals"], gen["num_markers_per_branch"][bix]), order='F'))
+                (gen['num_individuals'], gen['num_markers_per_group'][bix]), order='F'))
         return Data(
             x,
             np.array(phen['y']),
             np.array(gen['means']),
             np.array(gen['stds']),
-            gen['num_markers_per_branch'],
+            gen['num_markers_per_group'],
             gen['num_individuals'],
-            gen['num_branches'],
+            gen['num_groups'],
             gen['standardized'])
 
 
