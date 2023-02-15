@@ -174,7 +174,7 @@ impl<B: Branch> Net<B> {
         self.log_posterior_density.update_from_branch(
             branch_ix,
             branch,
-            &residual,
+            residual,
             &self.hyperparams,
         );
     }

@@ -1101,10 +1101,14 @@ pub trait Branch {
         );
         debug!("branch log density after step: {:.4}", log_density);
 
-        HMCStepResult::Accepted(HMCStepResultData {
-            y_pred,
-            log_density,
-        })
+        if scalar_to_host(self.error_precision()) <= 0.0 {
+            HMCStepResult::Rejected
+        } else {
+            HMCStepResult::Accepted(HMCStepResultData {
+                y_pred,
+                log_density,
+            })
+        }
     }
 
     /// Takes a single parameter and hyperparameter sample using HMC.
