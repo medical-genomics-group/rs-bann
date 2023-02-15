@@ -1100,6 +1100,10 @@ pub trait Branch {
             y_pred.elements(),
         );
         debug!("branch log density after step: {:.4}", log_density);
+        debug!(
+            "error_precision after step: {:.4}",
+            scalar_to_host(self.error_precision())
+        );
 
         if scalar_to_host(self.error_precision()) <= 0.0 {
             HMCStepResult::Rejected
