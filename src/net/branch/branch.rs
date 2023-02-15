@@ -1083,6 +1083,8 @@ pub trait Branch {
         mcmc_cfg: &MCMCCfg,
         hyperparams: &NetworkPrecisionHyperparameters,
     ) -> HMCStepResult {
+        let init_params = self.params().clone();
+        let init_precisions = self.precisions().clone();
         let mut ldg = self.log_density_gradient_joint(x_train, y_train, hyperparams);
         for _step in 0..(mcmc_cfg.hmc_integration_length) {
             self.params_mut().descend_gradient(GD_STEP_SIZE, &ldg);
@@ -1106,6 +1108,8 @@ pub trait Branch {
         );
 
         if scalar_to_host(self.error_precision()) <= 0.0 {
+            self.set_params(&init_params);
+            self.set_precisions(&init_precisions);
             HMCStepResult::Rejected
         } else {
             HMCStepResult::Accepted(HMCStepResultData {
