@@ -609,12 +609,8 @@ def plot_perf_r2_genetic_value(wdir: str, burn_in, branch_ix=0):
     plt.tight_layout()
 
 
-def plot_perf_r2(wdir: str, burn_in, full_r2_yrange=False):
+def plot_perf_r2(wdir: str, burn_in, full_r2_yrange=False, ridge_lm=False):
     ddir = data_dir(wdir)
-    train_data = Data.load_train(ddir)
-    test_data = Data.load_test(ddir)
-
-    ridge_r2_train, ridge_r2_test = r2_ridge(train_data, test_data)
 
     train_phen_stats = load_train_phen_stats(ddir)
     test_phen_stats = load_test_phen_stats(ddir)
@@ -664,22 +660,27 @@ def plot_perf_r2(wdir: str, burn_in, full_r2_yrange=False):
                    linestyle="dashed", color="#35063e", label="h2 train")
     axes[1].hlines(h2_test, 0, len(trace.error_precision),
                    linestyle="dashdot", color="#35063e", label="h2 test")
-    axes[1].hlines(
-        ridge_r2_train,
-        0,
-        len(trace.error_precision),
-        color="gray",
-        linestyle="dashed",
-        label="ridge train"
-    )
-    axes[1].hlines(
-        ridge_r2_test,
-        0,
-        len(trace.error_precision),
-        color="gray",
-        linestyle="dotted",
-        label="ridge test"
-    )
+    
+    if ridge_lm:
+        train_data = Data.load_train(ddir)
+        test_data = Data.load_test(ddir)
+        ridge_r2_train, ridge_r2_test = r2_ridge(train_data, test_data)
+        axes[1].hlines(
+            ridge_r2_train,
+            0,
+            len(trace.error_precision),
+            color="gray",
+            linestyle="dashed",
+            label="ridge train"
+        )
+        axes[1].hlines(
+            ridge_r2_test,
+            0,
+            len(trace.error_precision),
+            color="gray",
+            linestyle="dotted",
+            label="ridge test"
+        )
     axes[1].legend(loc='center left', bbox_to_anchor=(1, 0.5))
     # axes[1].legend()
     if not full_r2_yrange:
@@ -843,17 +844,28 @@ def autocorr(arr):
     return res[res.size // 2:]
 
 
-# assuminga single branch
-def load_lm_true_effects(wdir: str):
+def load_lm_true_effects_sf(wdir: str):
+    """
+    Load true effects from a single branch
+    """
     with open(data_dir(wdir) + "/model.params", 'r') as fin:
         model_params = json.load(fin)
 
     return np.array(model_params['effects'][0])
 
+# assuminga single branch
+def load_lm_true_effects_mb(wdir: str):
+    """
+    Load true effects from multiple branches
+    """
+    with open(data_dir(wdir) + "/model.params", 'r') as fin:
+        model_params = json.load(fin)
+
+    return np.array(model_params['effects']).flatten()
 
 # this only works for linear model simulations
 def plot_est_effect_sizes(wdir: str, burn_in: int, integration_length: int):
-    true_effects = load_lm_true_effects(wdir)
+    true_effects = load_lm_true_effects_sf(wdir)
 
     means = []
 

@@ -241,7 +241,7 @@ impl<B: Branch> Net<B> {
                 let x = &train_data.x_branch_af(branch_ix);
 
                 // load branch cfg
-                let mut branch = B::from_cfg(&cfg);
+                let mut branch = B::from_cfg(cfg);
                 if !(mcmc_cfg.gradient_descent_joint || mcmc_cfg.joint_hmc) {
                     branch.sample_precisions(&residual, &self.hyperparams);
                 }
