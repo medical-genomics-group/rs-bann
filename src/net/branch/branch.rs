@@ -1083,6 +1083,10 @@ pub trait Branch {
         mcmc_cfg: &MCMCCfg,
         hyperparams: &NetworkPrecisionHyperparameters,
     ) -> HMCStepResult {
+        debug!(
+            "error_precision before step: {:.4}",
+            scalar_to_host(self.error_precision())
+        );
         let init_params = self.params().clone();
         let init_precisions = self.precisions().clone();
         let mut ldg = self.log_density_gradient_joint(x_train, y_train, hyperparams);
