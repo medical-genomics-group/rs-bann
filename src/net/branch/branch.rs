@@ -1060,7 +1060,8 @@ pub trait Branch {
     ) -> HMCStepResult {
         let mut ldg = self.log_density_gradient(x_train, y_train);
         for _step in 0..(mcmc_cfg.hmc_integration_length) {
-            self.params_mut().descend_gradient(GD_STEP_SIZE, &ldg);
+            self.params_mut()
+                .descend_gradient(mcmc_cfg.hmc_step_size_factor, &ldg);
             ldg = self.log_density_gradient(x_train, y_train);
         }
         let y_pred = self.predict(x_train);
@@ -1091,8 +1092,10 @@ pub trait Branch {
         let init_precisions = self.precisions().clone();
         let mut ldg = self.log_density_gradient_joint(x_train, y_train, hyperparams);
         for _step in 0..(mcmc_cfg.hmc_integration_length) {
-            self.params_mut().descend_gradient(GD_STEP_SIZE, &ldg);
-            self.precisions_mut().descend_gradient(GD_STEP_SIZE, &ldg);
+            self.params_mut()
+                .descend_gradient(mcmc_cfg.hmc_step_size_factor, &ldg);
+            self.precisions_mut()
+                .descend_gradient(mcmc_cfg.hmc_step_size_factor, &ldg);
             ldg = self.log_density_gradient_joint(x_train, y_train, hyperparams);
         }
         let y_pred = self.predict(x_train);
