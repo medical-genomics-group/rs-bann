@@ -276,7 +276,12 @@ impl<B: Branch> Net<B> {
 
                 // compute effect sizes and save
                 if chain_ix >= mcmc_cfg.burn_in {
-                    self.save_effect_sizes(&branch.effect_sizes(x, y_train), chain_ix, mcmc_cfg)
+                    self.save_effect_sizes(
+                        &branch.effect_sizes(x, y_train),
+                        chain_ix,
+                        branch_ix,
+                        mcmc_cfg,
+                    )
                 }
 
                 self.report_training_state_debug(chain_ix, &residual);
@@ -341,9 +346,17 @@ impl<B: Branch> Net<B> {
         self.to_file(&model_path);
     }
 
-    fn save_effect_sizes(&self, effect_sizes: &Array<f32>, model_ix: usize, mcmc_cfg: &MCMCCfg) {
+    fn save_effect_sizes(
+        &self,
+        effect_sizes: &Array<f32>,
+        model_ix: usize,
+        branch_ix: usize,
+        mcmc_cfg: &MCMCCfg,
+    ) {
         let num_markers = effect_sizes.dims().get()[1] as usize;
-        let file_path = mcmc_cfg.effect_sizes_path().join(model_ix.to_string());
+        let file_path = mcmc_cfg
+            .effect_sizes_path()
+            .join(format!("{}_{}", model_ix, branch_ix));
         let mut wtr = csv::Writer::from_path(file_path).unwrap();
         to_host(&arrayfire::transpose(effect_sizes, false))
             .chunks(num_markers)
