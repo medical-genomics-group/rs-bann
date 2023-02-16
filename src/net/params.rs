@@ -38,8 +38,17 @@ impl GlobalParams {
     }
 
     pub fn update_from_branch_cfg(&mut self, cfg: &BranchCfg) {
+        assert!(cfg.error_precision() >= 0.0, "Negative error precision!");
         self.error_precision = cfg.error_precision();
+        assert!(
+            cfg.output_layer_precision() >= 0.0,
+            "Negative output weight precision!"
+        );
         self.output_layer_precision = cfg.output_layer_precision();
+        assert!(
+            cfg.output_weight_summary_stats().reg_sum >= 0.0,
+            "Negative reg sum!"
+        );
         self.output_weight_summary_stats = cfg.output_weight_summary_stats();
     }
 

@@ -1060,7 +1060,8 @@ pub trait Branch {
     ) -> HMCStepResult {
         let mut ldg = self.log_density_gradient(x_train, y_train);
         for _step in 0..(mcmc_cfg.hmc_integration_length) {
-            self.params_mut().descend_gradient(GD_STEP_SIZE, &ldg);
+            self.params_mut()
+                .descend_gradient(mcmc_cfg.hmc_step_size_factor, &ldg);
             ldg = self.log_density_gradient(x_train, y_train);
         }
         let y_pred = self.predict(x_train);
@@ -1083,10 +1084,18 @@ pub trait Branch {
         mcmc_cfg: &MCMCCfg,
         hyperparams: &NetworkPrecisionHyperparameters,
     ) -> HMCStepResult {
+        debug!(
+            "error_precision before step: {:.4}",
+            scalar_to_host(self.error_precision())
+        );
+        let init_params = self.params().clone();
+        let init_precisions = self.precisions().clone();
         let mut ldg = self.log_density_gradient_joint(x_train, y_train, hyperparams);
         for _step in 0..(mcmc_cfg.hmc_integration_length) {
-            self.params_mut().descend_gradient(GD_STEP_SIZE, &ldg);
-            self.precisions_mut().descend_gradient(GD_STEP_SIZE, &ldg);
+            self.params_mut()
+                .descend_gradient(mcmc_cfg.hmc_step_size_factor, &ldg);
+            self.precisions_mut()
+                .descend_gradient(mcmc_cfg.hmc_step_size_factor, &ldg);
             ldg = self.log_density_gradient_joint(x_train, y_train, hyperparams);
         }
         let y_pred = self.predict(x_train);
@@ -1100,11 +1109,21 @@ pub trait Branch {
             y_pred.elements(),
         );
         debug!("branch log density after step: {:.4}", log_density);
+        debug!(
+            "error_precision after step: {:.4}",
+            scalar_to_host(self.error_precision())
+        );
 
-        HMCStepResult::Accepted(HMCStepResultData {
-            y_pred,
-            log_density,
-        })
+        if scalar_to_host(self.error_precision()) <= 0.0 {
+            self.set_params(&init_params);
+            self.set_precisions(&init_precisions);
+            HMCStepResult::Rejected
+        } else {
+            HMCStepResult::Accepted(HMCStepResultData {
+                y_pred,
+                log_density,
+            })
+        }
     }
 
     /// Takes a single parameter and hyperparameter sample using HMC.

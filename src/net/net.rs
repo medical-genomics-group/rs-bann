@@ -174,7 +174,7 @@ impl<B: Branch> Net<B> {
         self.log_posterior_density.update_from_branch(
             branch_ix,
             branch,
-            &residual,
+            residual,
             &self.hyperparams,
         );
     }
@@ -241,7 +241,7 @@ impl<B: Branch> Net<B> {
                 let x = &train_data.x_branch_af(branch_ix);
 
                 // load branch cfg
-                let mut branch = B::from_cfg(&cfg);
+                let mut branch = B::from_cfg(cfg);
                 if !(mcmc_cfg.gradient_descent_joint || mcmc_cfg.joint_hmc) {
                     branch.sample_precisions(&residual, &self.hyperparams);
                 }
