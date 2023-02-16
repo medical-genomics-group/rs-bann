@@ -853,7 +853,7 @@ def load_lm_true_effects_sf(wdir: str):
 
     return np.array(model_params['effects'][0])
 
-# assuminga single branch
+
 def load_lm_true_effects_mb(wdir: str):
     """
     Load true effects from multiple branches
