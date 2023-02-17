@@ -84,43 +84,43 @@ impl MCMCCfgBuilder {
         self
     }
 
-    pub fn with_trace(mut self) -> Self {
-        self.trace = true;
+    pub fn with_trace(mut self, arg: bool) -> Self {
+        self.trace = arg;
         self
     }
 
-    pub fn with_trajectories(mut self) -> Self {
-        self.trajectories = true;
+    pub fn with_trajectories(mut self, arg: bool) -> Self {
+        self.trajectories = arg;
         self
     }
 
-    pub fn with_num_grad_traj(mut self) -> Self {
-        self.num_grad_traj = true;
+    pub fn with_num_grad_traj(mut self, arg: bool) -> Self {
+        self.num_grad_traj = arg;
         self
     }
 
-    pub fn with_num_grad(mut self) -> Self {
-        self.num_grad = true;
+    pub fn with_num_grad(mut self, arg: bool) -> Self {
+        self.num_grad = arg;
         self
     }
 
-    pub fn with_gradient_descent(mut self) -> Self {
-        self.gradient_descent = true;
+    pub fn with_gradient_descent(mut self, arg: bool) -> Self {
+        self.gradient_descent = arg;
         self
     }
 
-    pub fn with_gradient_descent_joint(mut self) -> Self {
-        self.gradient_descent_joint = true;
+    pub fn with_gradient_descent_joint(mut self, arg: bool) -> Self {
+        self.gradient_descent_joint = arg;
         self
     }
 
-    pub fn with_joint_hmc(mut self) -> Self {
-        self.joint_hmc = true;
+    pub fn with_joint_hmc(mut self, arg: bool) -> Self {
+        self.joint_hmc = arg;
         self
     }
 
-    pub fn with_fixed_param_precisions(mut self) -> Self {
-        self.fixed_param_precisions = true;
+    pub fn with_fixed_param_precisions(mut self, arg: bool) -> Self {
+        self.fixed_param_precisions = arg;
         self
     }
 

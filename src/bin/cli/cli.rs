@@ -269,6 +269,10 @@ pub(crate) struct TrainArgs {
     #[clap(long)]
     pub trajectories: bool,
 
+    /// fixed all prior precisions to the given value.
+    #[clap(long)]
+    pub fixed_param_precision: Option<f32>,
+
     /// Output numerical gradients
     /// CAUTION: this is extremely expensive, do not run this in production.
     #[clap(long)]
@@ -354,36 +358,40 @@ pub(crate) struct TrainNewArgs {
     #[clap(default_value_t = 0.1, long)]
     pub step_size: f32,
 
-    #[clap(default_value_t = 1, long)]
     /// training stats report interval
+    #[clap(default_value_t = 1, long)]
     pub report_interval: usize,
 
-    #[clap(default_value_t = 1., long)]
+    /// fixed all prior precisions to the given value.
+    /// #[clap(long)]
+    pub fixed_param_precision: Option<f32>,
+
     /// shape hyperparam of prior distribution of precision of dense layer params
+    #[clap(default_value_t = 1., long)]
     pub dpk: f32,
 
-    #[clap(default_value_t = 1., long)]
     /// scale hyperparam of prior distribution of precision of dense layer params
+    #[clap(default_value_t = 1., long)]
     pub dps: f32,
 
-    #[clap(default_value_t = 1., long)]
     /// shape hyperparam of prior distribution of precision of summary layer params
+    #[clap(default_value_t = 1., long)]
     pub spk: f32,
 
-    #[clap(default_value_t = 1., long)]
     /// scale hyperparam of prior distribution of precision of summary layer params
+    #[clap(default_value_t = 1., long)]
     pub sps: f32,
 
-    #[clap(default_value_t = 1., long)]
     /// shape hyperparam of prior distribution of precision of ouput layer params
+    #[clap(default_value_t = 1., long)]
     pub opk: f32,
 
-    #[clap(default_value_t = 1., long)]
     /// scale hyperparam of prior distribution of precision of output layer params
+    #[clap(default_value_t = 1., long)]
     pub ops: f32,
 
-    #[clap(short, long, default_value = "./")]
     /// Output path. Outdir will be created there.
+    #[clap(short, long, default_value = "./")]
     pub outpath: String,
 
     ///  Step size mode
@@ -517,6 +525,10 @@ pub(crate) struct TrainNewBedArgs {
     #[clap(default_value_t = 1, long)]
     /// training stats report interval
     pub report_interval: usize,
+
+    /// fixed all prior precisions to the given value.
+    #[clap(long)]
+    pub fixed_param_precision: Option<f32>,
 
     #[clap(default_value_t = 1., long)]
     /// shape hyperparam of prior distribution of precision of dense layer params

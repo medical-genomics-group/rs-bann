@@ -26,6 +26,7 @@ pub struct BranchCfgBuilder {
     init_gamma_params: Option<GammaParams>,
     sample_precisions: bool,
     proportion_effective_markers: f32,
+    fixed_param_precision: Option<f32>,
     rng: ChaCha20Rng,
 }
 
@@ -52,12 +53,18 @@ impl BranchCfgBuilder {
             init_gamma_params: None,
             sample_precisions: false,
             proportion_effective_markers: 1.0,
+            fixed_param_precision: None,
             rng: ChaCha20Rng::from_entropy(),
         }
     }
 
     pub fn with_seed(mut self, seed: u64) -> Self {
         self.rng = ChaCha20Rng::seed_from_u64(seed);
+        self
+    }
+
+    pub fn with_fixed_param_precision(mut self, precision: Option<f32>) -> Self {
+        self.fixed_param_precision = precision;
         self
     }
 
@@ -196,7 +203,10 @@ impl BranchCfgBuilder {
 
     // iterate over weight groups and compute the precision that maximizes the likelihood
     // of the sample (i.e. the prior density)
-    fn base_weight_precisions(&self, params: &BranchParamsHost) -> Vec<Vec<f32>> {
+    fn base_weight_precisions_maximum_likelihood(
+        &self,
+        params: &BranchParamsHost,
+    ) -> Vec<Vec<f32>> {
         let mut weight_precisions = vec![vec![0.0]; self.num_layers];
 
         for lix in 0..self.num_layers {
@@ -209,9 +219,18 @@ impl BranchCfgBuilder {
         weight_precisions
     }
 
+    fn base_weight_precisions_fixed(&self) -> Vec<Vec<f32>> {
+        vec![
+            vec![self
+                .fixed_param_precision
+                .expect("Fixed bias precisions initialized with empty Option!")];
+            self.num_layers
+        ]
+    }
+
     // iterate over bias groups and compute the precision that maximizes the likelihood
     // of the sample (i.e. the prior density)
-    fn bias_precisions(&self, params: &BranchParamsHost) -> Vec<Vec<f32>> {
+    fn bias_precisions_maximum_likelihood(&self, params: &BranchParamsHost) -> Vec<Vec<f32>> {
         let mut bias_precisions = vec![vec![0.0]; self.num_layers - 1];
 
         for lix in 0..self.num_layers - 1 {
@@ -221,6 +240,15 @@ impl BranchCfgBuilder {
         }
 
         bias_precisions
+    }
+
+    fn bias_precisions_fixed(&self) -> Vec<Vec<f32>> {
+        vec![
+            vec![self
+                .fixed_param_precision
+                .expect("Fixed bias precisions initialized with empty Option!")];
+            self.num_layers - 1
+        ]
     }
 
     fn finalize_num_params(&mut self) {
@@ -246,7 +274,7 @@ impl BranchCfgBuilder {
 
     // iterate over weight groups and compute the precision that maximizes the likelihood
     // of the sample (i.e. the prior density)
-    fn ard_weight_precisions(&self, params: &BranchParamsHost) -> Vec<Vec<f32>> {
+    fn ard_weight_precisions_maximum_likelihood(&self, params: &BranchParamsHost) -> Vec<Vec<f32>> {
         let mut weight_precisions = vec![vec![1.0]; self.num_layers];
 
         let mut prev_width = self.num_markers;
@@ -268,19 +296,31 @@ impl BranchCfgBuilder {
         weight_precisions
     }
 
+    fn ard_weight_precisions_fixed(&self) -> Vec<Vec<f32>> {
+        unimplemented!("ARD type models with fixed param precisions are not implemented. Use a Base type model with fixed precisions instead.")
+    }
+
     fn num_ard_layers(&self) -> usize {
         self.num_layers - 1
     }
 
     pub fn build_base(mut self) -> BranchCfg {
         let mut res = self.build();
-        res.precisions.weight_precisions = self.base_weight_precisions(&res.params);
+        res.precisions.weight_precisions = if self.fixed_param_precision.is_some() {
+            self.base_weight_precisions_fixed()
+        } else {
+            self.base_weight_precisions_maximum_likelihood(&res.params)
+        };
         res
     }
 
     pub fn build_ard(mut self) -> BranchCfg {
         let mut res = self.build();
-        res.precisions.weight_precisions = self.ard_weight_precisions(&res.params);
+        res.precisions.weight_precisions = if self.fixed_param_precision.is_some() {
+            self.ard_weight_precisions_fixed()
+        } else {
+            self.ard_weight_precisions_maximum_likelihood(&res.params)
+        };
         res
     }
 
@@ -308,7 +348,11 @@ impl BranchCfgBuilder {
             self.init_biases_with_init_gamma(&mut params);
         }
 
-        let bias_precisions = self.bias_precisions(&params);
+        let bias_precisions = if self.fixed_param_precision.is_some() {
+            self.bias_precisions_fixed()
+        } else {
+            self.bias_precisions_maximum_likelihood(&params)
+        };
 
         BranchCfg {
             num_params: self.num_params,
@@ -319,7 +363,7 @@ impl BranchCfgBuilder {
             precisions: BranchPrecisionsHost {
                 weight_precisions: Vec::new(),
                 bias_precisions,
-                error_precision: vec![1.0],
+                error_precision: vec![2.0],
             },
         }
     }

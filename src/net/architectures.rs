@@ -12,6 +12,7 @@ use super::{
 };
 use std::marker::PhantomData;
 
+const DEFAULT_INIT_OUTPUT_LAYER_PRECISION: f32 = 0.05;
 pub enum HiddenLayerWidthRule {
     Fixed(usize),
     FractionOfInput(f32),
@@ -41,6 +42,7 @@ pub struct BlockNetCfg<B: Branch> {
     init_gamma_scale: Option<f32>,
     proportion_effective_markers: f32,
     output_weight_summary_stats: OutputWeightSummaryStatsHost,
+    fixed_param_precision: Option<f32>,
     branch_type: PhantomData<B>,
 }
 
@@ -68,8 +70,14 @@ impl<B: Branch> BlockNetCfg<B> {
             init_gamma_scale: None,
             proportion_effective_markers: 1.0,
             output_weight_summary_stats: OutputWeightSummaryStatsHost::default(),
+            fixed_param_precision: None,
             branch_type: PhantomData,
         }
+    }
+
+    pub fn with_fixed_param_precision(mut self, precision: Option<f32>) -> Self {
+        self.fixed_param_precision = precision;
+        self
     }
 
     pub fn add_branch(&mut self, num_markers: usize) {
@@ -165,20 +173,16 @@ impl<B: Branch> BlockNetCfg<B> {
         let mut branch_cfgs: Vec<BranchCfg> = Vec::new();
         let num_branches = self.hidden_layer_widths.len();
         for branch_ix in 0..num_branches {
-            let mut cfg_bld =
-                if let (Some(k), Some(s)) = (self.init_gamma_shape, self.init_gamma_scale) {
-                    BranchCfgBuilder::new()
-                        .with_num_markers(self.num_markers[branch_ix])
-                        .with_proportion_effective_markers(self.proportion_effective_markers)
-                        .with_init_gamma_params(k, s)
-                        .with_summary_layer_width(self.summary_layer_widths[branch_ix])
-                } else {
-                    BranchCfgBuilder::new()
-                        .with_num_markers(self.num_markers[branch_ix])
-                        .with_proportion_effective_markers(self.proportion_effective_markers)
-                        .with_init_param_variance(self.init_param_variance)
-                        .with_summary_layer_width(self.summary_layer_widths[branch_ix])
-                };
+            let mut cfg_bld = BranchCfgBuilder::new()
+                .with_num_markers(self.num_markers[branch_ix])
+                .with_proportion_effective_markers(self.proportion_effective_markers)
+                .with_summary_layer_width(self.summary_layer_widths[branch_ix])
+                .with_fixed_param_precision(self.fixed_param_precision);
+            cfg_bld = if let (Some(k), Some(s)) = (self.init_gamma_shape, self.init_gamma_scale) {
+                cfg_bld.with_init_gamma_params(k, s)
+            } else {
+                cfg_bld.with_init_param_variance(self.init_param_variance)
+            };
             for _ in 0..self.num_hidden_layers {
                 cfg_bld.add_hidden_layer(self.hidden_layer_widths[branch_ix]);
             }
@@ -205,7 +209,9 @@ impl<B: Branch> BlockNetCfg<B> {
             },
             GlobalParams {
                 error_precision: 2.0,
-                output_layer_precision: 1.0,
+                output_layer_precision: self
+                    .fixed_param_precision
+                    .unwrap_or(DEFAULT_INIT_OUTPUT_LAYER_PRECISION),
                 output_weight_summary_stats: self.output_weight_summary_stats,
             },
         )

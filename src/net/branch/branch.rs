@@ -189,12 +189,7 @@ pub trait Branch {
         res
     }
 
-    fn sample_precisions(
-        &mut self,
-        residual: &Array<f32>,
-        hyperparams: &NetworkPrecisionHyperparameters,
-    ) {
-        self.sample_error_precision(residual, hyperparams);
+    fn sample_param_precisions(&mut self, hyperparams: &NetworkPrecisionHyperparameters) {
         self.sample_prior_precisions(hyperparams);
         self.sample_output_weight_precisions(hyperparams);
     }

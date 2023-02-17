@@ -243,7 +243,10 @@ impl<B: Branch> Net<B> {
                 // load branch cfg
                 let mut branch = B::from_cfg(cfg);
                 if !(mcmc_cfg.gradient_descent_joint || mcmc_cfg.joint_hmc) {
-                    branch.sample_precisions(&residual, &self.hyperparams);
+                    branch.sample_error_precision(&residual, &self.hyperparams);
+                    if !mcmc_cfg.fixed_param_precisions {
+                        branch.sample_param_precisions(&self.hyperparams);
+                    }
                 }
 
                 let prev_pred = branch.predict(x);

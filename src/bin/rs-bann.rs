@@ -20,6 +20,7 @@ use rs_bann::group::{
 };
 use rs_bann::io::bed::BedVM;
 use rs_bann::linear_model::LinearModelBuilder;
+use rs_bann::net::mcmc_cfg::MCMCCfgBuilder;
 use rs_bann::net::{
     architectures::{BlockNetCfg, HiddenLayerWidthRule, SummaryLayerWidthRule},
     branch::{
@@ -1047,22 +1048,24 @@ where
         SummaryLayerWidthRule::FractionOfHiddenLayerWidth(args.relative_summary_layer_width)
     };
 
-    let mcmc_cfg = MCMCCfg {
-        hmc_step_size_factor: args.step_size,
-        hmc_max_hamiltonian_error: args.max_hamiltonian_error,
-        hmc_integration_length: args.integration_length,
-        hmc_step_size_mode: args.step_size_mode.clone(),
-        chain_length: args.chain_length,
-        burn_in: args.burn_in,
-        outpath: outdir,
-        trace: args.trace,
-        trajectories: args.trajectories,
-        num_grad_traj: args.num_grad_traj,
-        num_grad: args.num_grad,
-        gradient_descent: args.gradient_descent,
-        gradient_descent_joint: args.gradient_descent_joint,
-        joint_hmc: args.joint_hmc,
-    };
+    let mcmc_cfg = MCMCCfgBuilder::default()
+        .with_hmc_step_size_factor(args.step_size)
+        .with_hmc_max_hamiltonian_error(args.max_hamiltonian_error)
+        .with_hmc_integration_length(args.integration_length)
+        .with_hmc_step_size_mode(args.step_size_mode.clone())
+        .with_chain_length(args.chain_length)
+        .with_burn_in(args.burn_in)
+        .with_outpath(outdir)
+        .with_trace(args.trace)
+        .with_trajectories(args.trajectories)
+        .with_num_grad_traj(args.num_grad_traj)
+        .with_num_grad(args.num_grad)
+        .with_gradient_descent(args.gradient_descent)
+        .with_gradient_descent_joint(args.gradient_descent_joint)
+        .with_joint_hmc(args.joint_hmc)
+        .with_fixed_param_precisions(args.fixed_param_precision.is_some())
+        .build();
+
     mcmc_cfg.create_out();
 
     args.to_file(&mcmc_cfg.args_path());
@@ -1077,7 +1080,8 @@ where
         .with_summary_precision_prior(args.spk, args.sps)
         .with_output_precision_prior(args.opk, args.ops)
         .with_hidden_layer_width_rule(hlwr)
-        .with_summary_layer_width_rule(slwr);
+        .with_summary_layer_width_rule(slwr)
+        .with_fixed_param_precision(args.fixed_param_precision);
 
     for bix in 0..train_data.num_branches() {
         net_cfg.add_branch(train_data.num_markers_in_branch(bix));
@@ -1151,22 +1155,23 @@ where
         SummaryLayerWidthRule::FractionOfHiddenLayerWidth(args.relative_summary_layer_width)
     };
 
-    let mcmc_cfg = MCMCCfg {
-        hmc_step_size_factor: args.step_size,
-        hmc_max_hamiltonian_error: args.max_hamiltonian_error,
-        hmc_integration_length: args.integration_length,
-        hmc_step_size_mode: args.step_size_mode.clone(),
-        chain_length: args.chain_length,
-        burn_in: args.burn_in,
-        outpath: outdir,
-        trace: args.trace,
-        trajectories: args.trajectories,
-        num_grad_traj: args.num_grad_traj,
-        num_grad: args.num_grad,
-        gradient_descent: args.gradient_descent,
-        gradient_descent_joint: args.gradient_descent_joint,
-        joint_hmc: args.joint_hmc,
-    };
+    let mcmc_cfg = MCMCCfgBuilder::default()
+        .with_hmc_step_size_factor(args.step_size)
+        .with_hmc_max_hamiltonian_error(args.max_hamiltonian_error)
+        .with_hmc_integration_length(args.integration_length)
+        .with_hmc_step_size_mode(args.step_size_mode.clone())
+        .with_chain_length(args.chain_length)
+        .with_burn_in(args.burn_in)
+        .with_outpath(outdir)
+        .with_trace(args.trace)
+        .with_trajectories(args.trajectories)
+        .with_num_grad_traj(args.num_grad_traj)
+        .with_num_grad(args.num_grad)
+        .with_gradient_descent(args.gradient_descent)
+        .with_gradient_descent_joint(args.gradient_descent_joint)
+        .with_joint_hmc(args.joint_hmc)
+        .with_fixed_param_precisions(args.fixed_param_precision.is_some())
+        .build();
     mcmc_cfg.create_out();
 
     args.to_file(&mcmc_cfg.args_path());
@@ -1181,7 +1186,8 @@ where
         .with_summary_precision_prior(args.spk, args.sps)
         .with_output_precision_prior(args.opk, args.ops)
         .with_hidden_layer_width_rule(hlwr)
-        .with_summary_layer_width_rule(slwr);
+        .with_summary_layer_width_rule(slwr)
+        .with_fixed_param_precision(args.fixed_param_precision);
 
     for bix in 0..train_data.num_branches() {
         net_cfg.add_branch(train_data.num_markers_in_branch(bix));
@@ -1234,22 +1240,23 @@ where
         outdir.push_str("_joint");
     }
 
-    let mcmc_cfg = MCMCCfg {
-        hmc_step_size_factor: args.step_size,
-        hmc_max_hamiltonian_error: args.max_hamiltonian_error,
-        hmc_integration_length: args.integration_length,
-        hmc_step_size_mode: args.step_size_mode.clone(),
-        chain_length: args.chain_length,
-        burn_in: args.burn_in,
-        outpath: outdir,
-        trace: args.trace,
-        trajectories: args.trajectories,
-        num_grad_traj: args.num_grad_traj,
-        num_grad: args.num_grad,
-        gradient_descent: args.gradient_descent,
-        gradient_descent_joint: args.gradient_descent_joint,
-        joint_hmc: args.joint_hmc,
-    };
+    let mcmc_cfg = MCMCCfgBuilder::default()
+        .with_hmc_step_size_factor(args.step_size)
+        .with_hmc_max_hamiltonian_error(args.max_hamiltonian_error)
+        .with_hmc_integration_length(args.integration_length)
+        .with_hmc_step_size_mode(args.step_size_mode.clone())
+        .with_chain_length(args.chain_length)
+        .with_burn_in(args.burn_in)
+        .with_outpath(outdir)
+        .with_trace(args.trace)
+        .with_trajectories(args.trajectories)
+        .with_num_grad_traj(args.num_grad_traj)
+        .with_num_grad(args.num_grad)
+        .with_gradient_descent(args.gradient_descent)
+        .with_gradient_descent_joint(args.gradient_descent_joint)
+        .with_joint_hmc(args.joint_hmc)
+        .with_fixed_param_precisions(args.fixed_param_precision.is_some())
+        .build();
     mcmc_cfg.create_out();
 
     args.to_file(&mcmc_cfg.args_path());
