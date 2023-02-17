@@ -24,7 +24,7 @@ pub struct MCMCCfgBuilder {
     /// sample branch parameters and their precisions jointly
     /// instead of sampling the precisions in a gibbs step
     pub joint_hmc: bool,
-    pub fixed_precisions: bool,
+    pub fixed_param_precisions: bool,
 }
 
 impl MCMCCfgBuilder {
@@ -45,7 +45,7 @@ impl MCMCCfgBuilder {
             gradient_descent: false,
             gradient_descent_joint: false,
             joint_hmc: false,
-            fixed_precisions: false,
+            fixed_param_precisions: false,
         }
     }
 
@@ -84,48 +84,48 @@ impl MCMCCfgBuilder {
         self
     }
 
-    pub fn with_trace(mut self, arg: bool) -> Self {
-        self.trace = arg;
+    pub fn with_trace(mut self) -> Self {
+        self.trace = true;
         self
     }
 
-    pub fn with_trajectories(mut self, arg: bool) -> Self {
-        self.trajectories = arg;
+    pub fn with_trajectories(mut self) -> Self {
+        self.trajectories = true;
         self
     }
 
-    pub fn with_num_grad_traj(mut self, arg: bool) -> Self {
-        self.num_grad_traj = arg;
+    pub fn with_num_grad_traj(mut self) -> Self {
+        self.num_grad_traj = true;
         self
     }
 
-    pub fn with_num_grad(mut self, arg: bool) -> Self {
-        self.num_grad = arg;
+    pub fn with_num_grad(mut self) -> Self {
+        self.num_grad = true;
         self
     }
 
-    pub fn with_gradient_descent(mut self, arg: bool) -> Self {
-        self.gradient_descent = arg;
+    pub fn with_gradient_descent(mut self) -> Self {
+        self.gradient_descent = true;
         self
     }
 
-    pub fn with_gradient_descent_joint(mut self, arg: bool) -> Self {
-        self.gradient_descent_joint = arg;
+    pub fn with_gradient_descent_joint(mut self) -> Self {
+        self.gradient_descent_joint = true;
         self
     }
 
-    pub fn with_joint_hmc(mut self, arg: bool) -> Self {
-        self.joint_hmc = arg;
+    pub fn with_joint_hmc(mut self) -> Self {
+        self.joint_hmc = true;
         self
     }
 
-    pub fn with_fixed_precisions(mut self, arg: bool) -> Self {
-        self.fixed_precisions = arg;
+    pub fn with_fixed_param_precisions(mut self) -> Self {
+        self.fixed_param_precisions = true;
         self
     }
 
     pub fn build(&self) -> MCMCCfg {
-        if self.fixed_precisions && (self.joint_hmc || self.gradient_descent_joint) {
+        if self.fixed_param_precisions && (self.joint_hmc || self.gradient_descent_joint) {
             panic!("Fixed precisions and joint hmc / gd are mutually exclusive");
         }
         MCMCCfg {
@@ -143,7 +143,7 @@ impl MCMCCfgBuilder {
             gradient_descent: self.gradient_descent,
             gradient_descent_joint: self.gradient_descent_joint,
             joint_hmc: self.joint_hmc,
-            fixed_precisions: self.fixed_precisions,
+            fixed_param_precisions: self.fixed_param_precisions,
         }
     }
 }
@@ -168,7 +168,7 @@ pub struct MCMCCfg {
     /// sample branch parameters and their precisions jointly
     /// instead of sampling the precisions in a gibbs step
     pub joint_hmc: bool,
-    pub fixed_precisions: bool,
+    pub fixed_param_precisions: bool,
 }
 
 impl Default for MCMCCfg {
@@ -189,7 +189,7 @@ impl Default for MCMCCfg {
             gradient_descent: false,
             gradient_descent_joint: false,
             joint_hmc: false,
-            fixed_precisions: false,
+            fixed_param_precisions: false,
         }
     }
 }
