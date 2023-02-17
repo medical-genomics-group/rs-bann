@@ -2,8 +2,8 @@ mod cli;
 
 use clap::Parser;
 use cli::cli::{
-    BranchR2Args, Cli, GroupByGenesArgs, GroupCenteredArgs, GroupMarkerDataArgs, PredictArgs,
-    SimulateXYArgs, SimulateYArgs, SubCmd, TrainArgs, TrainNewArgs, TrainNewBedArgs,
+    ActivationArgs, BranchR2Args, Cli, GroupByGenesArgs, GroupCenteredArgs, GroupMarkerDataArgs,
+    PredictArgs, SimulateXYArgs, SimulateYArgs, SubCmd, TrainArgs, TrainNewArgs, TrainNewBedArgs,
 };
 use log::{debug, info, warn};
 use rand::thread_rng;
@@ -89,6 +89,7 @@ fn main() {
             }
         },
         SubCmd::GroupByLD(args) => group_centered(args),
+        SubCmd::Activations(args) => activations(args),
         SubCmd::Predict(args) => predict(args),
         SubCmd::BranchR2(args) => branch_r2(args),
         SubCmd::AvailableBackends => available_backends(),
@@ -208,6 +209,57 @@ fn read_model_type_from_model_args(path: &Path) -> ModelType {
     // Parse the string into a dynamically-typed JSON structure.
     let json = serde_json::from_str::<serde_json::Value>(&text).unwrap();
     ModelType::from_str(json["model_type"].as_str().unwrap()).unwrap()
+}
+
+fn activations(args: ActivationArgs) {
+    let mut genotypes = Genotypes::from_file(Path::new(&args.input_data))
+        .expect("Failed to load genotype input data");
+    if args.standardize {
+        genotypes.standardize();
+    }
+
+    // get model type
+    let args_path = Path::new(&args.model_path)
+        .parent()
+        .unwrap()
+        .join("args.json");
+    let model_type = read_model_type_from_model_args(&args_path);
+
+    let outdir = Path::new(&args.model_path)
+        .parent()
+        .unwrap()
+        .join("activations");
+    if !Path::new(&outdir).exists() {
+        std::fs::create_dir_all(&outdir).expect("Could not create output directory!");
+    }
+
+    // load models and predict
+    let mut model_files = read_dir(Path::new(&args.model_path))
+        .expect("Failed to parse model dir")
+        .map(|res| res.map(|e| e.path()))
+        .filter_map(|e| e.ok())
+        .filter(|e| e.is_file())
+        .collect::<Vec<PathBuf>>();
+    model_files.sort();
+
+    for path in model_files {
+        let activations = match model_type {
+            ModelType::RidgeARD => Net::<RidgeArdBranch>::from_file(&path).activations(&genotypes),
+            ModelType::LassoARD => Net::<LassoArdBranch>::from_file(&path).activations(&genotypes),
+            ModelType::RidgeBase => {
+                Net::<RidgeBaseBranch>::from_file(&path).activations(&genotypes)
+            }
+            ModelType::LassoBase => {
+                Net::<LassoBaseBranch>::from_file(&path).activations(&genotypes)
+            }
+            ModelType::StdNormal => {
+                Net::<StdNormalBranch>::from_file(&path).activations(&genotypes)
+            }
+            ModelType::Linear => unimplemented!("Linear models are currently not supported."),
+        };
+        let outfile = outdir.join(format!("{:?}.json", path.file_stem().unwrap()));
+        activations.to_json(&outfile);
+    }
 }
 
 fn predict(args: PredictArgs) {

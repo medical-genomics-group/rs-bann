@@ -37,6 +37,8 @@ pub(crate) enum SubCmd {
     Predict(PredictArgs),
     /// Use trained model to compute r2 values for each model branch.
     BranchR2(BranchR2Args),
+    /// Report node activations in trained model.
+    Activations(ActivationArgs),
     /// Print backends available to ArrayFire.
     AvailableBackends,
 }
@@ -621,6 +623,25 @@ impl TrainNewBedArgs {
 /// the predictions generated with one sampled model for all input samples.
 #[derive(Args, Debug, Serialize)]
 pub(crate) struct PredictArgs {
+    // TODO: this should accept a bed file.
+    /// Path to input data file.
+    /// Should contain a rs-bann Genotypes instance.
+    pub input_data: String,
+
+    /// Path to models generated with `train-new` or `train` command
+    #[clap(short, long, default_value = "./models")]
+    pub model_path: String,
+
+    /// standardize input data
+    #[clap(short, long)]
+    pub standardize: bool,
+}
+
+/// Determine activations in trained model network given a specific input.
+/// This returns one activation file for each sampled model
+/// stored in the .models dir generated in a `rs-bann train-new` run.
+#[derive(Args, Debug, Serialize)]
+pub(crate) struct ActivationArgs {
     // TODO: this should accept a bed file.
     /// Path to input data file.
     /// Should contain a rs-bann Genotypes instance.

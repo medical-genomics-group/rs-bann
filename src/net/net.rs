@@ -320,6 +320,16 @@ impl<B: Branch> Net<B> {
         self.training_stats.to_file(&mcmc_cfg.outpath);
     }
 
+    pub fn activations<T: GroupedGenotypes>(&self, gen: &T) -> Activations {
+        let mut activations = Activations::new();
+        for branch_ix in 0..self.num_branches() {
+            let cfg = &self.branch_cfgs[branch_ix];
+            activations
+                .add_branch_activations(B::from_cfg(cfg).forward_feed(&gen.x_group_af(branch_ix)));
+        }
+        activations
+    }
+
     pub fn predict<T: GroupedGenotypes>(&self, gen: &T) -> Vec<f32> {
         // I expect X to be column major
         let mut y_hat = Array::new(
@@ -477,6 +487,30 @@ impl<B: Branch> Net<B> {
     // fn reset_training_stats(&mut self) {
     //     self.training_stats = TrainingStats::new();
     // }
+}
+
+/// Activations of all network nodes.
+///
+/// Not used for training, only for IO purposes.
+#[derive(Serialize)]
+pub struct Activations {
+    activations: Vec<Vec<Array<f32>>>,
+}
+
+impl Activations {
+    pub(crate) fn new() -> Self {
+        Self {
+            activations: Vec::new(),
+        }
+    }
+
+    pub(crate) fn add_branch_activations(&mut self, activations: Vec<Array<f32>>) {
+        self.activations.push(activations);
+    }
+
+    pub fn to_json(&self, path: &Path) {
+        to_writer(File::create(path).unwrap(), self).expect("Failed to write activations to json");
+    }
 }
 
 #[cfg(test)]
