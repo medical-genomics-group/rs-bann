@@ -122,7 +122,7 @@ pub(crate) struct SimulateYArgs {
     pub proportion_effective: f32,
 
     /// variance of network params upon initialization
-    #[clap(long, default_value_t = 1.0)]
+    #[clap(long, default_value_t = 0.05)]
     pub init_param_variance: f32,
 
     /// shape of gamma prior for network param initialization
@@ -187,7 +187,7 @@ pub(crate) struct SimulateXYArgs {
     pub summary_layer_width: Option<usize>,
 
     /// variance of network params upon initialization
-    #[clap(long, default_value_t = 1.0)]
+    #[clap(long, default_value_t = 0.05)]
     pub init_param_variance: f32,
 
     /// shape of gamma prior for network param initialization
