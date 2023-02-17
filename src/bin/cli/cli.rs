@@ -249,9 +249,17 @@ pub(crate) struct TrainArgs {
     /// Output path. Outdir will be created there.
     pub outpath: String,
 
-    ///  Step size mode
+    /// Step size mode
     #[clap(value_enum, default_value_t = StepSizeMode::Izmailov, long)]
     pub step_size_mode: StepSizeMode,
+
+    /// perturb model parameters before training by specified amount
+    #[clap(long)]
+    pub perturb_params: Option<f32>,
+
+    /// perturb model precisions before training by specified amount
+    #[clap(long)]
+    pub perturb_precisions: Option<f32>,
 
     /// enable debug prints
     #[clap(short, long)]

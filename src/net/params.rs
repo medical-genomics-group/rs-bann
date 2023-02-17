@@ -208,6 +208,22 @@ impl BranchPrecisionsHost {
             .last()
             .expect("Branch weight precisions is empty!")[0]
     }
+
+    pub fn perturb(&mut self, by: f32) {
+        for wp in &mut self.weight_precisions {
+            for v in wp {
+                *v += by;
+            }
+        }
+        for bp in &mut self.bias_precisions {
+            for v in bp {
+                *v += by;
+            }
+        }
+        for v in &mut self.error_precision {
+            *v += by;
+        }
+    }
 }
 
 /// Precision parameters stored on Device.
@@ -574,6 +590,20 @@ impl BranchParamsHost {
             .step_by(num_ard_groups)
             .cloned()
             .collect()
+    }
+
+    pub fn perturb(&mut self, by: f32) {
+        for w in &mut self.weights {
+            for v in w {
+                *v += by;
+            }
+        }
+
+        for b in &mut self.biases {
+            for v in b {
+                *v += by;
+            }
+        }
     }
 }
 

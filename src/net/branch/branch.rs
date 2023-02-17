@@ -1407,6 +1407,14 @@ impl BranchCfg {
         self.set_output_layer_precision(gp.output_layer_precision());
         self.set_output_weight_summary_stats(gp.output_weight_summary_stats());
     }
+
+    pub fn perturb_params(&mut self, by: f32) {
+        self.params.perturb(by)
+    }
+
+    pub fn perturb_precisions(&mut self, by: f32) {
+        self.precisions.perturb(by)
+    }
 }
 
 /// Performance statistics of branch on train data.

@@ -1266,6 +1266,7 @@ where
     info!("Loading net");
 
     let mut net = Net::<B>::from_file(model_path);
+    net.perturb(args.perturb_params, args.perturb_precisions);
     if let Some(p) = args.error_precision {
         net.set_error_precision(p);
     }

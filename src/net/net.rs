@@ -1,3 +1,4 @@
+use super::branch;
 use super::log_posterior_density::LogPosteriorDensity;
 use super::model_type::ModelType;
 use super::params::GlobalParams;
@@ -177,6 +178,20 @@ impl<B: Branch> Net<B> {
             residual,
             &self.hyperparams,
         );
+    }
+
+    pub fn perturb(&mut self, params_by: Option<f32>, precisions_by: Option<f32>) {
+        if params_by.is_some() || precisions_by.is_some() {
+            for branch_ix in 0..self.num_branches() {
+                let cfg = &mut self.branch_cfgs[branch_ix];
+                if let Some(by) = params_by {
+                    cfg.perturb_params(by);
+                }
+                if let Some(by) = precisions_by {
+                    cfg.perturb_precisions(by);
+                }
+            }
+        }
     }
 
     pub fn train<T: GroupedGenotypes>(
