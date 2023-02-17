@@ -40,6 +40,10 @@ impl OutputBias {
         self.error_precision = gp.error_precision();
     }
 
+    fn set_to_maximum_likelihood(&mut self, residual: &Array<f32>) {
+        self.bias = arrayfire::sum_all(residual).0 / residual.elements() as f32;
+    }
+
     fn sample_bias(&mut self, residual: &Array<f32>, n: usize, rng: &mut ThreadRng) {
         let (sum_r, _) = sum_all(residual);
         let nu = self.error_precision / (n as f32 * self.error_precision + self.precision);
@@ -305,12 +309,18 @@ impl<B: Branch> Net<B> {
                 self.report_training_state_debug(chain_ix, &residual);
 
                 // sample output bias
-                residual += self.output_bias.af_bias();
                 self.output_bias.update_global_params(&self.global_params);
-                self.output_bias
-                    .sample_prior_precision(&self.hyperparams, &mut rng);
-                self.output_bias
-                    .sample_bias(&residual, num_individuals, &mut rng);
+                residual += self.output_bias.af_bias();
+
+                if mcmc_cfg.sampled_output_bias {
+                    self.output_bias
+                        .sample_prior_precision(&self.hyperparams, &mut rng);
+                    self.output_bias
+                        .sample_bias(&residual, num_individuals, &mut rng);
+                } else {
+                    self.output_bias.set_to_maximum_likelihood(&residual);
+                }
+
                 residual -= self.output_bias.af_bias();
             }
 

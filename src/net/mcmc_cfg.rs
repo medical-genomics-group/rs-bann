@@ -25,6 +25,7 @@ pub struct MCMCCfgBuilder {
     /// instead of sampling the precisions in a gibbs step
     pub joint_hmc: bool,
     pub fixed_param_precisions: bool,
+    pub sampled_output_bias: bool,
 }
 
 impl MCMCCfgBuilder {
@@ -46,6 +47,7 @@ impl MCMCCfgBuilder {
             gradient_descent_joint: false,
             joint_hmc: false,
             fixed_param_precisions: false,
+            sampled_output_bias: false,
         }
     }
 
@@ -124,6 +126,11 @@ impl MCMCCfgBuilder {
         self
     }
 
+    pub fn with_sampled_output_bias(mut self, arg: bool) -> Self {
+        self.sampled_output_bias = arg;
+        self
+    }
+
     pub fn build(&self) -> MCMCCfg {
         if self.fixed_param_precisions && (self.joint_hmc || self.gradient_descent_joint) {
             panic!("Fixed precisions and joint hmc / gd are mutually exclusive");
@@ -144,6 +151,7 @@ impl MCMCCfgBuilder {
             gradient_descent_joint: self.gradient_descent_joint,
             joint_hmc: self.joint_hmc,
             fixed_param_precisions: self.fixed_param_precisions,
+            sampled_output_bias: self.sampled_output_bias,
         }
     }
 }
@@ -169,6 +177,7 @@ pub struct MCMCCfg {
     /// instead of sampling the precisions in a gibbs step
     pub joint_hmc: bool,
     pub fixed_param_precisions: bool,
+    pub sampled_output_bias: bool,
 }
 
 impl Default for MCMCCfg {
@@ -190,6 +199,7 @@ impl Default for MCMCCfg {
             gradient_descent_joint: false,
             joint_hmc: false,
             fixed_param_precisions: false,
+            sampled_output_bias: false,
         }
     }
 }
