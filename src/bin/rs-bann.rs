@@ -27,7 +27,6 @@ use rs_bann::net::{
         branch::Branch, lasso_ard::LassoArdBranch, lasso_base::LassoBaseBranch,
         ridge_ard::RidgeArdBranch, ridge_base::RidgeBaseBranch, std_normal_branch::StdNormalBranch,
     },
-    mcmc_cfg::MCMCCfg,
     model_type::ModelType,
     net::Net,
     train_stats::ReportCfg,
