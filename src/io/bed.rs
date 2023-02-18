@@ -5,10 +5,13 @@ use crate::io::{
 };
 use arrayfire::{dim4, Array};
 use log::warn;
+use rand_distr::num_traits::Pow;
 use std::io::{Read, Seek};
 use std::path::{Path, PathBuf};
 
 const BED_SIGNATURE_LENGTH: usize = 3;
+const BED_VM_SIGNATURE: [u8; 3] = [0x6c, 0x1b, 0x01];
+const BED_SM_SIGNATURE: [u8; 3] = [0x6c, 0x1b, 0x00];
 
 /// Paths of a set of .bed, .bim, .fam files
 pub struct PlinkBinaryFileset {
@@ -58,10 +61,10 @@ impl BedSignature {
     }
 
     fn from_bytes(bytes: &[u8]) -> Result<Self, Error> {
-        if bytes[0] != 0x6c {
+        if bytes[0] != BED_VM_SIGNATURE[0] {
             return Err(Error::BedFalseFirstByte);
         }
-        if bytes[1] != 0x1b {
+        if bytes[1] != BED_VM_SIGNATURE[1] {
             return Err(Error::BedFalseSecondByte);
         }
         match bytes[2] {
@@ -76,7 +79,6 @@ impl BedSignature {
 ///
 /// This struct does not handle NAs correctly. NAs should be imputed / removed beforehand.
 pub struct BedVM {
-    signature: BedSignature,
     /// .bed data without signature
     data: Vec<u8>,
     col_means: Vec<f32>,
@@ -121,7 +123,6 @@ impl BedVM {
         }
 
         let mut res = Self {
-            signature,
             data,
             col_means: vec![0.0; num_markers],
             col_stds: vec![0.0; num_markers],
@@ -257,6 +258,44 @@ impl BedVM {
     pub fn num_markers(&self) -> usize {
         self.num_markers
     }
+}
+
+pub(crate) struct BedVMRandom {
+    /// .bed data without signature
+    data: Vec<u8>,
+    col_means: Vec<f32>,
+    col_stds: Vec<f32>,
+    num_individuals: usize,
+    num_markers: usize,
+    num_bytes_per_col: usize,
+}
+
+// impl BedVMRandom {
+//     pub fn new(num_individuals: usize, num_markers: usize, mafs: Option<f32>) {
+//         unimplemented!()
+//     }
+// }
+
+// There is no handing of NA here!
+const BED_VALUE_MAPPING: [u8; 3] = [0x11, 0x10, 0x00];
+
+fn chunkf32_to_byte(v: &[f32]) -> u8 {
+    let mut res: u8 = 0;
+    for (i, val) in v.iter().rev().enumerate() {
+        assert!(
+            i < 4,
+            "Slice with more than four values in bed byte conversion!",
+        );
+        res <<= 2;
+        res += BED_VALUE_MAPPING[*val as usize];
+    }
+    res
+}
+
+fn vecf32_to_bed(v: &[f32], bed_data: &mut Vec<u8>) {
+    v.chunks(4)
+        .map(chunkf32_to_byte)
+        .for_each(|b| bed_data.push(b));
 }
 
 #[cfg(test)]
