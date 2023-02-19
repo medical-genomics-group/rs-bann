@@ -46,6 +46,11 @@ impl PlinkBinaryFileset {
     }
 }
 
+/// Paths of a set of .bed and corresponding .dims file
+pub struct BedBinaryFileset {
+    stem: PathBuf,
+}
+
 enum BedSignature {
     SampleMajor,
     VariantMajor,
@@ -200,6 +205,9 @@ impl BedVM {
 
         res
     }
+
+    /// Write
+    pub fn to_file(step: &Path) {}
 
     /// Decompress and load columns onto device.
     pub fn get_cols_af(&self, col_ixs: &[usize]) -> Vec<Array<f32>> {
