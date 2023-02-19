@@ -5,7 +5,9 @@ use crate::io::{
 };
 use arrayfire::{dim4, Array};
 use log::warn;
-use rand_distr::num_traits::Pow;
+use rand::SeedableRng;
+use rand_chacha::ChaCha20Rng;
+use rand_distr::{Binomial, Distribution, Uniform};
 use std::io::{Read, Seek};
 use std::path::{Path, PathBuf};
 
@@ -91,6 +93,57 @@ pub struct BedVM {
 }
 
 impl BedVM {
+    pub fn random(
+        num_individuals: usize,
+        num_markers: usize,
+        mafs: Option<Vec<f32>>,
+        seed: Option<u64>,
+    ) -> Self {
+        let mut rng = if let Some(s) = seed {
+            ChaCha20Rng::seed_from_u64(s)
+        } else {
+            ChaCha20Rng::from_entropy()
+        };
+        let mut res = Self {
+            data: Vec::new(),
+            col_means: Vec::new(),
+            col_stds: Vec::new(),
+            num_individuals,
+            num_markers,
+            num_bytes_per_col: (num_individuals + 3) / 4,
+            padding: num_individuals % 4,
+        };
+        let uniform = Uniform::from(0.01..0.5);
+        for mix in 0..num_markers {
+            loop {
+                let maf = if let Some(v) = &mafs {
+                    v[mix]
+                } else {
+                    uniform.sample(&mut rng)
+                };
+                let binom = Binomial::new(2, maf as f64).unwrap();
+                let mut col_sum: u64 = 0;
+                let mut col_vals = Vec::with_capacity(num_individuals);
+                for _ in 0..num_individuals {
+                    let val = binom.sample(&mut rng);
+                    col_sum += val;
+                    col_vals.push(val as f32);
+                }
+                let sampled_maf = col_sum as f32 / (2.0 * num_individuals as f32);
+                let col_mean = 2.0 * sampled_maf;
+                let col_std: f32 =
+                    (col_vals.iter().map(|e| e * e).sum::<f32>() / num_individuals as f32).sqrt();
+                if col_std != 0. {
+                    res.col_means.push(col_mean);
+                    res.col_stds.push(col_std);
+                    vecf32_to_bed(&col_vals, &mut res.data);
+                    break;
+                }
+            }
+        }
+        res
+    }
+
     /// Reads .bed file from disc.
     /// Determines number of markers and individuals from .bim and .fam files with the same filestem as the .bed.
     /// Checks if .bed signature is valid.
@@ -269,12 +322,6 @@ pub(crate) struct BedVMRandom {
     num_markers: usize,
     num_bytes_per_col: usize,
 }
-
-// impl BedVMRandom {
-//     pub fn new(num_individuals: usize, num_markers: usize, mafs: Option<f32>) {
-//         unimplemented!()
-//     }
-// }
 
 // There is no handing of NA here!
 const BED_VALUE_MAPPING: [u8; 3] = [0x11, 0x10, 0x00];
