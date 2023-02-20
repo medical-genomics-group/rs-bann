@@ -128,7 +128,9 @@ impl LinearModel {
 
 #[cfg(test)]
 mod tests {
-    use crate::data::genotypes::{Genotypes, GenotypesBuilder};
+    use crate::{
+        data::genotypes::CompressedGenotypes, group::uniform::UniformGrouping, io::bed::BedVM,
+    };
 
     use super::{LinearModel, LinearModelBuilder};
 
@@ -145,14 +147,11 @@ mod tests {
             .build()
     }
 
-    fn make_test_gt() -> Genotypes {
-        let mut gt = GenotypesBuilder::new()
-            .with_seed(SEED)
-            .with_random_x(vec![NMPB; NB], N, None)
-            .build()
-            .unwrap();
-        gt.standardize();
-        gt
+    fn make_test_gt() -> CompressedGenotypes<UniformGrouping> {
+        CompressedGenotypes::new(
+            BedVM::random(N, NMPB * NB, None, Some(SEED)),
+            UniformGrouping::new(NB, NMPB),
+        )
     }
 
     #[test]

@@ -248,7 +248,7 @@ impl BedVM {
     }
 
     /// Write bed data and dims
-    pub fn to_file(&self, stem: &PathBuf) {
+    pub fn to_file(&self, stem: &Path) {
         let bedfile =
             std::fs::File::create(stem.with_extension("bed")).expect("Unable to create bed file");
         let mut bedwriter = std::io::BufWriter::new(bedfile);
@@ -401,7 +401,7 @@ fn vecf32_to_bed(v: &[f32], bed_data: &mut Vec<u8>) {
 mod tests {
     use std::path::Path;
 
-    use crate::{af_helpers::to_host, io::dims::BedDims};
+    use crate::af_helpers::to_host;
 
     use super::BedVM;
 

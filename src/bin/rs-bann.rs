@@ -2,19 +2,17 @@ mod cli;
 
 use clap::Parser;
 use cli::cli::{
-    ActivationArgs, BranchR2Args, Cli, GroupByGenesArgs, GroupCenteredArgs, GroupMarkerDataArgs,
-    PredictArgs, SimulateXYArgs, SimulateYArgs, SubCmd, TrainArgs, TrainNewArgs, TrainNewBedArgs,
+    ActivationArgs, BranchR2Args, Cli, GroupByGenesArgs, GroupCenteredArgs, PredictArgs,
+    SimulateXYArgs, SimulateYArgs, SubCmd, TrainArgs, TrainNewArgs,
 };
 use log::{debug, info, warn};
 use rand::thread_rng;
-use rand_distr::{Binomial, Distribution, Normal, Uniform};
+use rand_distr::{Distribution, Normal, Uniform};
 use rs_bann::data::genotypes::CompressedGenotypes;
 use rs_bann::data::{
-    data::Data,
-    genotypes::{Genotypes, GenotypesBuilder, GroupedGenotypes},
-    phen_stats::PhenStats,
-    phenotypes::Phenotypes,
+    data::Data, genotypes::GroupedGenotypes, phen_stats::PhenStats, phenotypes::Phenotypes,
 };
+use rs_bann::group::uniform::UniformGrouping;
 use rs_bann::group::{
     centered::CorrGraph, external::ExternalGrouping, gene::GeneGrouping, grouping::MarkerGrouping,
 };
@@ -58,32 +56,30 @@ fn main() {
             ModelType::StdNormal => simulate_xy::<StdNormalBranch>(args),
             ModelType::Linear => simulate_xy_linear(args),
         },
-        SubCmd::TrainNew(args) => match args.model_type {
-            ModelType::LassoBase => train_new::<LassoBaseBranch>(args),
-            ModelType::LassoARD => train_new::<LassoArdBranch>(args),
-            ModelType::RidgeBase => train_new::<RidgeBaseBranch>(args),
-            ModelType::RidgeARD => train_new::<RidgeArdBranch>(args),
-            ModelType::StdNormal => train_new::<StdNormalBranch>(args),
+        SubCmd::TrainNew {
+            input_args,
+            mcmc_args,
+            model_args,
+        } => match model_args.model_type {
+            ModelType::LassoBase => train_new::<LassoBaseBranch>(input_args, mcmc_args, model_args),
+            ModelType::LassoARD => train_new::<LassoArdBranch>(input_args, mcmc_args, model_args),
+            ModelType::RidgeBase => train_new::<RidgeBaseBranch>(input_args, mcmc_args, model_args),
+            ModelType::RidgeARD => train_new::<RidgeArdBranch>(input_args, mcmc_args, model_args),
+            ModelType::StdNormal => train_new::<StdNormalBranch>(input_args, mcmc_args, model_args),
             ModelType::Linear => {
                 unimplemented!("Training linear models is currently not supported.")
             }
         },
-        SubCmd::TrainNewBed(args) => match args.model_type {
-            ModelType::LassoBase => train_new_bed::<LassoBaseBranch>(args),
-            ModelType::LassoARD => train_new_bed::<LassoArdBranch>(args),
-            ModelType::RidgeBase => train_new_bed::<RidgeBaseBranch>(args),
-            ModelType::RidgeARD => train_new_bed::<RidgeArdBranch>(args),
-            ModelType::StdNormal => train_new_bed::<StdNormalBranch>(args),
-            ModelType::Linear => {
-                unimplemented!("Training linear models is currently not supported.")
-            }
-        },
-        SubCmd::Train(args) => match args.model_type {
-            ModelType::LassoBase => train::<LassoBaseBranch>(args),
-            ModelType::LassoARD => train::<LassoArdBranch>(args),
-            ModelType::RidgeBase => train::<RidgeBaseBranch>(args),
-            ModelType::RidgeARD => train::<RidgeArdBranch>(args),
-            ModelType::StdNormal => train::<StdNormalBranch>(args),
+        SubCmd::Train {
+            input_args,
+            mcmc_args,
+            model_args,
+        } => match model_args.model_type {
+            ModelType::LassoBase => train::<LassoBaseBranch>(input_args, mcmc_args, model_args),
+            ModelType::LassoARD => train::<LassoArdBranch>(input_args, mcmc_args, model_args),
+            ModelType::RidgeBase => train::<RidgeBaseBranch>(input_args, mcmc_args, model_args),
+            ModelType::RidgeARD => train::<RidgeArdBranch>(input_args, mcmc_args, model_args),
+            ModelType::StdNormal => train::<StdNormalBranch>(input_args, mcmc_args, model_args),
             ModelType::Linear => {
                 unimplemented!("Training linear models is currently not supported.")
             }
@@ -94,45 +90,7 @@ fn main() {
         SubCmd::BranchR2(args) => branch_r2(args),
         SubCmd::AvailableBackends => available_backends(),
         SubCmd::GroupByGenes(args) => group_by_genes(args),
-        SubCmd::GroupMarkerData(args) => group_marker_data(args),
     }
-}
-
-fn group_marker_data(args: GroupMarkerDataArgs) {
-    info!("Loading groups from: {:?}", args.groups);
-    // load groups
-    let grouping_path = Path::new(&args.groups);
-    let grouping = ExternalGrouping::from_file(grouping_path);
-
-    let path = Path::new(&args.outdir);
-
-    let mut train_bed_str = args.bfile.clone();
-    train_bed_str.push_str("_train.bed");
-    let train_bed_path = Path::new(&train_bed_str);
-    let mut test_bed_str = args.bfile.clone();
-    test_bed_str.push_str("_test.bed");
-    let test_bed_path = Path::new(&test_bed_str);
-    let mut train_path = path.join("train");
-    let mut test_path = path.join("test");
-
-    info!("Train bfile path: {:?}", train_bed_path);
-    info!("Test bfile path: {:?}", test_bed_path);
-
-    info!("Building grouped data objects");
-    // load marker data from .bed, group, save
-    let gen_train = GenotypesBuilder::new()
-        .with_x_from_bed(train_bed_path, &grouping, args.min_group_size)
-        .build()
-        .unwrap();
-    train_path.set_extension("gen");
-    gen_train.to_file(&train_path);
-
-    let gen_test = GenotypesBuilder::new()
-        .with_x_from_bed(test_bed_path, &grouping, args.min_group_size)
-        .build()
-        .unwrap();
-    test_path.set_extension("gen");
-    gen_test.to_file(&test_path);
 }
 
 fn group_by_genes(args: GroupByGenesArgs) {
@@ -163,13 +121,11 @@ fn available_backends() {
 }
 
 fn branch_r2(args: BranchR2Args) {
-    let mut genotypes =
-        Genotypes::from_file(Path::new(&args.gen)).expect("Failed to load genotype input data");
+    let bed = BedVM::from_file(Path::new(&args.bfile));
+    let groups = ExternalGrouping::from_file(Path::new(&args.groups));
+    let genotypes = CompressedGenotypes::new(bed, groups);
     let phenotypes =
         Phenotypes::from_file(Path::new(&args.phen)).expect("Failed to load phenotype input data");
-    if args.standardize {
-        genotypes.standardize();
-    }
     let data = Data::new(genotypes, phenotypes);
     // get model type
     let parent_path = Path::new(&args.model_path)
@@ -212,11 +168,9 @@ fn read_model_type_from_model_args(path: &Path) -> ModelType {
 }
 
 fn activations(args: ActivationArgs) {
-    let mut genotypes = Genotypes::from_file(Path::new(&args.input_data))
-        .expect("Failed to load genotype input data");
-    if args.standardize {
-        genotypes.standardize();
-    }
+    let bed = BedVM::from_file(Path::new(&args.bfile));
+    let groups = ExternalGrouping::from_file(Path::new(&args.groups));
+    let genotypes = CompressedGenotypes::new(bed, groups);
 
     // get model type
     let args_path = Path::new(&args.model_path)
@@ -263,11 +217,10 @@ fn activations(args: ActivationArgs) {
 }
 
 fn predict(args: PredictArgs) {
-    let mut genotypes = Genotypes::from_file(Path::new(&args.input_data))
-        .expect("Failed to load genotype input data");
-    if args.standardize {
-        genotypes.standardize();
-    }
+    let bed = BedVM::from_file(Path::new(&args.bfile));
+    let groups = ExternalGrouping::from_file(Path::new(&args.groups));
+    let genotypes = CompressedGenotypes::new(bed, groups);
+
     // get model type
     let args_path = Path::new(&args.model_path)
         .parent()
@@ -613,8 +566,8 @@ fn simulate_xy_linear(args: SimulateXYArgs) {
     if !path.exists() {
         std::fs::create_dir_all(&path).expect("Could not create output directory!");
     }
-    let mut train_path = path.join("train");
-    let mut test_path = path.join("test");
+    let train_path = path.join("train");
+    let test_path = path.join("test");
     let args_path = path.join("args.json");
     let params_path = path.join("model.params");
 
@@ -626,25 +579,12 @@ fn simulate_xy_linear(args: SimulateXYArgs) {
         .map(|_| ud.sample(&mut rng))
         .collect::<Vec<f32>>();
 
-    let mut gen_train = GenotypesBuilder::new()
-        .with_random_x(
-            vec![args.num_markers_per_branch; args.num_branches],
-            args.num_individuals,
-            Some(mafs.clone()),
-        )
-        .build()
-        .unwrap();
-    gen_train.standardize();
-
-    let mut gen_test = GenotypesBuilder::new()
-        .with_random_x(
-            vec![args.num_markers_per_branch; args.num_branches],
-            args.num_individuals,
-            Some(mafs),
-        )
-        .build()
-        .unwrap();
-    gen_test.standardize();
+    let groups = UniformGrouping::new(args.num_branches, args.num_markers_per_branch);
+    let num_markers = args.num_branches * args.num_markers_per_branch;
+    let bed_train = BedVM::random(args.num_individuals, num_markers, Some(mafs), None);
+    let bed_test = BedVM::random(args.num_individuals, num_markers, Some(mafs), None);
+    let gen_train = CompressedGenotypes::new(bed_train, groups);
+    let gen_test = CompressedGenotypes::new(bed_test, groups);
 
     let lm = LinearModelBuilder::new(&vec![args.num_markers_per_branch; args.num_branches])
         .with_proportion_effective_markers(args.proportion_effective)
@@ -688,9 +628,7 @@ fn simulate_xy_linear(args: SimulateXYArgs) {
     to_writer(&mut net_params_file, &lm).unwrap();
     net_params_file.write_all(b"\n").unwrap();
 
-    train_path.set_extension("gen");
     gen_train.to_file(&train_path);
-    test_path.set_extension("gen");
     gen_test.to_file(&test_path);
 
     PhenStats::new(
@@ -720,8 +658,6 @@ fn simulate_xy_linear(args: SimulateXYArgs) {
         Phenotypes::new(g_train).to_json(&path.join("genetic_values_train.json"));
         phen_train.to_json(&path.join("phen_train.json"));
         phen_test.to_json(&path.join("phen_test.json"));
-        gen_train.to_json(&path.join("gen_train.json"));
-        gen_test.to_json(&path.join("gen_test.json"));
     }
 
     args.to_file(&args_path);
@@ -771,8 +707,8 @@ where
     if !path.exists() {
         std::fs::create_dir_all(&path).expect("Could not create output directory!");
     }
-    let mut train_path = path.join("train");
-    let mut test_path = path.join("test");
+    let train_path = path.join("train");
+    let test_path = path.join("test");
     let args_path = path.join("args.json");
     let params_path = path.join("model.params");
     let model_path = path.join("model.bin");
@@ -815,54 +751,17 @@ where
         let mut rng = thread_rng();
 
         info!("Generating random marker data");
-        let gt_per_branch = args.num_markers_per_branch * args.num_individuals;
-        let mut x_train: Vec<Vec<f32>> = vec![vec![0.0; gt_per_branch]; args.num_branches];
-        let mut x_test: Vec<Vec<f32>> = vec![vec![0.0; gt_per_branch]; args.num_branches];
-        let mut x_means: Vec<Vec<f32>> =
-            vec![vec![0.0; args.num_markers_per_branch]; args.num_branches];
-        let mut x_stds: Vec<Vec<f32>> =
-            vec![vec![0.0; args.num_markers_per_branch]; args.num_branches];
-        for branch_ix in 0..args.num_branches {
-            for marker_ix in 0..args.num_markers_per_branch {
-                let maf = Uniform::from(0.0..0.5).sample(&mut rng);
-                x_means[branch_ix][marker_ix] = 2. * maf;
-                x_stds[branch_ix][marker_ix] = (2. * maf * (1. - maf)).sqrt();
+        let ud = Uniform::from(0.0..0.5);
+        let mafs = (0..args.num_branches * args.num_markers_per_branch)
+            .map(|_| ud.sample(&mut rng))
+            .collect::<Vec<f32>>();
 
-                let binom = Binomial::new(2, maf as f64).unwrap();
-                (0..args.num_individuals).for_each(|i| {
-                    x_train[branch_ix][marker_ix * args.num_individuals + i] =
-                        binom.sample(&mut rng) as f32
-                });
-                (0..args.num_individuals).for_each(|i| {
-                    x_test[branch_ix][marker_ix * args.num_individuals + i] =
-                        binom.sample(&mut rng) as f32
-                });
-            }
-        }
-
-        let mut gen_train = GenotypesBuilder::new()
-            .with_x(
-                x_train,
-                vec![args.num_markers_per_branch; args.num_branches],
-                args.num_individuals,
-            )
-            .with_means(x_means.clone())
-            .with_stds(x_stds.clone())
-            .build()
-            .unwrap();
-        gen_train.standardize();
-
-        let mut gen_test = GenotypesBuilder::new()
-            .with_x(
-                x_test,
-                vec![args.num_markers_per_branch; args.num_branches],
-                args.num_individuals,
-            )
-            .with_means(x_means)
-            .with_stds(x_stds)
-            .build()
-            .unwrap();
-        gen_test.standardize();
+        let groups = UniformGrouping::new(args.num_branches, args.num_markers_per_branch);
+        let num_markers = args.num_branches * args.num_markers_per_branch;
+        let bed_train = BedVM::random(args.num_individuals, num_markers, Some(mafs), None);
+        let bed_test = BedVM::random(args.num_individuals, num_markers, Some(mafs), None);
+        let gen_train = CompressedGenotypes::new(bed_train, groups);
+        let gen_test = CompressedGenotypes::new(bed_test, groups);
 
         info!("Making phenotype data");
         // genetic values
@@ -901,9 +800,7 @@ where
         to_writer(&mut net_params_file, net.branch_cfgs()).unwrap();
         net_params_file.write_all(b"\n").unwrap();
 
-        train_path.set_extension("gen");
         gen_train.to_file(&train_path);
-        test_path.set_extension("gen");
         gen_test.to_file(&test_path);
 
         PhenStats::new(
@@ -933,8 +830,6 @@ where
             Phenotypes::new(g_train).to_json(&path.join("genetic_values_train.json"));
             phen_train.to_json(&path.join("phen_train.json"));
             phen_test.to_json(&path.join("phen_test.json"));
-            gen_train.to_json(&path.join("gen_train.json"));
-            gen_test.to_json(&path.join("gen_test.json"));
         }
 
         args.to_file(&args_path);
@@ -944,7 +839,7 @@ where
 }
 
 fn load_ungrouped_data(
-    args: &TrainNewBedArgs,
+    args: &TrainNewArgs,
 ) -> (
     Data<CompressedGenotypes<ExternalGrouping>>,
     Option<Data<CompressedGenotypes<ExternalGrouping>>>,
@@ -981,132 +876,7 @@ fn load_ungrouped_data(
     (train_data, test_data)
 }
 
-fn load_grouped_data(indir: &str) -> (Data<Genotypes>, Option<Data<Genotypes>>) {
-    let train_gen = Genotypes::from_file(&Path::new(indir).join("train.gen"))
-        .expect("Failed to load train.gen training genotypes");
-    let train_phen = Phenotypes::from_file(&Path::new(indir).join("train.phen"))
-        .expect("Failed to load train.phen training phenotypes");
-    let train_data = Data::new(train_gen, train_phen);
-    let test_gen = Genotypes::from_file(&Path::new(indir).join("test.gen"));
-    let test_phen = Phenotypes::from_file(&Path::new(indir).join("test.phen"));
-    let test_data = if let (Ok(tg), Ok(tp)) = (test_gen, test_phen) {
-        // just checked that they are Ok()
-        Some(Data::new(tg, tp))
-    } else {
-        info!("No complete test data provided in bed format, proceeding without");
-        None
-    };
-    (train_data, test_data)
-}
-
-fn train_new<B>(args: TrainNewArgs)
-where
-    B: Branch,
-{
-    if args.debug_prints {
-        simple_logger::init_with_level(log::Level::Debug).unwrap();
-    } else {
-        simple_logger::init_with_level(log::Level::Info).unwrap();
-    }
-
-    info!("Loading pre-grouped data from input directory");
-    let (train_data, test_data) = load_grouped_data(&args.indir);
-
-    let mut outdir = format!(
-        "{}_d{}_cl{}_il{}_{}_dpk{}_dps{}_spk{}_sps{}_opk{}_ops{}",
-        args.model_type,
-        args.branch_depth,
-        args.chain_length,
-        args.integration_length,
-        args.step_size_mode,
-        args.dpk,
-        args.dps,
-        args.spk,
-        args.sps,
-        args.opk,
-        args.ops,
-    );
-
-    if args.joint_hmc {
-        outdir.push_str("_joint");
-    }
-
-    let hlwr = if let Some(width) = args.fixed_hidden_layer_width {
-        outdir.push_str(&format!("_fhlw{}", width));
-        HiddenLayerWidthRule::Fixed(width)
-    } else {
-        outdir.push_str(&format!("_rhlw{}", args.relative_hidden_layer_width));
-        HiddenLayerWidthRule::FractionOfInput(args.relative_hidden_layer_width)
-    };
-
-    let slwr = if let Some(width) = args.fixed_summary_layer_width {
-        outdir.push_str(&format!("_fslw{}", width));
-        SummaryLayerWidthRule::Fixed(width)
-    } else {
-        outdir.push_str(&format!("_rslw{}", args.relative_summary_layer_width));
-        SummaryLayerWidthRule::FractionOfHiddenLayerWidth(args.relative_summary_layer_width)
-    };
-
-    let mcmc_cfg = MCMCCfgBuilder::default()
-        .with_hmc_step_size_factor(args.step_size)
-        .with_hmc_max_hamiltonian_error(args.max_hamiltonian_error)
-        .with_hmc_integration_length(args.integration_length)
-        .with_hmc_step_size_mode(args.step_size_mode.clone())
-        .with_chain_length(args.chain_length)
-        .with_burn_in(args.burn_in)
-        .with_outpath(outdir)
-        .with_trace(args.trace)
-        .with_trajectories(args.trajectories)
-        .with_num_grad_traj(args.num_grad_traj)
-        .with_num_grad(args.num_grad)
-        .with_gradient_descent(args.gradient_descent)
-        .with_gradient_descent_joint(args.gradient_descent_joint)
-        .with_joint_hmc(args.joint_hmc)
-        .with_fixed_param_precisions(args.fixed_param_precision.is_some())
-        .build();
-
-    mcmc_cfg.create_out();
-
-    args.to_file(&mcmc_cfg.args_path());
-
-    let report_cfg = ReportCfg::new(args.report_interval, test_data.as_ref());
-
-    info!("Building net");
-
-    let mut net_cfg = BlockNetCfg::<B>::new()
-        .with_num_hidden_layers(args.branch_depth)
-        .with_dense_precision_prior(args.dpk, args.dps)
-        .with_summary_precision_prior(args.spk, args.sps)
-        .with_output_precision_prior(args.opk, args.ops)
-        .with_hidden_layer_width_rule(hlwr)
-        .with_summary_layer_width_rule(slwr)
-        .with_fixed_param_precision(args.fixed_param_precision);
-
-    for bix in 0..train_data.num_branches() {
-        net_cfg.add_branch(train_data.num_markers_in_branch(bix));
-    }
-    let mut net = net_cfg.build_net();
-    if let Some(p) = args.error_precision {
-        net.set_error_precision(p);
-    }
-
-    for bix in 0..net.num_branches() {
-        if net.num_branch_params(bix) > train_data.num_individuals() {
-            warn!(
-                "Num params > num individuals in branch {} (with {} params, {} individuals)",
-                bix,
-                net.num_branch_params(bix),
-                train_data.num_individuals()
-            );
-        }
-    }
-    net.write_hyperparams(&mcmc_cfg);
-
-    info!("Training net");
-    net.train(&train_data, &mcmc_cfg, true, Some(report_cfg));
-}
-
-fn train_new_bed<B>(args: TrainNewBedArgs)
+fn train_new<B>(input_args: TrainIOArgs, mcmc_args: MCMCArgs, model_args: TrainNewModelArgs)
 where
     B: Branch,
 {
@@ -1212,7 +982,7 @@ where
     net.train(&train_data, &mcmc_cfg, true, Some(report_cfg));
 }
 
-fn train<B>(args: TrainArgs)
+fn train<B>(input_args: TrainIOArgs, mcmc_args: MCMCArgs, model_args: TrainOldModelArgs)
 where
     B: Branch,
 {
@@ -1223,7 +993,7 @@ where
     }
 
     info!("Loading data");
-    let (train_data, test_data) = load_grouped_data(&args.indir);
+    let (train_data, test_data) = load_ungrouped_data(&args.indir);
 
     let model_path = Path::new(&args.model_file);
 
