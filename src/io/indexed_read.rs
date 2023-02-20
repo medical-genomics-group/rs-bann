@@ -3,6 +3,8 @@ use std::io::{BufRead, BufReader};
 use std::marker::PhantomData;
 use std::path::Path;
 
+use crate::error::Error;
+
 pub trait IndexedEntry {
     fn from_str(s: &str, ix: usize) -> Self;
 }
@@ -15,19 +17,19 @@ pub struct IndexedReader<T: IndexedEntry> {
 }
 
 impl<T: IndexedEntry> IndexedReader<T> {
-    pub fn num_lines(fam_path: &Path) -> usize {
-        let mut reader = IndexedReader::<T>::new(fam_path);
+    pub fn num_lines(fam_path: &Path) -> Result<usize, Error> {
+        let mut reader = IndexedReader::<T>::new(fam_path)?;
         while reader.next_entry().is_some() {}
-        reader.num_read
+        Ok(reader.num_read)
     }
 
-    pub fn new(fam_path: &Path) -> Self {
-        Self {
+    pub fn new(fam_path: &Path) -> Result<Self, Error> {
+        Ok(Self {
             num_read: 0,
-            reader: BufReader::new(File::open(fam_path).unwrap()),
+            reader: BufReader::new(File::open(fam_path)?),
             buffer: String::new(),
             _phantom: PhantomData,
-        }
+        })
     }
 
     pub fn next_entry(&mut self) -> Option<T> {

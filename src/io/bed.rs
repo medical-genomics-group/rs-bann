@@ -1,3 +1,4 @@
+use super::dims::BedDims;
 use crate::error::Error;
 use crate::io::{
     bed_lookup_tables::BED_LOOKUP_GENOTYPE, bim::BimEntry, fam::FamEntry,
@@ -8,27 +9,49 @@ use log::warn;
 use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
 use rand_distr::{Binomial, Distribution, Uniform};
-use std::io::{Read, Seek};
+use std::io::{Read, Seek, Write};
 use std::path::{Path, PathBuf};
 
 const BED_SIGNATURE_LENGTH: usize = 3;
 const BED_VM_SIGNATURE: [u8; 3] = [0x6c, 0x1b, 0x01];
 const BED_SM_SIGNATURE: [u8; 3] = [0x6c, 0x1b, 0x00];
+// There is no handing of NA here!
+const BED_VALUE_MAPPING: [u8; 3] = [0x03, 0x02, 0x00];
+
+pub trait CommonStemFileset {
+    fn stem(&self) -> &PathBuf;
+
+    fn stem_with_extension(&self, ext: &str) -> PathBuf {
+        let mut path = self.stem().clone();
+        path.set_extension(ext);
+        path
+    }
+}
+
+pub trait BedContainingFileset: CommonStemFileset {
+    fn bed(&self) -> PathBuf {
+        self.stem_with_extension("bed")
+    }
+}
 
 /// Paths of a set of .bed, .bim, .fam files
 pub struct PlinkBinaryFileset {
     stem: PathBuf,
 }
 
+impl CommonStemFileset for PlinkBinaryFileset {
+    fn stem(&self) -> &PathBuf {
+        &self.stem
+    }
+}
+
+impl BedContainingFileset for PlinkBinaryFileset {}
+
 impl PlinkBinaryFileset {
     pub fn new(path: &Path) -> Self {
         Self {
             stem: path.to_owned(),
         }
-    }
-
-    pub fn bed(&self) -> PathBuf {
-        self.stem_with_extension("bed")
     }
 
     pub fn bim(&self) -> PathBuf {
@@ -38,17 +61,31 @@ impl PlinkBinaryFileset {
     pub fn fam(&self) -> PathBuf {
         self.stem_with_extension("fam")
     }
-
-    fn stem_with_extension(&self, ext: &str) -> PathBuf {
-        let mut path = self.stem.clone();
-        path.set_extension(ext);
-        path
-    }
 }
 
 /// Paths of a set of .bed and corresponding .dims file
 pub struct BedBinaryFileset {
     stem: PathBuf,
+}
+
+impl CommonStemFileset for BedBinaryFileset {
+    fn stem(&self) -> &PathBuf {
+        &self.stem
+    }
+}
+
+impl BedContainingFileset for BedBinaryFileset {}
+
+impl BedBinaryFileset {
+    pub fn new(path: &Path) -> Self {
+        Self {
+            stem: path.to_owned(),
+        }
+    }
+
+    pub fn dims(&self) -> PathBuf {
+        self.stem_with_extension("dims")
+    }
 }
 
 enum BedSignature {
@@ -85,6 +122,7 @@ impl BedSignature {
 /// Variant Major (i.e. column major) bed file in memory.
 ///
 /// This struct does not handle NAs correctly. NAs should be imputed / removed beforehand.
+#[derive(Debug, PartialEq)]
 pub struct BedVM {
     /// .bed data without signature
     data: Vec<u8>,
@@ -127,17 +165,20 @@ impl BedVM {
                     uniform.sample(&mut rng)
                 };
                 let binom = Binomial::new(2, maf as f64).unwrap();
-                let mut col_sum: u64 = 0;
+                let mut col_sum: f32 = 0.;
                 let mut col_vals = Vec::with_capacity(num_individuals);
                 for _ in 0..num_individuals {
-                    let val = binom.sample(&mut rng);
+                    let val = binom.sample(&mut rng) as f32;
                     col_sum += val;
-                    col_vals.push(val as f32);
+                    col_vals.push(val);
                 }
-                let sampled_maf = col_sum as f32 / (2.0 * num_individuals as f32);
-                let col_mean = 2.0 * sampled_maf;
-                let col_std: f32 =
-                    (col_vals.iter().map(|e| e * e).sum::<f32>() / num_individuals as f32).sqrt();
+                let col_mean = col_sum / num_individuals as f32;
+                let col_std: f32 = (col_vals
+                    .iter()
+                    .map(|v| (v - col_mean) * (v - col_mean))
+                    .sum::<f32>()
+                    / num_individuals as f32)
+                    .sqrt();
                 if col_std != 0. {
                     res.col_means.push(col_mean);
                     res.col_stds.push(col_std);
@@ -153,14 +194,17 @@ impl BedVM {
     /// Determines number of markers and individuals from .bim and .fam files with the same filestem as the .bed.
     /// Checks if .bed signature is valid.
     pub fn from_file(stem: &Path) -> Self {
-        let bfiles = PlinkBinaryFileset::new(stem);
-        let signature =
-            BedSignature::from_bed_file(&bfiles.bed()).expect("Unexpected .bed signature");
+        let bed_dims = BedDims::from_dims_file(stem).unwrap_or_else(|_| {
+            BedDims::from_plink_fileset(stem).expect("Failed to load bed dims!")
+        });
+
+        let bed_file = PlinkBinaryFileset::new(stem).bed();
+        let signature = BedSignature::from_bed_file(&bed_file).expect("Unexpected .bed signature");
         if let BedSignature::SampleMajor = signature {
             panic!("SampleMajor .bed formats are not supported at the moment. Try converting to VariantMajor format.")
         }
 
-        let mut bed_file = std::fs::File::open(bfiles.bed()).expect("Failed to open .bed file");
+        let mut bed_file = std::fs::File::open(bed_file).expect("Failed to open .bed file");
         bed_file
             .seek(std::io::SeekFrom::Start(
                 BED_SIGNATURE_LENGTH.try_into().unwrap(),
@@ -171,30 +215,27 @@ impl BedVM {
             .read_to_end(&mut data)
             .expect("Error while reading .bed file");
 
-        let num_markers = IndexedReader::<BimEntry>::num_lines(&bfiles.bim());
-        let num_individuals = IndexedReader::<FamEntry>::num_lines(&bfiles.fam());
-
-        let mut num_bytes_per_col = num_individuals / 4;
-        let padding = num_individuals % 4;
+        let mut num_bytes_per_col = bed_dims.num_individuals() / 4;
+        let padding = bed_dims.num_individuals() % 4;
         if padding != 0 {
             num_bytes_per_col += 1;
         }
 
         let mut res = Self {
             data,
-            col_means: vec![0.0; num_markers],
-            col_stds: vec![0.0; num_markers],
-            num_individuals,
-            num_markers,
+            col_means: vec![0.0; bed_dims.num_markers()],
+            col_stds: vec![0.0; bed_dims.num_markers()],
+            num_individuals: bed_dims.num_individuals(),
+            num_markers: bed_dims.num_markers(),
             num_bytes_per_col,
             padding,
         };
 
-        for col_ix in 0..num_markers {
+        for col_ix in 0..bed_dims.num_markers() {
             let vals = &res.get_cols(&[col_ix])[0];
-            let mean: f32 = vals.iter().sum::<f32>() / num_individuals as f32;
+            let mean: f32 = vals.iter().sum::<f32>() / bed_dims.num_individuals() as f32;
             let std: f32 = (vals.iter().map(|v| (v - mean) * (v - mean)).sum::<f32>()
-                / num_individuals as f32)
+                / bed_dims.num_individuals() as f32)
                 .sqrt();
             res.col_means[col_ix] = mean;
             res.col_stds[col_ix] = std;
@@ -206,8 +247,24 @@ impl BedVM {
         res
     }
 
-    /// Write
-    pub fn to_file(step: &Path) {}
+    /// Write bed data and dims
+    pub fn to_file(&self, stem: &PathBuf) {
+        let bedfile =
+            std::fs::File::create(stem.with_extension("bed")).expect("Unable to create bed file");
+        let mut bedwriter = std::io::BufWriter::new(bedfile);
+        bedwriter
+            .write_all(&BED_VM_SIGNATURE)
+            .expect("Unable to write bed signature");
+        bedwriter
+            .write_all(&self.data)
+            .expect("Unable to write bed data");
+        let dimsfile =
+            std::fs::File::create(stem.with_extension("dims")).expect("Unable to create dims file");
+        let mut dimswriter = std::io::BufWriter::new(dimsfile);
+        dimswriter
+            .write_all(format!("{}\t{}", self.num_individuals, self.num_markers).as_bytes())
+            .expect("Unable to write dims data");
+    }
 
     /// Decompress and load columns onto device.
     pub fn get_cols_af(&self, col_ixs: &[usize]) -> Vec<Array<f32>> {
@@ -321,19 +378,6 @@ impl BedVM {
     }
 }
 
-pub(crate) struct BedVMRandom {
-    /// .bed data without signature
-    data: Vec<u8>,
-    col_means: Vec<f32>,
-    col_stds: Vec<f32>,
-    num_individuals: usize,
-    num_markers: usize,
-    num_bytes_per_col: usize,
-}
-
-// There is no handing of NA here!
-const BED_VALUE_MAPPING: [u8; 3] = [0x11, 0x10, 0x00];
-
 fn chunkf32_to_byte(v: &[f32]) -> u8 {
     let mut res: u8 = 0;
     for (i, val) in v.iter().rev().enumerate() {
@@ -357,7 +401,7 @@ fn vecf32_to_bed(v: &[f32], bed_data: &mut Vec<u8>) {
 mod tests {
     use std::path::Path;
 
-    use crate::af_helpers::to_host;
+    use crate::{af_helpers::to_host, io::dims::BedDims};
 
     use super::BedVM;
 
@@ -366,6 +410,24 @@ mod tests {
         let base_path = Path::new(&base_dir);
         let bed_path = base_path.join("resources/test/small");
         BedVM::from_file(&bed_path)
+    }
+
+    #[test]
+    fn chunkf32_to_byte() {
+        assert_eq!(super::chunkf32_to_byte(&[1., 0., 1., 1.]), 174);
+    }
+
+    #[test]
+    fn bed_vm_random_dump_and_load() {
+        let num_individuals = 100;
+        let num_markers = 20;
+        let seed = 42;
+        let bed_vm = BedVM::random(num_individuals, num_markers, None, Some(seed));
+        let base_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+        let base_path = Path::new(&base_dir);
+        let stem = base_path.join("resources/test/random");
+        bed_vm.to_file(&stem);
+        assert_eq!(bed_vm, BedVM::from_file(&stem));
     }
 
     #[test]

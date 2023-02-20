@@ -55,7 +55,8 @@ impl GeneGrouping {
         } else {
             Box::new(GFFReader::new(gff_file)) as Box<dyn GFFRead>
         };
-        let mut bim_reader = IndexedReader::new(bim_file);
+        let mut bim_reader =
+            IndexedReader::new(bim_file).expect("Failed to initialize indexed reader!");
         let mut bim_buffer: VecDeque<BimEntry> = VecDeque::new();
         let mut groups: HashMap<usize, Vec<usize>> = HashMap::new();
         let mut meta: HashMap<usize, GFFEntry> = HashMap::new();

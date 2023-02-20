@@ -8,6 +8,8 @@ pub enum Error {
     FromFileOpeningError(#[from] io::Error),
     #[error("Failed to deserialize from file")]
     FromFileDeserializeError(#[from] bincode::Error),
+    #[error("Failed to parse numerical value")]
+    FromFileParseNumError(#[from] std::num::ParseIntError),
     #[error("Line starts with '#'")]
     GFFCommentLine,
     #[error("Unknown feature found in gff")]
