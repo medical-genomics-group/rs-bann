@@ -1010,12 +1010,14 @@ where
     assert!(model_path.is_file(),);
 
     let mut outdir = format!(
-        "{}_cl{}_il{}_{}_st{}",
+        "{}_cl{}_il{}_{}_st{}_dtheta{}_dlambda{}",
         model_path.file_stem().unwrap().to_string_lossy(),
         mcmc_args.chain_length,
         mcmc_args.integration_length,
         mcmc_args.step_size_mode,
-        mcmc_args.step_size
+        mcmc_args.step_size,
+        model_args.perturb_params.unwrap_or(0.),
+        model_args.perturb_precisions.unwrap_or(0.)
     );
 
     if mcmc_args.joint_hmc {
