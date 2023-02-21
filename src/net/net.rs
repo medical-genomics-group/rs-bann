@@ -1,4 +1,3 @@
-use super::branch;
 use super::log_posterior_density::LogPosteriorDensity;
 use super::model_type::ModelType;
 use super::params::GlobalParams;

@@ -1,9 +1,6 @@
 use super::dims::BedDims;
 use crate::error::Error;
-use crate::io::{
-    bed_lookup_tables::BED_LOOKUP_GENOTYPE, bim::BimEntry, fam::FamEntry,
-    indexed_read::IndexedReader,
-};
+use crate::io::bed_lookup_tables::BED_LOOKUP_GENOTYPE;
 use arrayfire::{dim4, Array};
 use log::warn;
 use rand::SeedableRng;
@@ -14,7 +11,7 @@ use std::path::{Path, PathBuf};
 
 const BED_SIGNATURE_LENGTH: usize = 3;
 const BED_VM_SIGNATURE: [u8; 3] = [0x6c, 0x1b, 0x01];
-const BED_SM_SIGNATURE: [u8; 3] = [0x6c, 0x1b, 0x00];
+// const BED_SM_SIGNATURE: [u8; 3] = [0x6c, 0x1b, 0x00];
 // There is no handing of NA here!
 const BED_VALUE_MAPPING: [u8; 3] = [0x03, 0x02, 0x00];
 

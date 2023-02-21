@@ -2,8 +2,8 @@ mod cli;
 
 use clap::Parser;
 use cli::cli::{
-    ActivationArgs, BranchR2Args, Cli, GroupByGenesArgs, GroupCenteredArgs, PredictArgs,
-    SimulateXYArgs, SimulateYArgs, SubCmd, TrainArgs, TrainNewArgs,
+    ActivationArgs, BranchR2Args, Cli, GroupByGenesArgs, GroupCenteredArgs, MCMCArgs, PredictArgs,
+    SimulateXYArgs, SimulateYArgs, SubCmd, TrainIOArgs, TrainNewModelArgs, TrainOldModelArgs,
 };
 use log::{debug, info, warn};
 use rand::thread_rng;
@@ -132,7 +132,7 @@ fn branch_r2(args: BranchR2Args) {
         .parent()
         .unwrap()
         .join("args.json");
-    let train_args = TrainNewArgs::from_file(&parent_path);
+    let train_args = TrainNewModelArgs::from_file(&parent_path);
     let model_type = train_args.model_type;
     // stdout writer in csv format
     let mut wtr = csv::Writer::from_writer(std::io::stdout());
@@ -581,9 +581,9 @@ fn simulate_xy_linear(args: SimulateXYArgs) {
 
     let groups = UniformGrouping::new(args.num_branches, args.num_markers_per_branch);
     let num_markers = args.num_branches * args.num_markers_per_branch;
-    let bed_train = BedVM::random(args.num_individuals, num_markers, Some(mafs), None);
+    let bed_train = BedVM::random(args.num_individuals, num_markers, Some(mafs.clone()), None);
     let bed_test = BedVM::random(args.num_individuals, num_markers, Some(mafs), None);
-    let gen_train = CompressedGenotypes::new(bed_train, groups);
+    let gen_train = CompressedGenotypes::new(bed_train, groups.clone());
     let gen_test = CompressedGenotypes::new(bed_test, groups);
 
     let lm = LinearModelBuilder::new(&vec![args.num_markers_per_branch; args.num_branches])
@@ -645,13 +645,11 @@ fn simulate_xy_linear(args: SimulateXYArgs) {
     )
     .to_file(&path.join("train_phen_stats.json"));
 
-    train_path.set_extension("phen");
     let phen_train = Phenotypes::new(y_train);
-    phen_train.to_file(&train_path);
+    phen_train.to_file(&train_path.with_extension("phen"));
 
-    test_path.set_extension("phen");
     let phen_test = Phenotypes::new(y_test);
-    phen_test.to_file(&test_path);
+    phen_test.to_file(&test_path.with_extension("phen"));
 
     if args.json_data {
         Phenotypes::new(g_test).to_json(&path.join("genetic_values_test.json"));
@@ -758,9 +756,9 @@ where
 
         let groups = UniformGrouping::new(args.num_branches, args.num_markers_per_branch);
         let num_markers = args.num_branches * args.num_markers_per_branch;
-        let bed_train = BedVM::random(args.num_individuals, num_markers, Some(mafs), None);
+        let bed_train = BedVM::random(args.num_individuals, num_markers, Some(mafs.clone()), None);
         let bed_test = BedVM::random(args.num_individuals, num_markers, Some(mafs), None);
-        let gen_train = CompressedGenotypes::new(bed_train, groups);
+        let gen_train = CompressedGenotypes::new(bed_train, groups.clone());
         let gen_test = CompressedGenotypes::new(bed_test, groups);
 
         info!("Making phenotype data");
@@ -817,13 +815,11 @@ where
         )
         .to_file(&path.join("train_phen_stats.json"));
 
-        train_path.set_extension("phen");
         let phen_train = Phenotypes::new(y_train);
-        phen_train.to_file(&train_path);
+        phen_train.to_file(&train_path.with_extension("phen"));
 
-        test_path.set_extension("phen");
         let phen_test = Phenotypes::new(y_test);
-        phen_test.to_file(&test_path);
+        phen_test.to_file(&test_path.with_extension("phen"));
 
         if args.json_data {
             Phenotypes::new(g_test).to_json(&path.join("genetic_values_test.json"));
@@ -839,7 +835,7 @@ where
 }
 
 fn load_ungrouped_data(
-    args: &TrainNewArgs,
+    args: &TrainIOArgs,
 ) -> (
     Data<CompressedGenotypes<ExternalGrouping>>,
     Option<Data<CompressedGenotypes<ExternalGrouping>>>,
@@ -880,91 +876,91 @@ fn train_new<B>(input_args: TrainIOArgs, mcmc_args: MCMCArgs, model_args: TrainN
 where
     B: Branch,
 {
-    if args.debug_prints {
+    if mcmc_args.debug_prints {
         simple_logger::init_with_level(log::Level::Debug).unwrap();
     } else {
         simple_logger::init_with_level(log::Level::Info).unwrap();
     }
 
     info!("Loading data.");
-    let (train_data, test_data) = load_ungrouped_data(&args);
+    let (train_data, test_data) = load_ungrouped_data(&input_args);
 
     let mut outdir = format!(
         "{}_d{}_cl{}_il{}_{}_dpk{}_dps{}_spk{}_sps{}_opk{}_ops{}",
-        args.model_type,
-        args.branch_depth,
-        args.chain_length,
-        args.integration_length,
-        args.step_size_mode,
-        args.dpk,
-        args.dps,
-        args.spk,
-        args.sps,
-        args.opk,
-        args.ops,
+        model_args.model_type,
+        model_args.branch_depth,
+        mcmc_args.chain_length,
+        mcmc_args.integration_length,
+        mcmc_args.step_size_mode,
+        model_args.dpk,
+        model_args.dps,
+        model_args.spk,
+        model_args.sps,
+        model_args.opk,
+        model_args.ops,
     );
 
-    if args.joint_hmc {
+    if mcmc_args.joint_hmc {
         outdir.push_str("_joint");
     }
 
-    let hlwr = if let Some(width) = args.fixed_hidden_layer_width {
+    let hlwr = if let Some(width) = model_args.fixed_hidden_layer_width {
         outdir.push_str(&format!("_fhlw{}", width));
         HiddenLayerWidthRule::Fixed(width)
     } else {
-        outdir.push_str(&format!("_rhlw{}", args.relative_hidden_layer_width));
-        HiddenLayerWidthRule::FractionOfInput(args.relative_hidden_layer_width)
+        outdir.push_str(&format!("_rhlw{}", model_args.relative_hidden_layer_width));
+        HiddenLayerWidthRule::FractionOfInput(model_args.relative_hidden_layer_width)
     };
 
-    let slwr = if let Some(width) = args.fixed_summary_layer_width {
+    let slwr = if let Some(width) = model_args.fixed_summary_layer_width {
         outdir.push_str(&format!("_fslw{}", width));
         SummaryLayerWidthRule::Fixed(width)
     } else {
-        outdir.push_str(&format!("_rslw{}", args.relative_summary_layer_width));
-        SummaryLayerWidthRule::FractionOfHiddenLayerWidth(args.relative_summary_layer_width)
+        outdir.push_str(&format!("_rslw{}", model_args.relative_summary_layer_width));
+        SummaryLayerWidthRule::FractionOfHiddenLayerWidth(model_args.relative_summary_layer_width)
     };
 
     let mcmc_cfg = MCMCCfgBuilder::default()
-        .with_hmc_step_size_factor(args.step_size)
-        .with_hmc_max_hamiltonian_error(args.max_hamiltonian_error)
-        .with_hmc_integration_length(args.integration_length)
-        .with_hmc_step_size_mode(args.step_size_mode.clone())
-        .with_chain_length(args.chain_length)
-        .with_burn_in(args.burn_in)
+        .with_hmc_step_size_factor(mcmc_args.step_size)
+        .with_hmc_max_hamiltonian_error(mcmc_args.max_hamiltonian_error)
+        .with_hmc_integration_length(mcmc_args.integration_length)
+        .with_hmc_step_size_mode(mcmc_args.step_size_mode.clone())
+        .with_chain_length(mcmc_args.chain_length)
+        .with_burn_in(mcmc_args.burn_in)
         .with_outpath(outdir)
-        .with_trace(args.trace)
-        .with_trajectories(args.trajectories)
-        .with_num_grad_traj(args.num_grad_traj)
-        .with_num_grad(args.num_grad)
-        .with_gradient_descent(args.gradient_descent)
-        .with_gradient_descent_joint(args.gradient_descent_joint)
-        .with_joint_hmc(args.joint_hmc)
-        .with_fixed_param_precisions(args.fixed_param_precision.is_some())
+        .with_trace(mcmc_args.trace)
+        .with_trajectories(mcmc_args.trajectories)
+        .with_num_grad_traj(mcmc_args.num_grad_traj)
+        .with_num_grad(mcmc_args.num_grad)
+        .with_gradient_descent(mcmc_args.gradient_descent)
+        .with_gradient_descent_joint(mcmc_args.gradient_descent_joint)
+        .with_joint_hmc(mcmc_args.joint_hmc)
+        .with_fixed_param_precisions(mcmc_args.fixed_param_precision.is_some())
         .build();
     mcmc_cfg.create_out();
 
-    args.to_file(&mcmc_cfg.args_path());
+    model_args.to_file(&mcmc_cfg.args_path());
 
-    let report_cfg = ReportCfg::new(args.report_interval, test_data.as_ref());
+    let report_cfg = ReportCfg::new(mcmc_args.report_interval, test_data.as_ref());
 
     info!("Building net");
 
     let mut net_cfg = BlockNetCfg::<B>::new()
-        .with_num_hidden_layers(args.branch_depth)
-        .with_dense_precision_prior(args.dpk, args.dps)
-        .with_summary_precision_prior(args.spk, args.sps)
-        .with_output_precision_prior(args.opk, args.ops)
+        .with_num_hidden_layers(model_args.branch_depth)
+        .with_dense_precision_prior(model_args.dpk, model_args.dps)
+        .with_summary_precision_prior(model_args.spk, model_args.sps)
+        .with_output_precision_prior(model_args.opk, model_args.ops)
         .with_hidden_layer_width_rule(hlwr)
         .with_summary_layer_width_rule(slwr)
-        .with_fixed_param_precision(args.fixed_param_precision);
+        .with_fixed_param_precision(mcmc_args.fixed_param_precision);
 
     for bix in 0..train_data.num_branches() {
         net_cfg.add_branch(train_data.num_markers_in_branch(bix));
     }
     let mut net = net_cfg.build_net();
-    if let Some(p) = args.error_precision {
-        net.set_error_precision(p);
-    }
+    // if let Some(p) = args.error_precision {
+    //     net.set_error_precision(p);
+    // }
 
     for bix in 0..net.num_branches() {
         if net.num_branch_params(bix) > train_data.num_individuals() {
@@ -986,59 +982,59 @@ fn train<B>(input_args: TrainIOArgs, mcmc_args: MCMCArgs, model_args: TrainOldMo
 where
     B: Branch,
 {
-    if args.debug_prints {
+    if mcmc_args.debug_prints {
         simple_logger::init_with_level(log::Level::Debug).unwrap();
     } else {
         simple_logger::init_with_level(log::Level::Info).unwrap();
     }
 
     info!("Loading data");
-    let (train_data, test_data) = load_ungrouped_data(&args.indir);
+    let (train_data, test_data) = load_ungrouped_data(&input_args);
 
-    let model_path = Path::new(&args.model_file);
+    let model_path = Path::new(&model_args.model_file);
 
     let mut outdir = format!(
         "{}_cl{}_il{}_{}",
         model_path.file_stem().unwrap().to_string_lossy(),
-        args.chain_length,
-        args.integration_length,
-        args.step_size_mode,
+        mcmc_args.chain_length,
+        mcmc_args.integration_length,
+        mcmc_args.step_size_mode,
     );
 
-    if args.joint_hmc {
+    if mcmc_args.joint_hmc {
         outdir.push_str("_joint");
     }
 
     let mcmc_cfg = MCMCCfgBuilder::default()
-        .with_hmc_step_size_factor(args.step_size)
-        .with_hmc_max_hamiltonian_error(args.max_hamiltonian_error)
-        .with_hmc_integration_length(args.integration_length)
-        .with_hmc_step_size_mode(args.step_size_mode.clone())
-        .with_chain_length(args.chain_length)
-        .with_burn_in(args.burn_in)
+        .with_hmc_step_size_factor(mcmc_args.step_size)
+        .with_hmc_max_hamiltonian_error(mcmc_args.max_hamiltonian_error)
+        .with_hmc_integration_length(mcmc_args.integration_length)
+        .with_hmc_step_size_mode(mcmc_args.step_size_mode.clone())
+        .with_chain_length(mcmc_args.chain_length)
+        .with_burn_in(mcmc_args.burn_in)
         .with_outpath(outdir)
-        .with_trace(args.trace)
-        .with_trajectories(args.trajectories)
-        .with_num_grad_traj(args.num_grad_traj)
-        .with_num_grad(args.num_grad)
-        .with_gradient_descent(args.gradient_descent)
-        .with_gradient_descent_joint(args.gradient_descent_joint)
-        .with_joint_hmc(args.joint_hmc)
-        .with_fixed_param_precisions(args.fixed_param_precision.is_some())
+        .with_trace(mcmc_args.trace)
+        .with_trajectories(mcmc_args.trajectories)
+        .with_num_grad_traj(mcmc_args.num_grad_traj)
+        .with_num_grad(mcmc_args.num_grad)
+        .with_gradient_descent(mcmc_args.gradient_descent)
+        .with_gradient_descent_joint(mcmc_args.gradient_descent_joint)
+        .with_joint_hmc(mcmc_args.joint_hmc)
+        .with_fixed_param_precisions(mcmc_args.fixed_param_precision.is_some())
         .build();
     mcmc_cfg.create_out();
 
-    args.to_file(&mcmc_cfg.args_path());
+    model_args.to_file(&mcmc_cfg.args_path());
 
-    let report_cfg = ReportCfg::new(args.report_interval, test_data.as_ref());
+    let report_cfg = ReportCfg::new(mcmc_args.report_interval, test_data.as_ref());
 
     info!("Loading net");
 
     let mut net = Net::<B>::from_file(model_path);
-    net.perturb(args.perturb_params, args.perturb_precisions);
-    if let Some(p) = args.error_precision {
-        net.set_error_precision(p);
-    }
+    net.perturb(model_args.perturb_params, model_args.perturb_precisions);
+    // if let Some(p) = model_args.error_precision {
+    //     net.set_error_precision(p);
+    // }
     net.write_hyperparams(&mcmc_cfg);
     info!("Training net");
     net.train(&train_data, &mcmc_cfg, true, Some(report_cfg));

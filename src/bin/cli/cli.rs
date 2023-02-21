@@ -54,7 +54,7 @@ pub(crate) enum SubCmd {
 }
 
 #[derive(Args, Debug, Serialize, Deserialize)]
-struct TrainIOArgs {
+pub(crate) struct TrainIOArgs {
     /// dir + filestem of train data .bed, .bim, .fam files (the input genotypes)
     pub bfile_train: String,
 
@@ -78,7 +78,7 @@ struct TrainIOArgs {
 }
 
 #[derive(Args, Debug, Serialize, Deserialize)]
-struct MCMCArgs {
+pub(crate) struct MCMCArgs {
     /// full model chain length
     pub chain_length: usize,
 

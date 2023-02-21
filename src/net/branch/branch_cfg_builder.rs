@@ -1,5 +1,5 @@
 use super::branch::BranchCfg;
-use crate::net::params::{BranchParamsHost, BranchPrecisionsHost, OutputWeightSummaryStatsHost};
+use crate::net::params::{BranchParamsHost, BranchPrecisionsHost};
 use rand::{distributions::Distribution, SeedableRng};
 use rand_chacha::ChaCha20Rng;
 use rand_distr::{Bernoulli, Gamma, Normal};

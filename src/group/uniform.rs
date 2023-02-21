@@ -1,8 +1,8 @@
 use super::grouping::MarkerGrouping;
 
+#[derive(Clone)]
 pub struct UniformGrouping {
     num_groups: usize,
-    num_markers_per_group: usize,
     group_sizes: Vec<usize>,
     groups: Vec<Vec<usize>>,
 }
@@ -11,7 +11,6 @@ impl UniformGrouping {
     pub fn new(num_groups: usize, num_markers_per_group: usize) -> Self {
         Self {
             num_groups,
-            num_markers_per_group,
             group_sizes: vec![num_markers_per_group; num_groups],
             groups: (0..num_groups)
                 .map(|gix| {
