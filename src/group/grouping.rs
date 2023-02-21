@@ -16,7 +16,7 @@ pub trait MarkerGrouping {
     /// Writes the grouping to a two column tab separated file where the
     /// first column is the marker index and the second the group index.
     fn to_file(&self, stem: &Path) {
-        let path = stem.with_extension(".groups");
+        let path = stem.with_extension("groups");
         let mut writer =
             BufWriter::new(File::create(path).expect("Could not open file to save grouping"));
         for group_index in 0..self.num_groups() {
