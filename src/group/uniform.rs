@@ -14,7 +14,7 @@ impl UniformGrouping {
             group_sizes: vec![num_markers_per_group; num_groups],
             groups: (0..num_groups)
                 .map(|gix| {
-                    ((gix * num_markers_per_group)..(gix * (num_markers_per_group + 1)))
+                    ((gix * num_markers_per_group)..((gix + 1) * (num_markers_per_group)))
                         .collect::<Vec<usize>>()
                 })
                 .collect(),
