@@ -31,6 +31,7 @@ use rs_bann::net::{
 };
 use serde_json::to_writer;
 use statrs::statistics::Statistics;
+use std::process::exit;
 use std::str::FromStr;
 use std::{
     fs::{read_dir, File},
@@ -91,6 +92,7 @@ fn main() {
         SubCmd::AvailableBackends => available_backends(),
         SubCmd::GroupByGenes(args) => group_by_genes(args),
     }
+    exit(exitcode::OK);
 }
 
 fn group_by_genes(args: GroupByGenesArgs) {
@@ -886,12 +888,13 @@ where
     let (train_data, test_data) = load_ungrouped_data(&input_args);
 
     let mut outdir = format!(
-        "{}_d{}_cl{}_il{}_{}_dpk{}_dps{}_spk{}_sps{}_opk{}_ops{}",
+        "{}_d{}_cl{}_il{}_{}_st{}_dpk{}_dps{}_spk{}_sps{}_opk{}_ops{}",
         model_args.model_type,
         model_args.branch_depth,
         mcmc_args.chain_length,
         mcmc_args.integration_length,
         mcmc_args.step_size_mode,
+        mcmc_args.step_size,
         model_args.dpk,
         model_args.dps,
         model_args.spk,
@@ -902,6 +905,14 @@ where
 
     if mcmc_args.joint_hmc {
         outdir.push_str("_joint");
+    }
+
+    if mcmc_args.gradient_descent {
+        outdir.push_str("_gd");
+    }
+
+    if mcmc_args.gradient_descent {
+        outdir.push_str("_gdj");
     }
 
     let hlwr = if let Some(width) = model_args.fixed_hidden_layer_width {
@@ -992,17 +1003,31 @@ where
     let (train_data, test_data) = load_ungrouped_data(&input_args);
 
     let model_path = Path::new(&model_args.model_file);
+    if !model_path.is_file() {
+        log::error!("Specified model: No such file found");
+        exit(exitcode::NOINPUT);
+    }
+    assert!(model_path.is_file(),);
 
     let mut outdir = format!(
-        "{}_cl{}_il{}_{}",
+        "{}_cl{}_il{}_{}_st{}",
         model_path.file_stem().unwrap().to_string_lossy(),
         mcmc_args.chain_length,
         mcmc_args.integration_length,
         mcmc_args.step_size_mode,
+        mcmc_args.step_size
     );
 
     if mcmc_args.joint_hmc {
         outdir.push_str("_joint");
+    }
+
+    if mcmc_args.gradient_descent {
+        outdir.push_str("_gd");
+    }
+
+    if mcmc_args.gradient_descent {
+        outdir.push_str("_gdj");
     }
 
     let mcmc_cfg = MCMCCfgBuilder::default()

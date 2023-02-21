@@ -8,6 +8,7 @@ use rand::Rng;
 use rand_distr::Distribution;
 use serde::{Deserialize, Serialize};
 use std::fmt;
+use std::process::exit;
 
 #[derive(Clone, Copy, Deserialize, Serialize)]
 pub struct GlobalParams {
@@ -45,10 +46,12 @@ impl GlobalParams {
             "Negative output weight precision!"
         );
         self.output_layer_precision = cfg.output_layer_precision();
-        assert!(
-            cfg.output_weight_summary_stats().reg_sum >= 0.0,
-            "Negative reg sum!"
-        );
+        if cfg.output_weight_summary_stats().reg_sum < 0.0
+            || cfg.output_weight_summary_stats().reg_sum.is_nan()
+        {
+            log::error!("Invalid output weight summary statistic!");
+            exit(exitcode::SOFTWARE);
+        }
         self.output_weight_summary_stats = cfg.output_weight_summary_stats();
     }
 
