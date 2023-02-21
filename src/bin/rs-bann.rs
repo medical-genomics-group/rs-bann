@@ -911,7 +911,7 @@ where
         outdir.push_str("_gd");
     }
 
-    if mcmc_args.gradient_descent {
+    if mcmc_args.gradient_descent_joint {
         outdir.push_str("_gdj");
     }
 
@@ -1026,7 +1026,7 @@ where
         outdir.push_str("_gd");
     }
 
-    if mcmc_args.gradient_descent {
+    if mcmc_args.gradient_descent_joint {
         outdir.push_str("_gdj");
     }
 
