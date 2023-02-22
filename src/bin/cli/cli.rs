@@ -406,10 +406,6 @@ pub(crate) struct PredictArgs {
     /// Path to models generated with `train-new` or `train` command
     #[clap(short, long, default_value = "./models")]
     pub model_path: String,
-
-    /// standardize input data
-    #[clap(short, long)]
-    pub standardize: bool,
 }
 
 /// Determine activations in trained model network given a specific input.
@@ -426,10 +422,6 @@ pub(crate) struct ActivationArgs {
     /// Path to models generated with `train-new` or `train` command
     #[clap(short, long, default_value = "./models")]
     pub model_path: String,
-
-    /// standardize input data
-    #[clap(short, long)]
-    pub standardize: bool,
 }
 
 // impl PredictArgs {
@@ -457,8 +449,4 @@ pub(crate) struct BranchR2Args {
     /// Path to models generated with `train-new` or `train` command
     #[clap(short, long, default_value = "./models")]
     pub model_path: String,
-
-    /// standardize input data
-    #[clap(short, long)]
-    pub standardize: bool,
 }
