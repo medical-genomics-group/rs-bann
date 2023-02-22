@@ -213,7 +213,10 @@ fn activations(args: ActivationArgs) {
             }
             ModelType::Linear => unimplemented!("Linear models are currently not supported."),
         };
-        let outfile = outdir.join(format!("{:?}.json", path.file_stem().unwrap()));
+        let outfile = outdir.join(format!(
+            "{}.json",
+            path.file_stem().unwrap().to_str().unwrap()
+        ));
         activations.to_json(&outfile);
     }
 }
