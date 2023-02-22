@@ -915,6 +915,10 @@ where
         outdir.push_str("_gdj");
     }
 
+    if let Some(v) = mcmc_args.fixed_param_precision {
+        outdir.push_str(&format!("_fp{}", v));
+    }
+
     let hlwr = if let Some(width) = model_args.fixed_hidden_layer_width {
         outdir.push_str(&format!("_fhlw{}", width));
         HiddenLayerWidthRule::Fixed(width)
@@ -1030,6 +1034,10 @@ where
 
     if mcmc_args.gradient_descent_joint {
         outdir.push_str("_gdj");
+    }
+
+    if mcmc_args.fixed_param_precision.is_some() {
+        outdir.push_str("_fp");
     }
 
     let mcmc_cfg = MCMCCfgBuilder::default()
