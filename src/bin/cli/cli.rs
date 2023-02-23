@@ -49,6 +49,8 @@ pub(crate) enum SubCmd {
     BranchR2(BranchR2Args),
     /// Report node activations in trained model.
     Activations(ActivationArgs),
+    /// Report gradient wrt to params in trained model.
+    Gradients(GradientsArgs),
     /// Print backends available to ArrayFire.
     AvailableBackends,
 }
@@ -436,6 +438,24 @@ pub(crate) struct ActivationArgs {
 /// generated in a `rs-bann train-new` run.
 #[derive(Args, Debug, Serialize)]
 pub(crate) struct BranchR2Args {
+    /// Stem of input .bed + .dim or .bed + .bim + .fam files
+    pub bfile: String,
+
+    /// Path to input .phen file.
+    /// Should contain a rs-bann Phenotypes instance.
+    pub phen: String,
+
+    /// Path to .grouping file
+    pub groups: String,
+
+    /// Path to models generated with `train-new` or `train` command
+    #[clap(short, long, default_value = "./models")]
+    pub model_path: String,
+}
+
+/// Use trained models to compute gradient for each model, given some data.
+#[derive(Args, Debug, Serialize)]
+pub(crate) struct GradientsArgs {
     /// Stem of input .bed + .dim or .bed + .bim + .fam files
     pub bfile: String,
 

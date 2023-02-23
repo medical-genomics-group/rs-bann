@@ -1,4 +1,5 @@
 use arrayfire::{dim4, Array};
+use serde::Serialize;
 
 pub trait NetParamGradient {
     fn wrt_weights(&self) -> &Vec<Array<f32>>;
@@ -94,7 +95,7 @@ impl BranchLogDensityGradientJoint {
 }
 
 /// Gradients of the log density w.r.t. the network parameters.
-#[derive(Clone)]
+#[derive(Clone, Serialize)]
 pub struct BranchLogDensityGradient {
     pub wrt_weights: Vec<Array<f32>>,
     pub wrt_biases: Vec<Array<f32>>,

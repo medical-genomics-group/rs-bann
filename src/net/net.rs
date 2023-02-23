@@ -1,3 +1,4 @@
+use super::branch::gradient::BranchLogDensityGradient;
 use super::log_posterior_density::LogPosteriorDensity;
 use super::model_type::ModelType;
 use super::params::GlobalParams;
@@ -355,6 +356,15 @@ impl<B: Branch> Net<B> {
                 .add_branch_activations(B::from_cfg(cfg).forward_feed(&gen.x_group_af(branch_ix)));
         }
         activations
+    }
+
+    pub fn gradient<T: GroupedGenotypes>(&self, data: &Data<T>) -> Vec<BranchLogDensityGradient> {
+        (0..self.num_branches())
+            .map(|ix| {
+                B::from_cfg(&self.branch_cfgs[ix])
+                    .log_density_gradient(&data.x_branch_af(ix), &data.y_af())
+            })
+            .collect()
     }
 
     pub fn predict<T: GroupedGenotypes>(&self, gen: &T) -> Vec<f32> {
