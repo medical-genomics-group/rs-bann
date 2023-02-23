@@ -14,6 +14,7 @@ use super::{
     trajectory::Trajectory,
 };
 use crate::af_helpers::{add_at_ix, af_scalar, scalar_to_host, subtract_at_ix, sum_of_squares};
+use crate::net::activation_functions::HasActivationFunction;
 use crate::net::params::{
     BranchParamsHost, GlobalParams, NetworkPrecisionHyperparameters, OutputWeightSummaryStats,
     OutputWeightSummaryStatsHost,
@@ -21,7 +22,7 @@ use crate::net::params::{
 use crate::net::{
     gibbs_steps::ridge_multi_param_precision_posterior, params::BranchPrecisionsHost,
 };
-use arrayfire::{diag_extract, dim4, dot, matmul, randu, sum, tanh, Array, MatProp};
+use arrayfire::{diag_extract, dim4, dot, matmul, randu, sum, Array, MatProp};
 use log::{debug, warn};
 use rand::{prelude::ThreadRng, Rng};
 use serde::{Deserialize, Serialize};
@@ -33,7 +34,7 @@ use std::{
 
 const NUMERICAL_DELTA: f32 = 0.001;
 
-pub trait Branch {
+pub trait Branch: HasActivationFunction {
     fn model_type() -> ModelType;
 
     fn build_cfg(cfg_bld: BranchCfgBuilder) -> BranchCfg;
@@ -828,17 +829,28 @@ pub trait Branch {
 
     fn izmailov_step_sizes(&mut self, mcmc_cfg: &MCMCCfg) -> StepSizes;
 
-    fn forward_feed(&self, x_train: &Array<f32>) -> Vec<Array<f32>> {
+    /// Returns pre-activations and activations for all neurons in the network.
+    ///
+    /// Pre-activation of the output neuron is the same as its activation, these values
+    /// are therefore not included in the pre-activations
+    fn forward_feed(&self, x_train: &Array<f32>) -> (Vec<Array<f32>>, Vec<Array<f32>>) {
+        let mut pre_activations: Vec<Array<f32>> = Vec::with_capacity(self.num_layers() - 2);
         let mut activations: Vec<Array<f32>> = Vec::with_capacity(self.num_layers() - 1);
-        activations.push(self.mid_layer_activation(0, x_train));
+
+        pre_activations.push(self.mid_layer_pre_activation(0, x_train));
+        activations.push(self.activation(pre_activations.last().unwrap()));
+
         for layer_index in 1..self.num_layers() - 1 {
-            activations.push(self.mid_layer_activation(layer_index, activations.last().unwrap()));
+            pre_activations
+                .push(self.mid_layer_pre_activation(layer_index, activations.last().unwrap()));
+            activations.push(self.activation(pre_activations.last().unwrap()));
         }
+
         activations.push(self.output_neuron_activation(activations.last().unwrap()));
-        activations
+        (pre_activations, activations)
     }
 
-    fn mid_layer_activation(&self, layer_index: usize, input: &Array<f32>) -> Array<f32> {
+    fn mid_layer_pre_activation(&self, layer_index: usize, input: &Array<f32>) -> Array<f32> {
         let xw = matmul(
             input,
             self.layer_weights(layer_index),
@@ -850,7 +862,7 @@ pub trait Branch {
             self.layer_biases(layer_index),
             dim4!(input.dims().get()[0], 1, 1, 1),
         );
-        tanh(&(xw + bias_m))
+        xw + bias_m
     }
 
     fn output_neuron_activation(&self, input: &Array<f32>) -> Array<f32> {
@@ -867,21 +879,20 @@ pub trait Branch {
     /// The output is a n x m matrix.
     fn effect_sizes(&self, x_train: &Array<f32>, _y_train: &Array<f32>) -> Array<f32> {
         // forward propagate to get signals
-        let activations = self.forward_feed(x_train);
+        let (pre_activations, activations) = self.forward_feed(x_train);
 
         // back propagate
-        let mut activation = activations.last().unwrap();
-
         let mut error = matmul(
-            &activation,
+            &activations.last().unwrap(),
             self.layer_weights(self.num_layers() - 1),
             MatProp::NONE,
             MatProp::TRANS,
         );
 
         for layer_index in (0..self.num_layers() - 1).rev() {
-            activation = &activations[layer_index];
-            let delta: Array<f32> = (1 - arrayfire::pow(activation, &2, false)) * error;
+            // activation = &activations[layer_index];
+            let delta: Array<f32> = self.d_activation(&pre_activations[layer_index]) * error;
+            // let delta: Array<f32> = (1 - arrayfire::pow(activation, &2, false)) * error;
             error = matmul(
                 &delta,
                 self.layer_weights(layer_index),
@@ -894,15 +905,13 @@ pub trait Branch {
 
     fn backpropagate(&mut self, x_train: &Array<f32>, y_train: &Array<f32>) {
         // forward propagate to get signals
-        let activations = self.forward_feed(x_train);
+        let (pre_activations, activations) = self.forward_feed(x_train);
 
         let mut bias_gradient: Vec<Array<f32>> = Vec::with_capacity(self.num_layers() - 1);
         let mut weights_gradient: Vec<Array<f32>> = Vec::with_capacity(self.num_layers());
-        // back propagate
-        let mut activation = activations.last().unwrap();
 
-        // TODO: factor of 2 might be necessary here?
-        let mut error = activation - y_train;
+        // back propagate
+        let mut error = activations.last().unwrap() - y_train;
 
         self.set_last_rss(&arrayfire::dot(
             &error,
@@ -927,8 +936,8 @@ pub trait Branch {
 
         for layer_index in (1..self.num_layers() - 1).rev() {
             let input = &activations[layer_index - 1];
-            activation = &activations[layer_index];
-            let delta: Array<f32> = (1 - arrayfire::pow(activation, &2, false)) * error;
+            // activation = &activations[layer_index];
+            let delta: Array<f32> = self.d_activation(&pre_activations[layer_index]) * error;
             bias_gradient.push(arrayfire::sum(&delta, 0));
             weights_gradient.push(arrayfire::transpose(
                 &matmul(&delta, input, MatProp::TRANS, MatProp::NONE),
@@ -942,7 +951,7 @@ pub trait Branch {
             );
         }
 
-        let delta: Array<f32> = (1 - arrayfire::pow(&activations[0], &2, false)) * error;
+        let delta: Array<f32> = self.d_activation(&pre_activations[0]) * error;
         bias_gradient.push(arrayfire::sum(&delta, 0));
         weights_gradient.push(arrayfire::transpose(
             &matmul(&delta, x_train, MatProp::TRANS, MatProp::NONE),
@@ -987,7 +996,8 @@ pub trait Branch {
     }
 
     fn rss(&self, x: &Array<f32>, y: &Array<f32>) -> f32 {
-        let r = self.forward_feed(x).last().unwrap() - y;
+        let (_pre_activations, activations) = self.forward_feed(x);
+        let r = activations.last().unwrap() - y;
         arrayfire::sum_all(&(&r * &r)).0
     }
 
@@ -996,7 +1006,8 @@ pub trait Branch {
     }
 
     fn predict(&self, x: &Array<f32>) -> Array<f32> {
-        self.forward_feed(x).last().unwrap().copy()
+        let (_pre_activations, activations) = self.forward_feed(x);
+        activations.last().unwrap().copy()
     }
 
     fn prediction_and_density(&self, x: &Array<f32>, y: &Array<f32>) -> (Array<f32>, f32) {

@@ -7,6 +7,7 @@ use super::{
     training_state::TrainingState,
 };
 use crate::af_helpers::{af_scalar, scalar_to_host, sum_of_squares};
+use crate::net::activation_functions::*;
 use crate::net::mcmc_cfg::MCMCCfg;
 use crate::net::params::NetworkPrecisionHyperparameters;
 use arrayfire::{sqrt, Array};
@@ -23,6 +24,16 @@ pub struct StdNormalBranch {
     pub(crate) num_layers: usize,
     pub(crate) rng: ThreadRng,
     pub(crate) training_state: TrainingState,
+}
+
+impl HasActivationFunction for StdNormalBranch {
+    fn activation(&self, x: &Array<f32>) -> Array<f32> {
+        Tanh::f(x)
+    }
+
+    fn d_activation(&self, x: &Array<f32>) -> Array<f32> {
+        Tanh::dfdx(x)
+    }
 }
 
 impl Branch for StdNormalBranch {

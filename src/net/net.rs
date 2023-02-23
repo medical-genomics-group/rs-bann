@@ -352,8 +352,9 @@ impl<B: Branch> Net<B> {
         let mut activations = Activations::new();
         for branch_ix in 0..self.num_branches() {
             let cfg = &self.branch_cfgs[branch_ix];
-            activations
-                .add_branch_activations(B::from_cfg(cfg).forward_feed(&gen.x_group_af(branch_ix)));
+            let (_pre_activations, branch_activations) =
+                B::from_cfg(cfg).forward_feed(&gen.x_group_af(branch_ix));
+            activations.add_branch_activations(branch_activations);
         }
         activations
     }

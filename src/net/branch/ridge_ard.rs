@@ -7,6 +7,7 @@ use super::{
     step_sizes::StepSizes,
     training_state::TrainingState,
 };
+use crate::net::activation_functions::*;
 use crate::net::mcmc_cfg::MCMCCfg;
 use crate::net::params::NetworkPrecisionHyperparameters;
 use crate::{
@@ -28,6 +29,16 @@ pub struct RidgeArdBranch {
     pub(crate) num_layers: usize,
     pub(crate) rng: ThreadRng,
     pub(crate) training_state: TrainingState,
+}
+
+impl HasActivationFunction for RidgeArdBranch {
+    fn activation(&self, x: &Array<f32>) -> Array<f32> {
+        Tanh::f(x)
+    }
+
+    fn d_activation(&self, x: &Array<f32>) -> Array<f32> {
+        Tanh::dfdx(x)
+    }
 }
 
 // Weights in this branch are grouped by the node they
@@ -544,7 +555,7 @@ mod tests {
             &[1., 0., 0., 2., 1., 1., 2., 0., 0., 2., 0., 1.],
             dim4![num_individuals, num_markers, 1, 1],
         );
-        let activations = branch.forward_feed(&x_train);
+        let (_pre_activations, activations) = branch.forward_feed(&x_train);
 
         // correct number of activations
         assert_eq!(activations.len(), branch.num_layers);
