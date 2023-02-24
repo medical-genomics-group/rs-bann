@@ -1,5 +1,6 @@
 use arrayfire::{gt, pow, sigmoid, sign, tanh, Array};
 use serde::{Deserialize, Serialize};
+use std::fmt::{Display, Formatter};
 
 #[derive(Serialize, Deserialize, Clone, Copy, clap::ValueEnum, Debug)]
 pub enum ActivationFunction {
@@ -7,6 +8,14 @@ pub enum ActivationFunction {
     ReLU,
     LeakyReLU,
     SiLU,
+}
+
+impl Display for ActivationFunction {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+        // or, alternatively:
+        // fmt::Debug::fmt(self, f)
+    }
 }
 
 impl HasActivationFunction for ActivationFunction {

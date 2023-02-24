@@ -325,8 +325,9 @@ where
     }
 
     let mut path = Path::new(&args.outdir).join(format!(
-        "{}_d{}_h{}_v{}_p{}",
+        "{}_{}_d{}_h{}_v{}_p{}",
         args.model_type,
+        args.activation_function,
         args.depth,
         args.heritability,
         args.init_param_variance,
@@ -335,8 +336,14 @@ where
 
     if let (Some(k), Some(s)) = (args.init_gamma_shape, args.init_gamma_scale) {
         path = Path::new(&args.outdir).join(format!(
-            "{}_d{}_h{}_k{}_s{}_p{}",
-            args.model_type, args.depth, args.heritability, k, s, args.proportion_effective
+            "{}_{}_d{}_h{}_k{}_s{}_p{}",
+            args.model_type,
+            args.activation_function,
+            args.depth,
+            args.heritability,
+            k,
+            s,
+            args.proportion_effective
         ));
     }
 
@@ -725,8 +732,9 @@ where
     }
 
     let mut path = Path::new(&args.outdir).join(format!(
-        "{}_b{}_wh{}_ws{}_d{}_m{}_n{}_h{}_v{}_p{}",
+        "{}_{}_b{}_wh{}_ws{}_d{}_m{}_n{}_h{}_v{}_p{}",
         args.model_type,
+        args.activation_function,
         args.num_branches,
         args.hidden_layer_width,
         args.summary_layer_width.unwrap_or(args.hidden_layer_width),
@@ -740,8 +748,9 @@ where
 
     if let (Some(k), Some(s)) = (args.init_gamma_shape, args.init_gamma_scale) {
         path = Path::new(&args.outdir).join(format!(
-            "{}_b{}_wh{}_ws{}_d{}_m{}_n{}_h{}_k{}_s{}_p{}",
+            "{}_{}_b{}_wh{}_ws{}_d{}_m{}_n{}_h{}_k{}_s{}_p{}",
             args.model_type,
+            args.activation_function,
             args.num_branches,
             args.hidden_layer_width,
             args.summary_layer_width.unwrap_or(args.hidden_layer_width),
