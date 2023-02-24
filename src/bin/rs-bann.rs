@@ -23,7 +23,7 @@ use rs_bann::net::mcmc_cfg::MCMCCfgBuilder;
 use rs_bann::net::{
     architectures::{BlockNetCfg, HiddenLayerWidthRule, SummaryLayerWidthRule},
     branch::{
-        branch::Branch, lasso_ard::LassoArdBranch, lasso_base::LassoBaseBranch,
+        branch_sampler::BranchSampler, lasso_ard::LassoArdBranch, lasso_base::LassoBaseBranch,
         ridge_ard::RidgeArdBranch, ridge_base::RidgeBaseBranch, std_normal_branch::StdNormalBranch,
     },
     model_type::ModelType,
@@ -312,7 +312,7 @@ fn predict(args: PredictArgs) {
 
 fn simulate_y<B>(args: SimulateYArgs)
 where
-    B: Branch,
+    B: BranchSampler,
 {
     if args.debug {
         simple_logger::init_with_level(log::Level::Debug).unwrap();
@@ -364,25 +364,22 @@ where
     // Although, that is for models I want to train. For simulation it doesn't
     // matter I guess.
     info!("Building model");
-    let mut net_cfg = if let (Some(k), Some(s)) = (args.init_gamma_shape, args.init_gamma_scale) {
-        BlockNetCfg::<B>::new()
-            .with_proportion_effective_markers(args.proportion_effective)
-            .with_num_hidden_layers(args.depth)
+    let mut net_cfg = BlockNetCfg::<B>::new()
+        .with_proportion_effective_markers(args.proportion_effective)
+        .with_num_hidden_layers(args.depth)
+        .with_hidden_layer_width_rule(HiddenLayerWidthRule::FractionOfInput(0.5))
+        .with_summary_layer_width_rule(SummaryLayerWidthRule::LikeHiddenLayerWidth)
+        .with_activation_function(args.activation_function);
+    net_cfg = if let (Some(k), Some(s)) = (args.init_gamma_shape, args.init_gamma_scale) {
+        net_cfg
             .with_init_gamma_params(k, s)
             .with_dense_precision_prior(k, s)
             .with_summary_precision_prior(k, s)
             // this is Gamma(1, 1) because at the moment the output variance
             // is hardcoded to 1. TODO: this should be configurable.
             .with_output_precision_prior(1., 1.)
-            .with_hidden_layer_width_rule(HiddenLayerWidthRule::FractionOfInput(0.5))
-            .with_summary_layer_width_rule(SummaryLayerWidthRule::LikeHiddenLayerWidth)
     } else {
-        BlockNetCfg::<B>::new()
-            .with_proportion_effective_markers(args.proportion_effective)
-            .with_num_hidden_layers(args.depth)
-            .with_init_param_variance(args.init_param_variance)
-            .with_hidden_layer_width_rule(HiddenLayerWidthRule::FractionOfInput(0.5))
-            .with_summary_layer_width_rule(SummaryLayerWidthRule::LikeHiddenLayerWidth)
+        net_cfg.with_init_param_variance(args.init_param_variance)
     };
 
     // width is fixed to half the number of input nodes
@@ -719,7 +716,7 @@ fn simulate_xy_linear(args: SimulateXYArgs) {
 
 fn simulate_xy<B>(args: SimulateXYArgs)
 where
-    B: Branch,
+    B: BranchSampler,
 {
     simple_logger::init_with_level(log::Level::Info).unwrap();
 
@@ -778,24 +775,21 @@ where
             SummaryLayerWidthRule::LikeHiddenLayerWidth
         };
 
-        let mut net_cfg = if let (Some(k), Some(s)) = (args.init_gamma_shape, args.init_gamma_scale)
-        {
-            BlockNetCfg::<B>::new()
-                .with_num_hidden_layers(args.branch_depth)
-                .with_proportion_effective_markers(args.proportion_effective)
+        let mut net_cfg = BlockNetCfg::<B>::new()
+            .with_num_hidden_layers(args.branch_depth)
+            .with_proportion_effective_markers(args.proportion_effective)
+            .with_hidden_layer_width_rule(HiddenLayerWidthRule::Fixed(args.hidden_layer_width))
+            .with_summary_layer_width_rule(slwr)
+            .with_activation_function(args.activation_function);
+
+        net_cfg = if let (Some(k), Some(s)) = (args.init_gamma_shape, args.init_gamma_scale) {
+            net_cfg
                 .with_init_gamma_params(k, s)
                 .with_dense_precision_prior(k, s)
                 .with_summary_precision_prior(k, s)
                 .with_output_precision_prior(1., 1.)
-                .with_hidden_layer_width_rule(HiddenLayerWidthRule::Fixed(args.hidden_layer_width))
-                .with_summary_layer_width_rule(slwr)
         } else {
-            BlockNetCfg::<B>::new()
-                .with_num_hidden_layers(args.branch_depth)
-                .with_proportion_effective_markers(args.proportion_effective)
-                .with_init_param_variance(args.init_param_variance)
-                .with_hidden_layer_width_rule(HiddenLayerWidthRule::Fixed(args.hidden_layer_width))
-                .with_summary_layer_width_rule(slwr)
+            net_cfg.with_init_param_variance(args.init_param_variance)
         };
         for _ in 0..args.num_branches {
             net_cfg.add_branch(args.num_markers_per_branch);
@@ -930,7 +924,7 @@ fn load_ungrouped_data(
 
 fn train_new<B>(input_args: TrainIOArgs, mcmc_args: MCMCArgs, model_args: TrainNewModelArgs)
 where
-    B: Branch,
+    B: BranchSampler,
 {
     if mcmc_args.debug_prints {
         simple_logger::init_with_level(log::Level::Debug).unwrap();
@@ -1013,7 +1007,6 @@ where
     let report_cfg = ReportCfg::new(mcmc_args.report_interval, test_data.as_ref());
 
     info!("Building net");
-
     let mut net_cfg = BlockNetCfg::<B>::new()
         .with_num_hidden_layers(model_args.branch_depth)
         .with_dense_precision_prior(model_args.dpk, model_args.dps)
@@ -1021,7 +1014,8 @@ where
         .with_output_precision_prior(model_args.opk, model_args.ops)
         .with_hidden_layer_width_rule(hlwr)
         .with_summary_layer_width_rule(slwr)
-        .with_fixed_param_precision(mcmc_args.fixed_param_precision);
+        .with_fixed_param_precision(mcmc_args.fixed_param_precision)
+        .with_activation_function(model_args.activation_function);
 
     for bix in 0..train_data.num_branches() {
         net_cfg.add_branch(train_data.num_markers_in_branch(bix));
@@ -1049,7 +1043,7 @@ where
 
 fn train<B>(input_args: TrainIOArgs, mcmc_args: MCMCArgs, model_args: TrainOldModelArgs)
 where
-    B: Branch,
+    B: BranchSampler,
 {
     if mcmc_args.debug_prints {
         simple_logger::init_with_level(log::Level::Debug).unwrap();

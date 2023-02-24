@@ -1,9 +1,11 @@
 use super::{
     super::gibbs_steps::ridge_multi_param_precision_posterior,
     super::model_type::ModelType,
-    super::params::{BranchParams, BranchPrecisions, OutputWeightSummaryStats},
-    branch::{Branch, BranchCfg},
+    super::params::{BranchParams, BranchPrecisions},
+    branch_cfg::BranchCfg,
     branch_cfg_builder::BranchCfgBuilder,
+    branch_sampler::BranchSampler,
+    branch_struct::BranchStruct,
     step_sizes::StepSizes,
     training_state::TrainingState,
 };
@@ -19,7 +21,6 @@ use crate::{
 };
 use arrayfire::{dim4, sqrt, tile, Array, MatProp};
 use rand::prelude::ThreadRng;
-use rand::thread_rng;
 use rand_distr::{Distribution, Gamma};
 
 pub struct LassoArdBranch {
@@ -32,21 +33,15 @@ pub struct LassoArdBranch {
     pub(crate) num_layers: usize,
     pub(crate) rng: ThreadRng,
     pub(crate) training_state: TrainingState,
+    pub(crate) activation_function: ActivationFunction,
 }
 
-impl HasActivationFunction for LassoArdBranch {
-    fn activation(&self, x: &Array<f32>) -> Array<f32> {
-        Tanh::f(x)
-    }
-
-    fn d_activation(&self, x: &Array<f32>) -> Array<f32> {
-        Tanh::dfdx(x)
-    }
-}
+super::super::activation_functions::has_activation_function!(LassoArdBranch);
+super::branch_struct::branch_struct!(LassoArdBranch);
 
 // Weights in this branch are grouped by the node they
 // are going out of.
-impl Branch for LassoArdBranch {
+impl BranchSampler for LassoArdBranch {
     fn summary_stat_fn_host(vals: &[f32]) -> f32 {
         arr_helpers::sum_of_abs(vals)
     }
@@ -61,101 +56,6 @@ impl Branch for LassoArdBranch {
 
     fn build_cfg(cfg_bld: BranchCfgBuilder) -> BranchCfg {
         cfg_bld.build_ard()
-    }
-
-    /// Creates Branch on device with BranchCfg from host memory.
-    fn from_cfg(cfg: &BranchCfg) -> Self {
-        let mut res = Self {
-            num_params: cfg.num_params,
-            num_weights: cfg.num_weights,
-            num_markers: cfg.num_markers,
-            num_layers: cfg.layer_widths.len(),
-            layer_widths: cfg.layer_widths.clone(),
-            precisions: BranchPrecisions::from_host(&cfg.precisions),
-            params: BranchParams::from_host(&cfg.params),
-            rng: thread_rng(),
-            training_state: TrainingState::default(),
-        };
-
-        res.subtract_output_weight_summary_stat_from_global();
-
-        res
-    }
-
-    fn rng_mut(&mut self) -> &mut ThreadRng {
-        &mut self.rng
-    }
-
-    fn output_weight_summary_stats(&self) -> &OutputWeightSummaryStats {
-        &self.params.output_weight_summary_stats
-    }
-
-    fn output_weight_summary_stats_mut(&mut self) -> &mut OutputWeightSummaryStats {
-        &mut self.params.output_weight_summary_stats
-    }
-
-    fn num_weights(&self) -> usize {
-        self.num_weights
-    }
-
-    fn precisions(&self) -> &BranchPrecisions {
-        &self.precisions
-    }
-
-    fn precisions_mut(&mut self) -> &mut BranchPrecisions {
-        &mut self.precisions
-    }
-
-    fn set_precisions(&mut self, precisions: &BranchPrecisions) {
-        self.precisions = precisions.clone();
-    }
-
-    fn num_layers(&self) -> usize {
-        self.num_layers
-    }
-
-    fn rng(&mut self) -> &mut ThreadRng {
-        &mut self.rng
-    }
-
-    fn set_params(&mut self, params: &BranchParams) {
-        self.params = params.clone();
-    }
-
-    fn params_mut(&mut self) -> &mut BranchParams {
-        &mut self.params
-    }
-
-    fn params(&self) -> &BranchParams {
-        &self.params
-    }
-
-    fn num_params(&self) -> usize {
-        self.num_params
-    }
-
-    fn num_markers(&self) -> usize {
-        self.num_markers
-    }
-
-    fn layer_widths(&self) -> &Vec<usize> {
-        &self.layer_widths
-    }
-
-    fn layer_width(&self, index: usize) -> usize {
-        self.layer_widths[index]
-    }
-
-    fn set_error_precision(&mut self, val: f32) {
-        self.precisions.error_precision = af_scalar(val);
-    }
-
-    fn training_state(&self) -> &TrainingState {
-        &self.training_state
-    }
-
-    fn training_state_mut(&mut self) -> &mut TrainingState {
-        &mut self.training_state
     }
 
     // TODO: actually make some step sizes here
@@ -401,7 +301,9 @@ mod tests {
     use assert_approx_eq::assert_approx_eq;
     // use arrayfire::{af_print, randu};
 
-    use super::super::{branch::Branch, branch_builder::BranchBuilder};
+    use super::super::{
+        branch_builder::BranchBuilder, branch_sampler::BranchSampler, branch_struct::BranchStruct,
+    };
     use super::LassoArdBranch;
 
     use crate::af_helpers::{scalar_to_host, to_host};

@@ -1,6 +1,5 @@
 use super::gradient::{BranchLogDensityGradient, BranchLogDensityGradientJoint};
 use super::momentum::{BranchMomentumJoint, Momentum};
-use super::training_state::TrainingState;
 use super::{
     super::{
         mcmc_cfg::{MCMCCfg, StepSizeMode},
@@ -8,24 +7,20 @@ use super::{
         params::BranchParams,
         params::BranchPrecisions,
     },
+    branch_cfg::BranchCfg,
     branch_cfg_builder::BranchCfgBuilder,
+    branch_struct::BranchStruct,
     momentum::BranchMomentum,
     step_sizes::StepSizes,
     trajectory::Trajectory,
 };
 use crate::af_helpers::{add_at_ix, af_scalar, scalar_to_host, subtract_at_ix, sum_of_squares};
 use crate::net::activation_functions::HasActivationFunction;
-use crate::net::params::{
-    BranchParamsHost, GlobalParams, NetworkPrecisionHyperparameters, OutputWeightSummaryStats,
-    OutputWeightSummaryStatsHost,
-};
-use crate::net::{
-    gibbs_steps::ridge_multi_param_precision_posterior, params::BranchPrecisionsHost,
-};
+use crate::net::gibbs_steps::ridge_multi_param_precision_posterior;
+use crate::net::params::NetworkPrecisionHyperparameters;
 use arrayfire::{diag_extract, dim4, dot, matmul, randu, sum, Array, MatProp};
 use log::{debug, warn};
-use rand::{prelude::ThreadRng, Rng};
-use serde::{Deserialize, Serialize};
+use rand::Rng;
 use serde_json::to_writer;
 use std::{
     fs::File,
@@ -34,44 +29,10 @@ use std::{
 
 const NUMERICAL_DELTA: f32 = 0.001;
 
-pub trait Branch: HasActivationFunction {
+pub trait BranchSampler: HasActivationFunction + BranchStruct {
     fn model_type() -> ModelType;
 
     fn build_cfg(cfg_bld: BranchCfgBuilder) -> BranchCfg;
-
-    fn from_cfg(cfg: &BranchCfg) -> Self;
-
-    fn set_params(&mut self, params: &BranchParams);
-
-    fn set_precisions(&mut self, precisions: &BranchPrecisions);
-
-    fn params(&self) -> &BranchParams;
-
-    fn params_mut(&mut self) -> &mut BranchParams;
-
-    fn precisions(&self) -> &BranchPrecisions;
-
-    fn precisions_mut(&mut self) -> &mut BranchPrecisions;
-
-    fn num_params(&self) -> usize;
-
-    fn num_weights(&self) -> usize;
-
-    fn num_layers(&self) -> usize;
-
-    fn layer_width(&self, index: usize) -> usize;
-
-    fn set_error_precision(&mut self, val: f32);
-
-    fn training_state(&self) -> &TrainingState;
-
-    fn training_state_mut(&mut self) -> &mut TrainingState;
-
-    fn output_weight_summary_stats(&self) -> &OutputWeightSummaryStats;
-
-    fn output_weight_summary_stats_mut(&mut self) -> &mut OutputWeightSummaryStats;
-
-    fn rng_mut(&mut self) -> &mut ThreadRng;
 
     /// Branch type specific function that computes the value sum summary statistic
     /// from an array of parameter values. E.g. sum of squares, sum of abs
@@ -91,16 +52,10 @@ pub trait Branch: HasActivationFunction {
         num_vals: usize,
     ) -> f32;
 
-    fn rng(&mut self) -> &mut ThreadRng;
-
     fn sample_prior_precisions(
         &mut self,
         precision_prior_hyperparams: &NetworkPrecisionHyperparameters,
     );
-
-    fn num_markers(&self) -> usize;
-
-    fn layer_widths(&self) -> &Vec<usize>;
 
     fn log_density_gradient_wrt_weight_precisions(
         &self,
@@ -183,6 +138,7 @@ pub trait Branch: HasActivationFunction {
             layer_widths: self.layer_widths().clone(),
             params: self.params().to_host(),
             precisions: self.precisions().to_host(),
+            activation_function: self.activation_function(),
         };
 
         self.subtract_output_weight_summary_stat_from_global();
@@ -414,105 +370,6 @@ pub trait Branch: HasActivationFunction {
                 .log_density_gradient_wrt_error_precision(y_train, hyperparams),
         }
     }
-
-    // // DO NOT run this in production code, this is extremely slow.
-    // //
-    // // This is a drop in replacement for the analytical `log_density_gradient` method.
-    // fn numerical_log_density_gradient_joint(
-    //     &mut self,
-    //     x_train: &Array<f32>,
-    //     y_train: &Array<f32>,
-    //     hyperparams: &NetworkPrecisionHyperparameters,
-    // ) -> BranchLogDensityGradientJoint {
-    //     self.numerical_ldg_joint(x_train, y_train, hyperparams)
-    // }
-
-    // DO NOT run this in production code, this is extremely slow.
-    // fn numerical_ldg_joint(
-    //     &mut self,
-    //     x_train: &Array<f32>,
-    //     y_train: &Array<f32>,
-    //     hyperparams: &NetworkPrecisionHyperparameters,
-    // ) -> BranchLogDensityGradientJoint {
-    //     let num_individuals = y_train.elements();
-    //     let curr_par = self.params().clone();
-    //     let curr_prec = self.precisions().clone();
-    //     let curr_ld = self.log_density_joint(
-    //         self.params(),
-    //         self.precisions(),
-    //         self.rss(x_train, y_train),
-    //         hyperparams,
-    //         num_individuals,
-    //     );
-
-    //     let mut wrt_weights: Vec<Array<f32>> = Vec::new();
-    //     let mut wrt_biases: Vec<Array<f32>> = Vec::new();
-    //     let mut wrt_weight_precisions: Vec<Array<f32>> = Vec::new();
-    //     let mut wrt_bias_precisions: Vec<Array<f32>> = Vec::new();
-    //     let mut wrt_error_precision = af_scalar(0.0);
-
-    //     for i in 0..self.num_layers() {
-    //         let mut layer_grad = Vec::new();
-    //         let dims = self.layer_weights(i).dims();
-    //         let [nrow, ncol, _, _] = dims.get();
-    //         for col in 0..*ncol {
-    //             for row in 0..*nrow {
-    //                 self.incr_weight(
-    //                     i,
-    //                     row.try_into().unwrap(),
-    //                     col.try_into().unwrap(),
-    //                     NUMERICAL_DELTA,
-    //                 );
-    //                 layer_grad.push(
-    //                     (self.log_density_joint(
-    //                         self.params(),
-    //                         self.precisions(),
-    //                         self.rss(x_train, y_train),
-    //                         hyperparams,
-    //                         num_individuals,
-    //                     ) - curr_ld)
-    //                         / NUMERICAL_DELTA,
-    //                 );
-    //                 self.decr_weight(
-    //                     i,
-    //                     row.try_into().unwrap(),
-    //                     col.try_into().unwrap(),
-    //                     NUMERICAL_DELTA,
-    //                 );
-    //             }
-    //         }
-    //         wrt_weights.push(Array::new(&layer_grad, dims));
-    //     }
-
-    //     for i in 0..self.num_layers() - 1 {
-    //         let mut layer_grad = Vec::new();
-    //         let dims = self.layer_biases(i).dims();
-    //         let [_, ncol, _, _] = dims.get();
-    //         for col in 0..*ncol {
-    //             self.incr_bias(i, col.try_into().unwrap(), NUMERICAL_DELTA);
-    //             layer_grad.push(
-    //                 (self.log_density_joint(
-    //                     self.params(),
-    //                     self.precisions(),
-    //                     self.rss(x_train, y_train),
-    //                     hyperparams,
-    //                     num_individuals,
-    //                 ) - curr_ld)
-    //                     / NUMERICAL_DELTA,
-    //             );
-    //             self.decr_bias(i, col.try_into().unwrap(), NUMERICAL_DELTA);
-    //         }
-    //         wrt_biases.push(Array::new(&layer_grad, dims));
-    //     }
-
-    //     BranchLogDensityGradientJoint {
-    //         wrt_weights,
-    //         wrt_biases,
-    //         wrt_weight_precisions,
-    //         wrt_bias_precisions,
-    //         wrt_error_precision,
-    //     }
-    // }
 
     fn incr_weight(&mut self, layer: usize, row: u32, col: u32, value: f32) {
         add_at_ix(self.layer_weights_mut(layer), row, col, value);
@@ -838,12 +695,12 @@ pub trait Branch: HasActivationFunction {
         let mut activations: Vec<Array<f32>> = Vec::with_capacity(self.num_layers() - 1);
 
         pre_activations.push(self.mid_layer_pre_activation(0, x_train));
-        activations.push(self.activation(pre_activations.last().unwrap()));
+        activations.push(self.h(pre_activations.last().unwrap()));
 
         for layer_index in 1..self.num_layers() - 1 {
             pre_activations
                 .push(self.mid_layer_pre_activation(layer_index, activations.last().unwrap()));
-            activations.push(self.activation(pre_activations.last().unwrap()));
+            activations.push(self.h(pre_activations.last().unwrap()));
         }
 
         activations.push(self.output_neuron_activation(activations.last().unwrap()));
@@ -891,7 +748,7 @@ pub trait Branch: HasActivationFunction {
 
         for layer_index in (0..self.num_layers() - 1).rev() {
             // activation = &activations[layer_index];
-            let delta: Array<f32> = self.d_activation(&pre_activations[layer_index]) * error;
+            let delta: Array<f32> = self.dhdx(&pre_activations[layer_index]) * error;
             // let delta: Array<f32> = (1 - arrayfire::pow(activation, &2, false)) * error;
             error = matmul(
                 &delta,
@@ -937,7 +794,7 @@ pub trait Branch: HasActivationFunction {
         for layer_index in (1..self.num_layers() - 1).rev() {
             let input = &activations[layer_index - 1];
             // activation = &activations[layer_index];
-            let delta: Array<f32> = self.d_activation(&pre_activations[layer_index]) * error;
+            let delta: Array<f32> = self.dhdx(&pre_activations[layer_index]) * error;
             bias_gradient.push(arrayfire::sum(&delta, 0));
             weights_gradient.push(arrayfire::transpose(
                 &matmul(&delta, input, MatProp::TRANS, MatProp::NONE),
@@ -951,7 +808,7 @@ pub trait Branch: HasActivationFunction {
             );
         }
 
-        let delta: Array<f32> = self.d_activation(&pre_activations[0]) * error;
+        let delta: Array<f32> = self.dhdx(&pre_activations[0]) * error;
         bias_gradient.push(arrayfire::sum(&delta, 0));
         weights_gradient.push(arrayfire::transpose(
             &matmul(&delta, x_train, MatProp::TRANS, MatProp::NONE),
@@ -1359,72 +1216,6 @@ pub trait Branch: HasActivationFunction {
             }
             res => res,
         }
-    }
-}
-
-#[derive(Clone, Serialize, Deserialize)]
-pub struct BranchCfg {
-    pub(crate) num_params: usize,
-    pub(crate) num_weights: usize,
-    pub(crate) num_markers: usize,
-    pub(crate) layer_widths: Vec<usize>,
-    pub(crate) params: BranchParamsHost,
-    pub(crate) precisions: BranchPrecisionsHost,
-}
-
-impl BranchCfg {
-    pub fn params(&self) -> &BranchParamsHost {
-        &self.params
-    }
-
-    pub fn output_layer_weights(&self) -> &[f32] {
-        self.params.weights.last().unwrap()
-    }
-
-    pub fn precisions(&self) -> &BranchPrecisionsHost {
-        &self.precisions
-    }
-
-    pub fn set_output_layer_precision(&mut self, precision: f32) {
-        self.precisions.set_output_layer_precision(precision);
-    }
-
-    pub fn set_error_precision(&mut self, precision: f32) {
-        self.precisions.set_error_precision(precision);
-    }
-
-    pub fn output_weight_summary_stats_mut(&mut self) -> &mut OutputWeightSummaryStatsHost {
-        &mut self.params.output_weight_summary_stats
-    }
-
-    pub fn set_output_weight_summary_stats(&mut self, sstats: OutputWeightSummaryStatsHost) {
-        *self.output_weight_summary_stats_mut() = sstats;
-    }
-
-    pub fn output_layer_precision(&self) -> f32 {
-        self.precisions.output_layer_precision()
-    }
-
-    pub fn output_weight_summary_stats(&self) -> OutputWeightSummaryStatsHost {
-        self.params.output_weight_summary_stats
-    }
-
-    pub fn error_precision(&self) -> f32 {
-        self.precisions.error_precision[0]
-    }
-
-    pub fn update_global_params(&mut self, gp: &GlobalParams) {
-        self.set_error_precision(gp.error_precision());
-        self.set_output_layer_precision(gp.output_layer_precision());
-        self.set_output_weight_summary_stats(gp.output_weight_summary_stats());
-    }
-
-    pub fn perturb_params(&mut self, by: f32) {
-        self.params.perturb(by)
-    }
-
-    pub fn perturb_precisions(&mut self, by: f32) {
-        self.precisions.perturb(by)
     }
 }
 

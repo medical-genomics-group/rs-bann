@@ -1,7 +1,7 @@
 use super::branch::gradient::{NetParamGradient, NetPrecisionGradient};
 use super::branch::momentum::BranchMomentumJoint;
 use super::branch::step_sizes::StepSizes;
-use super::branch::{branch::BranchCfg, momentum::Momentum};
+use super::branch::{branch_cfg::BranchCfg, momentum::Momentum};
 use crate::af_helpers::{af_scalar, scalar_to_host, to_host};
 use arrayfire::{dim4, Array};
 use rand::Rng;

@@ -1,8 +1,10 @@
 use super::{
     super::model_type::ModelType,
-    super::params::{BranchParams, BranchPrecisions, OutputWeightSummaryStats},
-    branch::{Branch, BranchCfg},
+    super::params::{BranchParams, BranchPrecisions},
+    branch_cfg::BranchCfg,
     branch_cfg_builder::BranchCfgBuilder,
+    branch_sampler::BranchSampler,
+    branch_struct::BranchStruct,
     step_sizes::StepSizes,
     training_state::TrainingState,
 };
@@ -12,7 +14,6 @@ use crate::net::mcmc_cfg::MCMCCfg;
 use crate::net::params::NetworkPrecisionHyperparameters;
 use arrayfire::{sqrt, Array};
 use rand::prelude::ThreadRng;
-use rand::thread_rng;
 
 pub struct StdNormalBranch {
     pub(crate) num_params: usize,
@@ -24,19 +25,13 @@ pub struct StdNormalBranch {
     pub(crate) num_layers: usize,
     pub(crate) rng: ThreadRng,
     pub(crate) training_state: TrainingState,
+    pub(crate) activation_function: ActivationFunction,
 }
 
-impl HasActivationFunction for StdNormalBranch {
-    fn activation(&self, x: &Array<f32>) -> Array<f32> {
-        Tanh::f(x)
-    }
+crate::net::activation_functions::has_activation_function!(StdNormalBranch);
+super::branch_struct::branch_struct!(StdNormalBranch);
 
-    fn d_activation(&self, x: &Array<f32>) -> Array<f32> {
-        Tanh::dfdx(x)
-    }
-}
-
-impl Branch for StdNormalBranch {
+impl BranchSampler for StdNormalBranch {
     fn summary_stat_fn_host(_: &[f32]) -> f32 {
         1.0
     }
@@ -51,101 +46,6 @@ impl Branch for StdNormalBranch {
 
     fn build_cfg(cfg_bld: BranchCfgBuilder) -> BranchCfg {
         cfg_bld.build_base()
-    }
-
-    /// Creates Branch on device with BranchCfg from host memory.
-    fn from_cfg(cfg: &BranchCfg) -> Self {
-        let mut res = Self {
-            num_params: cfg.num_params,
-            num_weights: cfg.num_weights,
-            num_markers: cfg.num_markers,
-            num_layers: cfg.layer_widths.len(),
-            layer_widths: cfg.layer_widths.clone(),
-            precisions: BranchPrecisions::from_host(&cfg.precisions),
-            params: BranchParams::from_host(&cfg.params),
-            rng: thread_rng(),
-            training_state: TrainingState::default(),
-        };
-
-        res.subtract_output_weight_summary_stat_from_global();
-
-        res
-    }
-
-    fn rng_mut(&mut self) -> &mut ThreadRng {
-        &mut self.rng
-    }
-
-    fn output_weight_summary_stats(&self) -> &OutputWeightSummaryStats {
-        &self.params.output_weight_summary_stats
-    }
-
-    fn output_weight_summary_stats_mut(&mut self) -> &mut OutputWeightSummaryStats {
-        &mut self.params.output_weight_summary_stats
-    }
-
-    fn training_state(&self) -> &TrainingState {
-        &self.training_state
-    }
-
-    fn training_state_mut(&mut self) -> &mut TrainingState {
-        &mut self.training_state
-    }
-
-    fn num_weights(&self) -> usize {
-        self.num_weights
-    }
-
-    fn precisions(&self) -> &BranchPrecisions {
-        &self.precisions
-    }
-
-    fn precisions_mut(&mut self) -> &mut BranchPrecisions {
-        &mut self.precisions
-    }
-
-    fn set_precisions(&mut self, precisions: &BranchPrecisions) {
-        self.precisions = precisions.clone();
-    }
-
-    fn num_layers(&self) -> usize {
-        self.num_layers
-    }
-
-    fn rng(&mut self) -> &mut ThreadRng {
-        &mut self.rng
-    }
-
-    fn params_mut(&mut self) -> &mut BranchParams {
-        &mut self.params
-    }
-
-    fn set_params(&mut self, params: &BranchParams) {
-        self.params = params.clone();
-    }
-
-    fn params(&self) -> &BranchParams {
-        &self.params
-    }
-
-    fn num_params(&self) -> usize {
-        self.num_params
-    }
-
-    fn num_markers(&self) -> usize {
-        self.num_markers
-    }
-
-    fn layer_widths(&self) -> &Vec<usize> {
-        &self.layer_widths
-    }
-
-    fn layer_width(&self, index: usize) -> usize {
-        self.layer_widths[index]
-    }
-
-    fn set_error_precision(&mut self, val: f32) {
-        self.precisions.error_precision = af_scalar(val);
     }
 
     fn std_scaled_step_sizes(&self, mcmc_cfg: &MCMCCfg) -> StepSizes {

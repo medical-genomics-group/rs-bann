@@ -1,5 +1,8 @@
-use super::branch::BranchCfg;
-use crate::net::params::{BranchParamsHost, BranchPrecisionsHost};
+use super::branch_cfg::BranchCfg;
+use crate::net::{
+    activation_functions::ActivationFunction,
+    params::{BranchParamsHost, BranchPrecisionsHost},
+};
 use rand::{distributions::Distribution, SeedableRng};
 use rand_chacha::ChaCha20Rng;
 use rand_distr::{Bernoulli, Gamma, Normal};
@@ -28,6 +31,7 @@ pub struct BranchCfgBuilder {
     proportion_effective_markers: f32,
     fixed_param_precision: Option<f32>,
     rng: ChaCha20Rng,
+    activation_function: ActivationFunction,
 }
 
 impl Default for BranchCfgBuilder {
@@ -55,7 +59,13 @@ impl BranchCfgBuilder {
             proportion_effective_markers: 1.0,
             fixed_param_precision: None,
             rng: ChaCha20Rng::from_entropy(),
+            activation_function: ActivationFunction::Tanh,
         }
+    }
+
+    pub fn with_activation_function(mut self, af: ActivationFunction) -> Self {
+        self.activation_function = af;
+        self
     }
 
     pub fn with_seed(mut self, seed: u64) -> Self {
@@ -365,6 +375,7 @@ impl BranchCfgBuilder {
                 bias_precisions,
                 error_precision: vec![2.0],
             },
+            activation_function: self.activation_function,
         }
     }
 }

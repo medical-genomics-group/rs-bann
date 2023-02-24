@@ -3,7 +3,7 @@ use super::log_posterior_density::LogPosteriorDensity;
 use super::model_type::ModelType;
 use super::params::GlobalParams;
 use super::{
-    branch::branch::{Branch, BranchCfg, HMCStepResult},
+    branch::{branch_cfg::BranchCfg, branch_sampler::BranchSampler, branch_sampler::HMCStepResult},
     gibbs_steps::ridge_single_param_precision_posterior,
     mcmc_cfg::MCMCCfg,
     params::{ModelHyperparameters, NetworkPrecisionHyperparameters},
@@ -73,7 +73,7 @@ impl OutputBias {
 
 #[derive(Serialize, Deserialize)]
 /// The full network model
-pub struct Net<B: Branch> {
+pub struct Net<B: BranchSampler> {
     hyperparams: NetworkPrecisionHyperparameters,
     num_branches: usize,
     branch_cfgs: Vec<BranchCfg>,
@@ -84,7 +84,7 @@ pub struct Net<B: Branch> {
     branch_type: PhantomData<B>,
 }
 
-impl<B: Branch> Net<B> {
+impl<B: BranchSampler> Net<B> {
     pub fn new(
         hyperparams: NetworkPrecisionHyperparameters,
         num_branches: usize,
@@ -173,7 +173,7 @@ impl<B: Branch> Net<B> {
     fn update_lpd_from_branch(
         &mut self,
         branch_ix: usize,
-        branch: &impl Branch,
+        branch: &impl BranchSampler,
         residual: &Array<f32>,
     ) {
         self.log_posterior_density.update_from_branch(

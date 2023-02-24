@@ -1,4 +1,4 @@
-pub(crate) mod activation_functions;
+pub mod activation_functions;
 pub mod architectures;
 pub mod branch;
 pub mod gibbs_steps;

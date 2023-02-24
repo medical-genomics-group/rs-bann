@@ -1,9 +1,10 @@
 use crate::arr_helpers::sum_of_squares;
 
 use super::{
-    branch::branch::Branch,
-    branch::branch::BranchCfg,
+    activation_functions::ActivationFunction,
+    branch::branch_cfg::BranchCfg,
     branch::branch_cfg_builder::BranchCfgBuilder,
+    branch::branch_sampler::BranchSampler,
     net::{Net, OutputBias},
     params::{
         GlobalParams, NetworkPrecisionHyperparameters, OutputWeightSummaryStatsHost,
@@ -27,7 +28,7 @@ pub enum SummaryLayerWidthRule {
 /// Number of markers per branch: dynamic
 /// Depth of branches: same for all branches
 /// Width of branch layers: same within branches, dynamic between branches
-pub struct BlockNetCfg<B: Branch> {
+pub struct BlockNetCfg<B: BranchSampler> {
     hidden_layer_width_rule: HiddenLayerWidthRule,
     summary_layer_width_rule: SummaryLayerWidthRule,
     num_markers: Vec<usize>,
@@ -44,15 +45,16 @@ pub struct BlockNetCfg<B: Branch> {
     output_weight_summary_stats: OutputWeightSummaryStatsHost,
     fixed_param_precision: Option<f32>,
     branch_type: PhantomData<B>,
+    activation_function: ActivationFunction,
 }
 
-impl<B: Branch> Default for BlockNetCfg<B> {
+impl<B: BranchSampler> Default for BlockNetCfg<B> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<B: Branch> BlockNetCfg<B> {
+impl<B: BranchSampler> BlockNetCfg<B> {
     pub fn new() -> Self {
         BlockNetCfg {
             hidden_layer_width_rule: HiddenLayerWidthRule::FractionOfInput(0.5),
@@ -72,7 +74,13 @@ impl<B: Branch> BlockNetCfg<B> {
             output_weight_summary_stats: OutputWeightSummaryStatsHost::default(),
             fixed_param_precision: None,
             branch_type: PhantomData,
+            activation_function: ActivationFunction::Tanh,
         }
+    }
+
+    pub fn with_activation_function(mut self, af: ActivationFunction) -> Self {
+        self.activation_function = af;
+        self
     }
 
     pub fn with_fixed_param_precision(mut self, precision: Option<f32>) -> Self {
@@ -177,7 +185,8 @@ impl<B: Branch> BlockNetCfg<B> {
                 .with_num_markers(self.num_markers[branch_ix])
                 .with_proportion_effective_markers(self.proportion_effective_markers)
                 .with_summary_layer_width(self.summary_layer_widths[branch_ix])
-                .with_fixed_param_precision(self.fixed_param_precision);
+                .with_fixed_param_precision(self.fixed_param_precision)
+                .with_activation_function(self.activation_function);
             cfg_bld = if let (Some(k), Some(s)) = (self.init_gamma_shape, self.init_gamma_scale) {
                 cfg_bld.with_init_gamma_params(k, s)
             } else {

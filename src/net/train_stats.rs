@@ -1,4 +1,4 @@
-use super::branch::branch::HMCStepResult;
+use super::branch::branch_sampler::HMCStepResult;
 use crate::data::data::Data;
 use crate::data::genotypes::GroupedGenotypes;
 use serde::{Deserialize, Serialize};

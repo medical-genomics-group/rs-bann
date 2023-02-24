@@ -1,6 +1,8 @@
 use clap::*;
 use log::info;
-use rs_bann::net::{mcmc_cfg::StepSizeMode, model_type::ModelType};
+use rs_bann::net::{
+    activation_functions::ActivationFunction, mcmc_cfg::StepSizeMode, model_type::ModelType,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::to_writer_pretty;
 use std::{fs::File, io::BufReader, path::Path};
@@ -197,6 +199,10 @@ pub(crate) struct SimulateYArgs {
     #[clap(value_enum)]
     pub model_type: ModelType,
 
+    /// activation function of model
+    #[clap(value_enum)]
+    pub activation_function: ActivationFunction,
+
     /// number of hidden layers in branches
     #[clap(short, long, default_value_t = 0)]
     pub depth: usize,
@@ -250,6 +256,10 @@ pub(crate) struct SimulateXYArgs {
     /// Prior structure of model.
     #[clap(value_enum)]
     pub model_type: ModelType,
+
+    /// activation function of model
+    #[clap(value_enum)]
+    pub activation_function: ActivationFunction,
 
     /// number of input features per branch (markers)
     pub num_markers_per_branch: usize,
@@ -332,6 +342,10 @@ pub(crate) struct TrainNewModelArgs {
     /// Prior structure of model.
     #[clap(value_enum)]
     pub model_type: ModelType,
+
+    /// activation function of model
+    #[clap(value_enum)]
+    pub activation_function: ActivationFunction,
 
     /// number of hidden layers in branches
     pub branch_depth: usize,

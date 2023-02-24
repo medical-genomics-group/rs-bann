@@ -5,6 +5,7 @@ use super::ridge_ard::RidgeArdBranch;
 use super::ridge_base::RidgeBaseBranch;
 use super::training_state::TrainingState;
 use crate::af_helpers::af_scalar;
+use crate::net::activation_functions::*;
 use arrayfire::{constant, dim4, Array};
 use rand::thread_rng;
 
@@ -248,6 +249,7 @@ impl BranchBuilder {
             num_layers: self.num_layers,
             rng: thread_rng(),
             training_state: TrainingState::default(),
+            activation_function: ActivationFunction::Tanh,
         }
     }
 
@@ -341,6 +343,7 @@ impl BranchBuilder {
             num_layers: self.num_layers,
             rng: thread_rng(),
             training_state: TrainingState::default(),
+            activation_function: ActivationFunction::Tanh,
         }
     }
 
@@ -434,6 +437,7 @@ impl BranchBuilder {
             num_layers: self.num_layers,
             rng: thread_rng(),
             training_state: TrainingState::default(),
+            activation_function: ActivationFunction::Tanh,
         }
     }
 
@@ -526,6 +530,7 @@ impl BranchBuilder {
             num_layers: self.num_layers,
             rng: thread_rng(),
             training_state: TrainingState::default(),
+            activation_function: ActivationFunction::Tanh,
         }
     }
 }
@@ -535,7 +540,8 @@ mod tests {
     use arrayfire::{dim4, Array};
     // use arrayfire::{af_print, randu};
 
-    use super::super::branch::Branch;
+    use super::super::{branch_sampler::BranchSampler, branch_struct::BranchStruct};
+
     use super::BranchBuilder;
 
     use crate::af_helpers::to_host;

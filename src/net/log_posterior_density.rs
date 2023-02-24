@@ -2,7 +2,7 @@ use crate::af_helpers;
 use arrayfire::Array;
 use serde::{Deserialize, Serialize};
 
-use super::{branch::branch::Branch, params::NetworkPrecisionHyperparameters};
+use super::{branch::branch_sampler::BranchSampler, params::NetworkPrecisionHyperparameters};
 
 #[derive(Serialize, Deserialize)]
 /// The log posterior density of a network model.
@@ -27,7 +27,7 @@ impl LogPosteriorDensity {
     pub fn update_from_branch(
         &mut self,
         branch_ix: usize,
-        branch: &impl Branch,
+        branch: &impl BranchSampler,
         residual: &Array<f32>,
         hyperparams: &NetworkPrecisionHyperparameters,
     ) {
