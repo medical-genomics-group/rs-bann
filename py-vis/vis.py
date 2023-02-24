@@ -617,11 +617,12 @@ def plot_perf_r2(wdir: str, burn_in, full_r2_yrange=False, ridge_lm=False):
 
     training_stats = load_json_training_stats(wdir)
     trace = load_json_trace(wdir, 0)
-    fig, axes = plt.subplots(1, 2, sharex=True, figsize=(10, 3))
+    fig, axes = plt.subplots(3, 1, sharex=True, figsize=(10, 3))
 
     fig.suptitle(wdir)
 
-    axes[0].set_title("ERROR PRECISION")
+    # axes[0].set_title("ERROR PRECISION")
+    axes[0].set_ylabel("ERROR_PRECISION")
     axes[0].plot(trace.error_precision)
     axes[0].hlines(
         np.mean(trace.error_precision[burn_in:]),
@@ -653,14 +654,14 @@ def plot_perf_r2(wdir: str, burn_in, full_r2_yrange=False, ridge_lm=False):
     h2_test = (test_phen_stats["variance"] -
                test_phen_stats["env_variance"]) / test_phen_stats["variance"]
 
-    axes[1].set_title(r"$R^2$")
+    axes[1].set_ylabel(r"$R^2$")
     axes[1].plot(r2_train, label="nn train")
     axes[1].plot(r2_test, label="nn test")
     axes[1].hlines(h2_train, 0, len(trace.error_precision),
                    linestyle="dashed", color="#35063e", label="h2 train")
     axes[1].hlines(h2_test, 0, len(trace.error_precision),
                    linestyle="dashdot", color="#35063e", label="h2 test")
-    
+
     if ridge_lm:
         train_data = Data.load_train(ddir)
         test_data = Data.load_test(ddir)
@@ -685,7 +686,10 @@ def plot_perf_r2(wdir: str, burn_in, full_r2_yrange=False, ridge_lm=False):
     # axes[1].legend()
     if not full_r2_yrange:
         axes[1].set_ylim(0.0, 1.0)
-    # axes[1].set_yscale("log")
+
+    axes[2].set_ylabel(r"$\log P(\Theta, \Lambda | D)$")
+    axes[2].plot(np.array(training_stats["lpd"]))
+    axes[2].set_xlabel("ITERATION")
 
     plt.tight_layout()
 
@@ -864,6 +868,8 @@ def load_lm_true_effects_mb(wdir: str):
     return np.array(model_params['effects']).flatten()
 
 # this only works for linear model simulations
+
+
 def plot_est_effect_sizes(wdir: str, burn_in: int, integration_length: int):
     true_effects = load_lm_true_effects_sf(wdir)
 
