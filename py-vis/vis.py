@@ -617,7 +617,7 @@ def plot_perf_r2(wdir: str, burn_in, full_r2_yrange=False, ridge_lm=False):
 
     training_stats = load_json_training_stats(wdir)
     trace = load_json_trace(wdir, 0)
-    fig, axes = plt.subplots(3, 1, sharex=True, figsize=(5, 10))
+    fig, axes = plt.subplots(3, 1, sharex=True, figsize=(7, 7))
 
     fig.suptitle(wdir)
 
