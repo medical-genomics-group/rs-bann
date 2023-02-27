@@ -324,32 +324,28 @@ where
         panic!("Heritability must be within [0, 1].");
     }
 
-    let mut path = Path::new(&args.outdir).join(format!(
-        "{}_{}_d{}_h{}_v{}_p{}",
+    let mut outdir = format!(
+        "{}_{}_d{}_h{}_p{}",
         args.model_type,
         args.activation_function,
         args.depth,
         args.heritability,
-        args.init_param_variance,
         args.proportion_effective
-    ));
+    );
 
-    if let (Some(k), Some(s)) = (args.init_gamma_shape, args.init_gamma_scale) {
-        path = Path::new(&args.outdir).join(format!(
-            "{}_{}_d{}_h{}_k{}_s{}_p{}",
-            args.model_type,
-            args.activation_function,
-            args.depth,
-            args.heritability,
-            k,
-            s,
-            args.proportion_effective
-        ));
+    if let Some(v) = args.init_param_variance {
+        outdir.push_str(&format!("v_{:?}", v));
+    } else if let (Some(k), Some(s)) = (args.init_gamma_shape, args.init_gamma_scale) {
+        outdir.push_str(&format!("k_{:?}", k));
+        outdir.push_str(&format!("s_{:?}", s));
     }
+
+    let path = Path::new(&args.outdir).join(outdir);
 
     if !path.exists() {
         std::fs::create_dir_all(&path).expect("Could not create output directory!");
     }
+
     let mut train_path = path.join("train");
     let mut test_path = path.join("test");
     let args_path = path.join("args.json");
@@ -377,7 +373,9 @@ where
         .with_hidden_layer_width_rule(HiddenLayerWidthRule::FractionOfInput(0.5))
         .with_summary_layer_width_rule(SummaryLayerWidthRule::LikeHiddenLayerWidth)
         .with_activation_function(args.activation_function);
-    net_cfg = if let (Some(k), Some(s)) = (args.init_gamma_shape, args.init_gamma_scale) {
+    net_cfg = if let Some(v) = args.init_param_variance {
+        net_cfg.with_init_param_variance(v)
+    } else if let (Some(k), Some(s)) = (args.init_gamma_shape, args.init_gamma_scale) {
         net_cfg
             .with_init_gamma_params(k, s)
             .with_dense_precision_prior(k, s)
@@ -386,7 +384,7 @@ where
             // is hardcoded to 1. TODO: this should be configurable.
             .with_output_precision_prior(1., 1.)
     } else {
-        net_cfg.with_init_param_variance(args.init_param_variance)
+        net_cfg
     };
 
     // width is fixed to half the number of input nodes
@@ -468,21 +466,19 @@ fn simulate_y_linear(args: SimulateYArgs) {
         panic!("Heritability must be within [0, 1].");
     }
 
-    let mut path = Path::new(&args.outdir).join(format!(
-        "{}_d{}_h{}_v{}_p{}",
-        args.model_type,
-        args.depth,
-        args.heritability,
-        args.init_param_variance,
-        args.proportion_effective
-    ));
+    let mut outdir = format!(
+        "{}_{}_p{}",
+        args.model_type, args.heritability, args.proportion_effective
+    );
 
-    if let (Some(k), Some(s)) = (args.init_gamma_shape, args.init_gamma_scale) {
-        path = Path::new(&args.outdir).join(format!(
-            "{}_d{}_h{}_k{}_s{}_p{}",
-            args.model_type, args.depth, args.heritability, k, s, args.proportion_effective
-        ));
+    if let Some(v) = args.init_param_variance {
+        outdir.push_str(&format!("v_{:?}", v));
+    } else if let (Some(k), Some(s)) = (args.init_gamma_shape, args.init_gamma_scale) {
+        outdir.push_str(&format!("k_{:?}", k));
+        outdir.push_str(&format!("s_{:?}", s));
     }
+
+    let path = Path::new(&args.outdir).join(outdir);
 
     if !path.exists() {
         std::fs::create_dir_all(&path).expect("Could not create output directory!");
@@ -592,8 +588,8 @@ fn simulate_xy_linear(args: SimulateXYArgs) {
         panic!("Heritability must be within [0, 1].");
     }
 
-    let mut path = Path::new(&args.outdir).join(format!(
-        "{}_b{}_wh{}_ws{}_d{}_m{}_n{}_h{}_v{}_p{}",
+    let mut outdir = format!(
+        "{}_b{}_wh{}_ws{}_d{}_m{}_n{}_h{}_p{}",
         args.model_type,
         args.num_branches,
         args.hidden_layer_width,
@@ -602,26 +598,17 @@ fn simulate_xy_linear(args: SimulateXYArgs) {
         args.num_markers_per_branch,
         args.num_individuals,
         args.heritability,
-        args.init_param_variance,
         args.proportion_effective
-    ));
+    );
 
-    if let (Some(k), Some(s)) = (args.init_gamma_shape, args.init_gamma_scale) {
-        path = Path::new(&args.outdir).join(format!(
-            "{}_b{}_wh{}_ws{}_d{}_m{}_n{}_h{}_k{}_s{}_p{}",
-            args.model_type,
-            args.num_branches,
-            args.hidden_layer_width,
-            args.summary_layer_width.unwrap_or(args.hidden_layer_width),
-            args.branch_depth,
-            args.num_markers_per_branch,
-            args.num_individuals,
-            args.heritability,
-            k,
-            s,
-            args.proportion_effective
-        ));
+    if let Some(v) = args.init_param_variance {
+        outdir.push_str(&format!("v_{:?}", v));
+    } else if let (Some(k), Some(s)) = (args.init_gamma_shape, args.init_gamma_scale) {
+        outdir.push_str(&format!("k_{:?}", k));
+        outdir.push_str(&format!("s_{:?}", s));
     }
+
+    let path = Path::new(&args.outdir).join(outdir);
 
     if !path.exists() {
         std::fs::create_dir_all(&path).expect("Could not create output directory!");
@@ -731,8 +718,8 @@ where
         panic!("Heritability must be within [0, 1].");
     }
 
-    let mut path = Path::new(&args.outdir).join(format!(
-        "{}_{}_b{}_wh{}_ws{}_d{}_m{}_n{}_h{}_v{}_p{}",
+    let mut outdir = format!(
+        "{}_{}_b{}_wh{}_ws{}_d{}_m{}_n{}_h{}_p{}",
         args.model_type,
         args.activation_function,
         args.num_branches,
@@ -742,27 +729,17 @@ where
         args.num_markers_per_branch,
         args.num_individuals,
         args.heritability,
-        args.init_param_variance,
         args.proportion_effective
-    ));
+    );
 
-    if let (Some(k), Some(s)) = (args.init_gamma_shape, args.init_gamma_scale) {
-        path = Path::new(&args.outdir).join(format!(
-            "{}_{}_b{}_wh{}_ws{}_d{}_m{}_n{}_h{}_k{}_s{}_p{}",
-            args.model_type,
-            args.activation_function,
-            args.num_branches,
-            args.hidden_layer_width,
-            args.summary_layer_width.unwrap_or(args.hidden_layer_width),
-            args.branch_depth,
-            args.num_markers_per_branch,
-            args.num_individuals,
-            args.heritability,
-            k,
-            s,
-            args.proportion_effective
-        ));
+    if let Some(v) = args.init_param_variance {
+        outdir.push_str(&format!("v_{:?}", v));
+    } else if let (Some(k), Some(s)) = (args.init_gamma_shape, args.init_gamma_scale) {
+        outdir.push_str(&format!("k_{:?}", k));
+        outdir.push_str(&format!("s_{:?}", s));
     }
+
+    let path = Path::new(&args.outdir).join(outdir);
 
     if !path.exists() {
         std::fs::create_dir_all(&path).expect("Could not create output directory!");
@@ -797,9 +774,12 @@ where
                 .with_dense_precision_prior(k, s)
                 .with_summary_precision_prior(k, s)
                 .with_output_precision_prior(1., 1.)
+        } else if let Some(v) = args.init_param_variance {
+            net_cfg.with_init_param_variance(v)
         } else {
-            net_cfg.with_init_param_variance(args.init_param_variance)
+            net_cfg
         };
+
         for _ in 0..args.num_branches {
             net_cfg.add_branch(args.num_markers_per_branch);
         }

@@ -38,7 +38,7 @@ pub struct BlockNetCfg<B: BranchSampler> {
     dense_precision_prior_hyperparams: PrecisionHyperparameters,
     summary_precision_prior_hyperparams: PrecisionHyperparameters,
     output_precision_prior_hyperparams: PrecisionHyperparameters,
-    init_param_variance: f32,
+    init_param_variance: Option<f32>,
     init_gamma_shape: Option<f32>,
     init_gamma_scale: Option<f32>,
     proportion_effective_markers: f32,
@@ -67,7 +67,7 @@ impl<B: BranchSampler> BlockNetCfg<B> {
             dense_precision_prior_hyperparams: PrecisionHyperparameters::default(),
             summary_precision_prior_hyperparams: PrecisionHyperparameters::default(),
             output_precision_prior_hyperparams: PrecisionHyperparameters::default(),
-            init_param_variance: 0.05,
+            init_param_variance: None,
             init_gamma_shape: None,
             init_gamma_scale: None,
             proportion_effective_markers: 1.0,
@@ -155,7 +155,7 @@ impl<B: BranchSampler> BlockNetCfg<B> {
     }
 
     pub fn with_init_param_variance(mut self, val: f32) -> Self {
-        self.init_param_variance = val;
+        self.init_param_variance = Some(val);
         self
     }
 
@@ -189,8 +189,10 @@ impl<B: BranchSampler> BlockNetCfg<B> {
                 .with_activation_function(self.activation_function);
             cfg_bld = if let (Some(k), Some(s)) = (self.init_gamma_shape, self.init_gamma_scale) {
                 cfg_bld.with_init_gamma_params(k, s)
+            } else if let Some(v) = self.init_param_variance {
+                cfg_bld.with_init_param_variance(v)
             } else {
-                cfg_bld.with_init_param_variance(self.init_param_variance)
+                cfg_bld
             };
             for _ in 0..self.num_hidden_layers {
                 cfg_bld.add_hidden_layer(self.hidden_layer_widths[branch_ix]);

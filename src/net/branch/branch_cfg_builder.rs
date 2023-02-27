@@ -164,6 +164,15 @@ impl BranchCfgBuilder {
         params.set_all_biases_to_constant(self.initial_weight_value.unwrap());
     }
 
+    /// Initialize weights with var = 1 / num_markers and set biases to 0.
+    fn default_param_init(&mut self, params: &mut BranchParamsHost) {
+        let v = 1.0 / self.num_markers as f32;
+        let d = Normal::new(0.0, v.sqrt()).unwrap();
+        params.set_all_weights_from_distribution(&d, &mut self.rng);
+        params.set_all_biases_to_constant(0.0);
+        self.remove_markers_from_model(params);
+    }
+
     fn init_weights_with_initial_param_variance(&mut self, params: &mut BranchParamsHost) {
         let v = self.init_param_variance.unwrap();
         let d = Normal::new(0.0, v.sqrt()).unwrap();
@@ -343,19 +352,16 @@ impl BranchCfgBuilder {
             self.init_weights_with_initial_weight_value(&mut params);
         } else if self.init_param_variance.is_some() {
             self.init_weights_with_initial_param_variance(&mut params);
-        } else if self.init_gamma_params.is_some() {
-            self.init_weights_with_init_gamma(&mut params);
-        } else {
-            panic!("No initial value, variance or gamma params for branch builder set!");
-        }
-
-        // initialize biases
-        if self.initial_bias_value.is_some() {
-            self.init_biases_with_initial_weight_value(&mut params);
-        } else if self.init_param_variance.is_some() {
             self.init_biases_with_initial_param_variance(&mut params);
         } else if self.init_gamma_params.is_some() {
+            self.init_weights_with_init_gamma(&mut params);
             self.init_biases_with_init_gamma(&mut params);
+        } else {
+            self.default_param_init(&mut params);
+        }
+
+        if self.initial_bias_value.is_some() {
+            self.init_biases_with_initial_weight_value(&mut params);
         }
 
         let bias_precisions = if self.fixed_param_precision.is_some() {
