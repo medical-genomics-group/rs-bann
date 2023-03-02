@@ -19,7 +19,7 @@ use crate::{
     af_helpers::{l1_norm, l1_norm_rows},
     net::activation_functions::*,
 };
-use arrayfire::{dim4, sqrt, tile, Array, MatProp};
+use arrayfire::{dim4, tile, Array, MatProp};
 use rand::prelude::ThreadRng;
 use rand_distr::{Distribution, Gamma};
 
@@ -82,9 +82,9 @@ impl BranchSampler for LassoArdBranch {
         // ard layers
         for index in 0..self.output_layer_index() {
             wrt_weights.push(tile(
-                &(std::f32::consts::PI
-                    / (2f32
-                        * sqrt(&self.precisions().weight_precisions[index])
+                &(1.0f32
+                    / (4.0f32
+                        * &self.precisions().weight_precisions[index]
                         * integration_length as f32)),
                 dim4!(1, self.layer_widths[index] as u64, 1, 1),
             ));
@@ -92,9 +92,9 @@ impl BranchSampler for LassoArdBranch {
 
         // output layer is base
         wrt_weights.push(
-            std::f32::consts::PI
-                / (2f32
-                    * sqrt(&self.precisions().weight_precisions[self.output_layer_index()])
+            1.0f32
+                / (4.0f32
+                    * &self.precisions().weight_precisions[self.output_layer_index()]
                     * integration_length as f32),
         );
 

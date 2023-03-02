@@ -88,9 +88,9 @@ impl BranchSampler for LassoBaseBranch {
 
         for index in 0..self.num_layers() {
             wrt_weights.push(
-                std::f32::consts::PI
-                    / (2f32
-                        * sqrt(&self.precisions().weight_precisions[index])
+                1.0f32
+                    / (4.0f32
+                        * &self.precisions().weight_precisions[index]
                         * integration_length as f32),
             );
         }
