@@ -368,27 +368,27 @@ pub(crate) struct TrainNewModelArgs {
     #[clap(long)]
     pub fixed_summary_layer_width: Option<usize>,
 
-    #[clap(default_value_t = 1., long)]
+    #[clap(default_value_t = 0.001, long)]
     /// shape hyperparam of prior distribution of precision of dense layer params
     pub dpk: f32,
 
-    #[clap(default_value_t = 1., long)]
+    #[clap(default_value_t = 1000., long)]
     /// scale hyperparam of prior distribution of precision of dense layer params
     pub dps: f32,
 
-    #[clap(default_value_t = 1., long)]
+    #[clap(default_value_t = 0.001, long)]
     /// shape hyperparam of prior distribution of precision of summary layer params
     pub spk: f32,
 
-    #[clap(default_value_t = 1., long)]
+    #[clap(default_value_t = 1000., long)]
     /// scale hyperparam of prior distribution of precision of summary layer params
     pub sps: f32,
 
-    #[clap(default_value_t = 1., long)]
+    #[clap(default_value_t = 0.001, long)]
     /// shape hyperparam of prior distribution of precision of ouput layer params
     pub opk: f32,
 
-    #[clap(default_value_t = 1., long)]
+    #[clap(default_value_t = 1000., long)]
     /// scale hyperparam of prior distribution of precision of output layer params
     pub ops: f32,
 }
