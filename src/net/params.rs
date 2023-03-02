@@ -115,14 +115,18 @@ impl PrecisionHyperparameters {
     pub fn new(shape: f32, scale: f32) -> Self {
         Self { shape, scale }
     }
+
+    pub fn vague() -> Self {
+        Self {
+            shape: 0.001,
+            scale: 1000.,
+        }
+    }
 }
 
 impl Default for PrecisionHyperparameters {
     fn default() -> Self {
-        Self {
-            shape: 1.0,
-            scale: 1.0,
-        }
+        PrecisionHyperparameters::vague()
     }
 }
 
