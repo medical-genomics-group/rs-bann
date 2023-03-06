@@ -1028,6 +1028,7 @@ where
 
     info!("Training net");
     if net.num_branches() == 1 {
+        info!("Using single branch training procedure");
         net.train_single_branch(&train_data, &mcmc_cfg, true, Some(report_cfg));
     } else {
         net.train(&train_data, &mcmc_cfg, true, Some(report_cfg));
@@ -1113,5 +1114,10 @@ where
     // }
     net.write_hyperparams(&mcmc_cfg);
     info!("Training net");
-    net.train(&train_data, &mcmc_cfg, true, Some(report_cfg));
+    if net.num_branches() == 1 {
+        info!("Using single branch training procedure");
+        net.train_single_branch(&train_data, &mcmc_cfg, true, Some(report_cfg));
+    } else {
+        net.train(&train_data, &mcmc_cfg, true, Some(report_cfg));
+    }
 }
