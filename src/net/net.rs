@@ -348,6 +348,152 @@ impl<B: BranchSampler> Net<B> {
         self.training_stats.to_file(&mcmc_cfg.outpath);
     }
 
+    pub fn train_single_branch<T: GroupedGenotypes>(
+        &mut self,
+        train_data: &Data<T>,
+        mcmc_cfg: &MCMCCfg,
+        verbose: bool,
+        report_cfg: Option<ReportCfg<T>>,
+    ) {
+        if mcmc_cfg.chain_length > mcmc_cfg.burn_in {
+            self.create_model_dir(mcmc_cfg);
+            self.create_effect_size_dir(mcmc_cfg);
+        }
+
+        let mut trace_file = None;
+        if mcmc_cfg.trace {
+            trace_file = Some(BufWriter::new(File::create(mcmc_cfg.trace_path()).unwrap()));
+        }
+
+        let mut rng = thread_rng();
+        let num_individuals = train_data.num_individuals();
+        let y_train = &Array::new(train_data.y(), dim4!(num_individuals as u64, 1, 1, 1));
+        let mut residual = self.initialize_stats(&train_data.gen, y_train);
+        let mut report_interval = 1;
+
+        info!(
+            "Training net with {:} branches, {:} params",
+            self.num_branches,
+            self.num_params()
+        );
+
+        // initial loss
+        self.record_perf(&residual, report_cfg.as_ref().unwrap().test_data);
+
+        // report
+        if verbose {
+            self.report_training_state(0);
+            report_interval = report_cfg.as_ref().unwrap().interval;
+        }
+
+        if mcmc_cfg.trace {
+            to_writer(trace_file.as_mut().unwrap(), &self.branch_cfgs).unwrap();
+            trace_file.as_mut().unwrap().write_all(b"\n").unwrap();
+        }
+
+        // save initial model if no burn in
+        if mcmc_cfg.burn_in == 0 {
+            self.save_model(0, mcmc_cfg);
+        }
+
+        let branch_ix = 0;
+        // load marker data onto device
+        let x = &train_data.x_branch_af(branch_ix);
+
+        for chain_ix in 1..=mcmc_cfg.chain_length {
+            debug!("Updating branch {:}", branch_ix);
+
+            let cfg = &mut self.branch_cfgs[branch_ix];
+            let mut branch = B::from_cfg(cfg);
+
+            cfg.update_global_params(&self.global_params);
+
+            if !(mcmc_cfg.gradient_descent_joint || mcmc_cfg.joint_hmc) {
+                branch.sample_error_precision(&residual, &self.hyperparams);
+                if !mcmc_cfg.fixed_param_precisions {
+                    branch.sample_param_precisions(&self.hyperparams);
+                }
+            }
+
+            let prev_pred = branch.predict(x);
+            residual = &residual + &prev_pred;
+
+            let step_res = if mcmc_cfg.gradient_descent {
+                branch.gradient_descent(x, &residual, mcmc_cfg)
+            } else if mcmc_cfg.gradient_descent_joint {
+                branch.gradient_descent_joint(x, &residual, mcmc_cfg, &self.hyperparams)
+            } else if mcmc_cfg.joint_hmc {
+                branch.hmc_step_joint(x, &residual, mcmc_cfg, &self.hyperparams)
+            } else {
+                branch.hmc_step(x, &residual, mcmc_cfg)
+            };
+            self.note_hmc_step_result(&step_res);
+            match step_res {
+                // update residual
+                HMCStepResult::Accepted(state) => {
+                    residual -= state.y_pred;
+                    self.update_lpd_from_branch(branch_ix, &branch, &residual);
+                }
+                // not accepted, just remove previous prediction
+                _ => residual -= prev_pred,
+            }
+
+            // update global params & dump branch cfg
+            let cfg = branch.to_cfg();
+            self.global_params.update_from_branch_cfg(&cfg);
+            self.branch_cfgs[branch_ix] = cfg;
+
+            // compute effect sizes and save
+            if chain_ix >= mcmc_cfg.burn_in {
+                self.save_effect_sizes(
+                    &branch.effect_sizes(x, y_train),
+                    chain_ix,
+                    branch_ix,
+                    mcmc_cfg,
+                )
+            }
+
+            self.report_training_state_debug(chain_ix, &residual);
+
+            // sample output bias
+            self.output_bias.update_global_params(&self.global_params);
+            residual += self.output_bias.af_bias();
+
+            if mcmc_cfg.sampled_output_bias {
+                self.output_bias
+                    .sample_prior_precision(&self.hyperparams, &mut rng);
+                self.output_bias
+                    .sample_bias(&residual, num_individuals, &mut rng);
+            } else {
+                self.output_bias.set_to_maximum_likelihood(&residual);
+            }
+
+            residual -= self.output_bias.af_bias();
+
+            self.record_perf(&residual, report_cfg.as_ref().unwrap().test_data);
+
+            // save current model if done with burn in
+            if chain_ix >= mcmc_cfg.burn_in {
+                let model_ix = chain_ix;
+                self.save_model(model_ix, mcmc_cfg);
+            }
+
+            // report
+            if verbose && chain_ix % report_interval == 0 {
+                self.report_training_state(chain_ix);
+            }
+
+            if mcmc_cfg.trace {
+                to_writer(trace_file.as_mut().unwrap(), &self.branch_cfgs).unwrap();
+                trace_file.as_mut().unwrap().write_all(b"\n").unwrap();
+            }
+        }
+
+        info!("Completed training");
+        // save training stats
+        self.training_stats.to_file(&mcmc_cfg.outpath);
+    }
+
     pub fn activations<T: GroupedGenotypes>(&self, gen: &T) -> Activations {
         let mut activations = Activations::new();
         for branch_ix in 0..self.num_branches() {

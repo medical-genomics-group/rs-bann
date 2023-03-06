@@ -1027,7 +1027,11 @@ where
     net.write_hyperparams(&mcmc_cfg);
 
     info!("Training net");
-    net.train(&train_data, &mcmc_cfg, true, Some(report_cfg));
+    if net.num_branches() == 1 {
+        net.train_single_branch(&train_data, &mcmc_cfg, true, Some(report_cfg));
+    } else {
+        net.train(&train_data, &mcmc_cfg, true, Some(report_cfg));
+    }
 }
 
 fn train<B>(input_args: TrainIOArgs, mcmc_args: MCMCArgs, model_args: TrainOldModelArgs)
