@@ -171,7 +171,7 @@ version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bb48fbaa7a0cb9d6d96c46bac6cedb16f13a10aebcef1c4e73515aaae8c9909d"
 dependencies = [
- "netlib-src",
+ "openblas-src",
 ]
 
 [[package]]
@@ -212,15 +212,6 @@ name = "byteorder"
 version = "1.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "14c189c53d098945499cdfa7ecc63567cf3886b3332b312a5b4585d8d3a6a610"
-
-[[package]]
-name = "cblas-sys"
-version = "0.1.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b6feecd82cce51b0204cf063f0041d69f24ce83f680d87514b004248e7b0fa65"
-dependencies = [
- "libc",
-]
 
 [[package]]
 name = "cc"
@@ -845,8 +836,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "adb12d4e967ec485a5f71c6311fe28158e9d6f4bc4a447b474184d0f91a8fa32"
 dependencies = [
  "approx 0.4.0",
- "cblas-sys",
- "libc",
  "matrixmultiply",
  "num-complex 0.4.2",
  "num-integer",
@@ -865,15 +854,6 @@ dependencies = [
  "ndarray",
  "num-traits",
  "py_literal",
-]
-
-[[package]]
-name = "netlib-src"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "39f41f36bb4d46906d5a72da5b73a804d9de1a7282eb7c89617201acda7b8212"
-dependencies = [
- "cmake",
 ]
 
 [[package]]
@@ -1378,7 +1358,6 @@ dependencies = [
  "exitcode",
  "flate2",
  "log",
- "ndarray",
  "openblas-src",
  "rand",
  "rand_chacha",
