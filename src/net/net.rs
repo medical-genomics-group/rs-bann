@@ -322,6 +322,7 @@ impl<B: BranchSampler> Net<B> {
                 }
 
                 residual -= self.output_bias.af_bias();
+                debug!("Finished update of branch {:}", branch_ix);
             }
 
             self.record_perf(&residual, report_cfg.as_ref().unwrap().test_data);
@@ -487,6 +488,7 @@ impl<B: BranchSampler> Net<B> {
                 to_writer(trace_file.as_mut().unwrap(), &self.branch_cfgs).unwrap();
                 trace_file.as_mut().unwrap().write_all(b"\n").unwrap();
             }
+            debug!("Finished update of branch {:}", branch_ix);
         }
 
         info!("Completed training");
