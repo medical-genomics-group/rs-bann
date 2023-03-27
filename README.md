@@ -30,3 +30,8 @@ which can be innstalled on Ubuntu with:
 sudo apt install cmake gfortran
 ```
 
+### Known issues
+
+#### Flaky tests
+
+If `cargo test` is flaky, try a different device: `AF_CUDA_DEFAULT_DEVICE=1 cargo test`
