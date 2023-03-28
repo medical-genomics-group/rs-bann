@@ -11,7 +11,7 @@ pub struct ExternalGrouping {
 }
 
 impl ExternalGrouping {
-    /// This assumes a two column file with columns: marker_ix, group_ix
+    /// This assumes a two column file with columns: marker_ix, group_ix, using 0-based indexing
     pub fn from_file(file: &Path) -> Self {
         let mut res = ExternalGrouping {
             groups: HashMap::new(),
@@ -42,6 +42,11 @@ impl ExternalGrouping {
 
             buffer.clear();
         }
+
+        assert!(
+            !res.groups.keys().any(|k| *k >= res.groups.len()),
+            "ExternalGrouping must have continuous, 0-based group indices."
+        );
 
         let mut group_sizes: Vec<usize> = vec![0; res.groups.len()];
         res.groups
