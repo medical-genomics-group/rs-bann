@@ -18,7 +18,7 @@ bed-reader = "0.2.28"
 arrayfire = { version = "*", features = ["afserde"] }
 rayon = "1.5"
 statrs = "0.15"
-rand = "0.8.4"
+rand = { version = "0.8.4", features = ["alloc"] }
 rand_distr = "*"
 # ndarray = { version = "0.15", features = ["blas", "approx"] }
 blas-src = { version = "*",  default-features=false, features=["openblas"] }

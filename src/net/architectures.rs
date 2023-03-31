@@ -41,7 +41,8 @@ pub struct BlockNetCfg<B: BranchSampler> {
     init_param_variance: Option<f32>,
     init_gamma_shape: Option<f32>,
     init_gamma_scale: Option<f32>,
-    proportion_effective_markers: f32,
+    num_effective_markers: Option<usize>,
+    proportion_effective_markers: Option<f32>,
     output_weight_summary_stats: OutputWeightSummaryStatsHost,
     fixed_param_precision: Option<f32>,
     branch_type: PhantomData<B>,
@@ -70,7 +71,8 @@ impl<B: BranchSampler> BlockNetCfg<B> {
             init_param_variance: None,
             init_gamma_shape: None,
             init_gamma_scale: None,
-            proportion_effective_markers: 1.0,
+            num_effective_markers: None,
+            proportion_effective_markers: None,
             output_weight_summary_stats: OutputWeightSummaryStatsHost::default(),
             fixed_param_precision: None,
             branch_type: PhantomData,
@@ -134,8 +136,13 @@ impl<B: BranchSampler> BlockNetCfg<B> {
         self
     }
 
-    pub fn with_proportion_effective_markers(mut self, proportion: f32) -> Self {
+    pub fn with_proportion_effective_markers(mut self, proportion: Option<f32>) -> Self {
         self.proportion_effective_markers = proportion;
+        self
+    }
+
+    pub fn with_num_effective_markers(mut self, num: Option<usize>) -> Self {
+        self.num_effective_markers = num;
         self
     }
 
@@ -183,6 +190,7 @@ impl<B: BranchSampler> BlockNetCfg<B> {
         for branch_ix in 0..num_branches {
             let mut cfg_bld = BranchCfgBuilder::new()
                 .with_num_markers(self.num_markers[branch_ix])
+                .with_num_effective_markers(self.num_effective_markers)
                 .with_proportion_effective_markers(self.proportion_effective_markers)
                 .with_summary_layer_width(self.summary_layer_widths[branch_ix])
                 .with_fixed_param_precision(self.fixed_param_precision)

@@ -212,8 +212,12 @@ pub(crate) struct SimulateYArgs {
     pub outdir: String,
 
     /// proportion of effective markers
-    #[clap(short, long, default_value_t = 1.0)]
-    pub proportion_effective: f32,
+    #[clap(short, long)]
+    pub proportion_effective: Option<f32>,
+
+    /// number of effective markers. Takes precedence of proportion_effective
+    #[clap(short, long)]
+    pub num_effective: Option<usize>,
 
     /// variance of network params upon initialization
     #[clap(long)]
@@ -277,8 +281,12 @@ pub(crate) struct SimulateXYArgs {
     pub branch_depth: usize,
 
     /// proportion of effective markers
-    #[clap(short, long, default_value_t = 1.0)]
-    pub proportion_effective: f32,
+    #[clap(short, long)]
+    pub proportion_effective: Option<f32>,
+
+    /// number of effective markers. Takes precedence of proportion_effective
+    #[clap(short, long)]
+    pub num_effective: Option<usize>,
 
     /// width of summary layer. By default equal to hidden layer width
     #[clap(long)]

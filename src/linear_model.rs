@@ -2,7 +2,7 @@ use crate::af_helpers::to_host;
 use crate::data::genotypes::GroupedGenotypes;
 use arrayfire::{dim4, matmul, Array, MatProp};
 use log::debug;
-use rand::SeedableRng;
+use rand::{seq::index::sample, SeedableRng};
 use rand_chacha::ChaCha20Rng;
 use rand_distr::{Bernoulli, Distribution, Normal};
 use serde::Serialize;
@@ -10,7 +10,8 @@ use serde::Serialize;
 pub struct LinearModelBuilder {
     num_branches: usize,
     num_markers_per_branch: Vec<usize>,
-    proportion_effective_markers: f32,
+    num_effective_markers: Option<usize>,
+    proportion_effective_markers: Option<f32>,
     effects: Option<Vec<Vec<f32>>>,
     rng: ChaCha20Rng,
 }
@@ -20,7 +21,8 @@ impl LinearModelBuilder {
         Self {
             num_branches: num_markers_per_branch.len(),
             num_markers_per_branch: num_markers_per_branch.to_vec(),
-            proportion_effective_markers: 1.0,
+            num_effective_markers: None,
+            proportion_effective_markers: None,
             effects: None,
             rng: ChaCha20Rng::from_entropy(),
         }
@@ -31,11 +33,13 @@ impl LinearModelBuilder {
         self
     }
 
-    pub fn with_proportion_effective_markers(
-        &mut self,
-        proportion_effective_markers: f32,
-    ) -> &mut Self {
-        self.proportion_effective_markers = proportion_effective_markers;
+    pub fn with_num_effective_markers(&mut self, num: Option<usize>) -> &mut Self {
+        self.num_effective_markers = num;
+        self
+    }
+
+    pub fn with_proportion_effective_markers(&mut self, prop: Option<f32>) -> &mut Self {
+        self.proportion_effective_markers = prop;
         self
     }
 
@@ -46,11 +50,23 @@ impl LinearModelBuilder {
         // we draw our non zero effects from a Normal(0, h / m_incl) where m_incl is the number of effective (non zero) effects.
         // A large enough sample from that dist should have variance h / m_incl, and sum of squares m_incl * h / m_incl = h.
         let m = self.num_markers_per_branch.iter().sum::<usize>();
-        let inclusion_dist = Bernoulli::new(self.proportion_effective_markers as f64).unwrap();
-        let included: Vec<bool> = (0..m)
-            .map(|_| inclusion_dist.sample(&mut self.rng))
-            .collect();
-        let m_incl = included.iter().filter(|b| **b).count();
+        let (included, m_incl) = if let Some(num) = self.num_effective_markers {
+            let mut included = vec![false; m];
+            for ix in sample(&mut self.rng, m, num) {
+                included[ix] = true;
+            }
+            (included, num)
+        } else if let Some(prop) = self.proportion_effective_markers {
+            let inclusion_dist = Bernoulli::new(prop as f64).unwrap();
+            let included: Vec<bool> = (0..m)
+                .map(|_| inclusion_dist.sample(&mut self.rng))
+                .collect();
+            let m_incl = included.iter().filter(|b| **b).count();
+            (included, m_incl)
+        } else {
+            (vec![true; m], m)
+        };
+
         debug!("m_incl: {:?}", m_incl);
         let beta_std = (heritability / m_incl as f32).sqrt();
         debug!("beta_std: {:?}", beta_std);
@@ -142,7 +158,7 @@ mod tests {
     fn make_test_lm(prop_eff: f32, h2: f32) -> LinearModel {
         LinearModelBuilder::new(&[NMPB; NB])
             .with_seed(SEED)
-            .with_proportion_effective_markers(prop_eff)
+            .with_proportion_effective_markers(Some(prop_eff))
             .with_random_effects(h2)
             .build()
     }

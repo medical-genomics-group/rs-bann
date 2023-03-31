@@ -3,7 +3,7 @@ use crate::net::{
     activation_functions::ActivationFunction,
     params::{BranchParamsHost, BranchPrecisionsHost},
 };
-use rand::{distributions::Distribution, SeedableRng};
+use rand::{distributions::Distribution, seq::index::sample, SeedableRng};
 use rand_chacha::ChaCha20Rng;
 use rand_distr::{Bernoulli, Gamma, Normal};
 
@@ -28,7 +28,8 @@ pub struct BranchCfgBuilder {
     init_param_variance: Option<f32>,
     init_gamma_params: Option<GammaParams>,
     sample_precisions: bool,
-    proportion_effective_markers: f32,
+    num_effective_markers: Option<usize>,
+    proportion_effective_markers: Option<f32>,
     fixed_param_precision: Option<f32>,
     rng: ChaCha20Rng,
     activation_function: ActivationFunction,
@@ -56,7 +57,8 @@ impl BranchCfgBuilder {
             init_param_variance: None,
             init_gamma_params: None,
             sample_precisions: false,
-            proportion_effective_markers: 1.0,
+            num_effective_markers: None,
+            proportion_effective_markers: None,
             fixed_param_precision: None,
             rng: ChaCha20Rng::from_entropy(),
             activation_function: ActivationFunction::Tanh,
@@ -86,7 +88,12 @@ impl BranchCfgBuilder {
         self
     }
 
-    pub fn with_proportion_effective_markers(mut self, proportion: f32) -> Self {
+    pub fn with_num_effective_markers(mut self, num: Option<usize>) -> Self {
+        self.num_effective_markers = num;
+        self
+    }
+
+    pub fn with_proportion_effective_markers(mut self, proportion: Option<f32>) -> Self {
         self.proportion_effective_markers = proportion;
         self
     }
@@ -146,12 +153,17 @@ impl BranchCfgBuilder {
     }
 
     fn remove_markers_from_model(&mut self, params: &mut BranchParamsHost) {
-        // remove markers from model
-        if self.proportion_effective_markers < 1.0 {
-            let inclusion_dist = Bernoulli::new(self.proportion_effective_markers as f64).unwrap();
-            (0..self.num_markers)
-                .filter(|_| !inclusion_dist.sample(&mut self.rng))
-                .for_each(|marker_ix| params.set_marker_effects_to_zero(marker_ix));
+        if let Some(num) = self.num_effective_markers {
+            for ix in sample(&mut self.rng, self.num_markers, self.num_markers - num) {
+                params.set_marker_effects_to_zero(ix);
+            }
+        } else if let Some(p) = self.proportion_effective_markers {
+            if p < 1.0 {
+                let inclusion_dist = Bernoulli::new(p as f64).unwrap();
+                (0..self.num_markers)
+                    .filter(|_| !inclusion_dist.sample(&mut self.rng))
+                    .for_each(|marker_ix| params.set_marker_effects_to_zero(marker_ix));
+            }
         }
     }
 
@@ -415,7 +427,7 @@ mod tests {
             .with_num_markers(4)
             .with_initial_weights_value(0.1)
             .with_seed(12344321)
-            .with_proportion_effective_markers(0.25);
+            .with_proportion_effective_markers(Some(0.25));
         bld.add_hidden_layer(2);
         let cfg = bld.build_base();
         let exp = BranchParamsHost {

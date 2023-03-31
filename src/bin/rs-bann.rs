@@ -325,19 +325,21 @@ where
     }
 
     let mut outdir = format!(
-        "{}_{}_d{}_h{}_p{}",
-        args.model_type,
-        args.activation_function,
-        args.depth,
-        args.heritability,
-        args.proportion_effective
+        "{}_{}_d{}_h{}",
+        args.model_type, args.activation_function, args.depth, args.heritability
     );
 
+    if let Some(n) = args.num_effective {
+        outdir.push_str(&format!("_me{:?}", n));
+    } else if let Some(p) = args.proportion_effective {
+        outdir.push_str(&format!("_pe{:?}", p));
+    }
+
     if let Some(v) = args.init_param_variance {
-        outdir.push_str(&format!("v_{:?}", v));
+        outdir.push_str(&format!("_v{:?}", v));
     } else if let (Some(k), Some(s)) = (args.init_gamma_shape, args.init_gamma_scale) {
-        outdir.push_str(&format!("k_{:?}", k));
-        outdir.push_str(&format!("s_{:?}", s));
+        outdir.push_str(&format!("_k{:?}", k));
+        outdir.push_str(&format!("_s{:?}", s));
     }
 
     let path = Path::new(&args.outdir).join(outdir);
@@ -368,6 +370,7 @@ where
     // matter I guess.
     info!("Building model");
     let mut net_cfg = BlockNetCfg::<B>::new()
+        .with_num_effective_markers(args.num_effective)
         .with_proportion_effective_markers(args.proportion_effective)
         .with_num_hidden_layers(args.depth)
         .with_hidden_layer_width_rule(HiddenLayerWidthRule::FractionOfInput(0.5))
@@ -466,16 +469,19 @@ fn simulate_y_linear(args: SimulateYArgs) {
         panic!("Heritability must be within [0, 1].");
     }
 
-    let mut outdir = format!(
-        "{}_{}_p{}",
-        args.model_type, args.heritability, args.proportion_effective
-    );
+    let mut outdir = format!("{}_{}", args.model_type, args.heritability);
+
+    if let Some(n) = args.num_effective {
+        outdir.push_str(&format!("_me{:?}", n));
+    } else if let Some(p) = args.proportion_effective {
+        outdir.push_str(&format!("_pe{:?}", p));
+    }
 
     if let Some(v) = args.init_param_variance {
-        outdir.push_str(&format!("v_{:?}", v));
+        outdir.push_str(&format!("_v{:?}", v));
     } else if let (Some(k), Some(s)) = (args.init_gamma_shape, args.init_gamma_scale) {
-        outdir.push_str(&format!("k_{:?}", k));
-        outdir.push_str(&format!("s_{:?}", s));
+        outdir.push_str(&format!("_k{:?}", k));
+        outdir.push_str(&format!("_s{:?}", s));
     }
 
     let path = Path::new(&args.outdir).join(outdir);
@@ -504,6 +510,7 @@ fn simulate_y_linear(args: SimulateYArgs) {
 
     info!("Building model");
     let lm = LinearModelBuilder::new(gen_test.num_markers_per_group())
+        .with_num_effective_markers(args.num_effective)
         .with_proportion_effective_markers(args.proportion_effective)
         .with_random_effects(args.heritability)
         .build();
@@ -589,7 +596,7 @@ fn simulate_xy_linear(args: SimulateXYArgs) {
     }
 
     let mut outdir = format!(
-        "{}_b{}_wh{}_ws{}_d{}_m{}_n{}_h{}_p{}",
+        "{}_b{}_wh{}_ws{}_d{}_m{}_n{}_h{}",
         args.model_type,
         args.num_branches,
         args.hidden_layer_width,
@@ -597,9 +604,14 @@ fn simulate_xy_linear(args: SimulateXYArgs) {
         args.branch_depth,
         args.num_markers_per_branch,
         args.num_individuals,
-        args.heritability,
-        args.proportion_effective
+        args.heritability
     );
+
+    if let Some(n) = args.num_effective {
+        outdir.push_str(&format!("_me{:?}", n));
+    } else if let Some(p) = args.proportion_effective {
+        outdir.push_str(&format!("_pe{:?}", p));
+    }
 
     if let Some(v) = args.init_param_variance {
         outdir.push_str(&format!("v_{:?}", v));
@@ -634,6 +646,7 @@ fn simulate_xy_linear(args: SimulateXYArgs) {
     let gen_test = CompressedGenotypes::new(bed_test, groups);
 
     let lm = LinearModelBuilder::new(&vec![args.num_markers_per_branch; args.num_branches])
+        .with_num_effective_markers(args.num_effective)
         .with_proportion_effective_markers(args.proportion_effective)
         .with_random_effects(args.heritability)
         .build();
@@ -719,7 +732,7 @@ where
     }
 
     let mut outdir = format!(
-        "{}_{}_b{}_wh{}_ws{}_d{}_m{}_n{}_h{}_p{}",
+        "{}_{}_b{}_wh{}_ws{}_d{}_m{}_n{}_h{}",
         args.model_type,
         args.activation_function,
         args.num_branches,
@@ -728,9 +741,14 @@ where
         args.branch_depth,
         args.num_markers_per_branch,
         args.num_individuals,
-        args.heritability,
-        args.proportion_effective
+        args.heritability
     );
+
+    if let Some(n) = args.num_effective {
+        outdir.push_str(&format!("_me{:?}", n));
+    } else if let Some(p) = args.proportion_effective {
+        outdir.push_str(&format!("_pe{:?}", p));
+    }
 
     if let Some(v) = args.init_param_variance {
         outdir.push_str(&format!("v_{:?}", v));
@@ -763,6 +781,7 @@ where
 
         let mut net_cfg = BlockNetCfg::<B>::new()
             .with_num_hidden_layers(args.branch_depth)
+            .with_num_effective_markers(args.num_effective)
             .with_proportion_effective_markers(args.proportion_effective)
             .with_hidden_layer_width_rule(HiddenLayerWidthRule::Fixed(args.hidden_layer_width))
             .with_summary_layer_width_rule(slwr)
