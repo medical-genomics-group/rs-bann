@@ -466,7 +466,7 @@ fn simulate_y_linear(args: SimulateYArgs) {
         panic!("Heritability must be within [0, 1].");
     }
 
-    let mut outdir = format!("{}_{}", args.model_type, args.heritability);
+    let mut outdir = format!("{}_h{}", args.model_type, args.heritability);
 
     if let Some(n) = args.num_effective {
         outdir.push_str(&format!("_me{:?}", n));
