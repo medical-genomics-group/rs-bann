@@ -342,11 +342,8 @@ where
         outdir.push_str(&format!("_s{:?}", s));
     }
 
-    let path = Path::new(&args.outdir).join(outdir);
-
-    if !path.exists() {
-        std::fs::create_dir_all(&path).expect("Could not create output directory!");
-    }
+    let path = set_replicate_ix(&args.outdir, &outdir);
+    create_outdir(&path);
 
     let mut train_path = path.join("train");
     let mut test_path = path.join("test");
@@ -484,11 +481,8 @@ fn simulate_y_linear(args: SimulateYArgs) {
         outdir.push_str(&format!("_s{:?}", s));
     }
 
-    let path = Path::new(&args.outdir).join(outdir);
-
-    if !path.exists() {
-        std::fs::create_dir_all(&path).expect("Could not create output directory!");
-    }
+    let path = set_replicate_ix(&args.outdir, &outdir);
+    create_outdir(&path);
     let mut train_path = path.join("train");
     let mut test_path = path.join("test");
     let args_path = path.join("args.json");
@@ -620,11 +614,8 @@ fn simulate_xy_linear(args: SimulateXYArgs) {
         outdir.push_str(&format!("s_{:?}", s));
     }
 
-    let path = Path::new(&args.outdir).join(outdir);
-
-    if !path.exists() {
-        std::fs::create_dir_all(&path).expect("Could not create output directory!");
-    }
+    let path = set_replicate_ix(&args.outdir, &outdir);
+    create_outdir(&path);
     let train_path = path.join("train");
     let test_path = path.join("test");
     let args_path = path.join("args.json");
@@ -721,6 +712,23 @@ fn simulate_xy_linear(args: SimulateXYArgs) {
     args.to_file(&args_path);
 }
 
+fn set_replicate_ix(parent_dir: &String, outdir: &String) -> PathBuf {
+    let mut rep_ix = 1;
+    loop {
+        let mut od_cp = outdir.clone();
+        od_cp.push_str(&format!("_rep{:?}", rep_ix));
+        let p = Path::new(parent_dir).join(od_cp);
+        if !p.exists() {
+            return p;
+        }
+        rep_ix += 1;
+    }
+}
+
+fn create_outdir(dir: &PathBuf) {
+    std::fs::create_dir_all(&dir).expect("Could not create output directory!");
+}
+
 fn simulate_xy<B>(args: SimulateXYArgs)
 where
     B: BranchSampler,
@@ -757,11 +765,9 @@ where
         outdir.push_str(&format!("s_{:?}", s));
     }
 
-    let path = Path::new(&args.outdir).join(outdir);
+    let path = set_replicate_ix(&args.outdir, &outdir);
+    create_outdir(&path);
 
-    if !path.exists() {
-        std::fs::create_dir_all(&path).expect("Could not create output directory!");
-    }
     let train_path = path.join("train");
     let test_path = path.join("test");
     let args_path = path.join("args.json");
