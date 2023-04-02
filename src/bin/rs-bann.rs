@@ -1004,7 +1004,13 @@ where
         .with_hmc_step_size_mode(mcmc_args.step_size_mode.clone())
         .with_chain_length(mcmc_args.chain_length)
         .with_burn_in(mcmc_args.burn_in)
-        .with_outpath(outdir)
+        .with_outpath(
+            Path::new(&input_args.outpath)
+                .join(outdir)
+                .into_os_string()
+                .into_string()
+                .unwrap(),
+        )
         .with_trace(mcmc_args.trace)
         .with_trajectories(mcmc_args.trajectories)
         .with_num_grad_traj(mcmc_args.num_grad_traj)
