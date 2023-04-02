@@ -909,8 +909,6 @@ fn load_ungrouped_data(
         ExternalGrouping::from_file(Path::new(&args.groups)),
     );
 
-    debug!("Trying to load test phen at: {:?}", args.p_train);
-
     let train_phen = Phenotypes::from_file(Path::new(&args.p_train))
         .expect("Failed to load train.phen training phenotypes");
 
@@ -922,6 +920,8 @@ fn load_ungrouped_data(
             ExternalGrouping::from_file(Path::new(&args.groups)),
         )
     });
+
+    debug!("Trying to load test phen at: {:?}", args.p_test);
 
     let test_phen = args
         .p_test
