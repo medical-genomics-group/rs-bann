@@ -928,7 +928,7 @@ fn load_ungrouped_data(
 
     let test_data = if let (Some(tg), Some(tp)) = (gen_test, test_phen) {
         // just checked that they are Some
-        Some(Data::new(tg, tp.unwrap()))
+        Some(Data::new(tg, tp.expect("Failed to load test phenotypes")))
     } else {
         info!("No complete test data provided, proceeding without");
         None
