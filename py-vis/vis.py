@@ -615,7 +615,7 @@ def plot_r2_lpd(wdir: str, full_r2_yrange=False, ridge_lm=False):
     test_phen_stats = load_test_phen_stats(ddir)
 
     training_stats = load_json_training_stats(wdir)
-    fig, axes = plt.subplots(2, 1, sharex=True, figsize=(5, 7))
+    fig, axes = plt.subplots(2, 1, sharex=True, figsize=(7, 5))
 
     fig.suptitle(wdir)
 
