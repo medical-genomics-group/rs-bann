@@ -22,6 +22,7 @@ plt.rc("figure", titlesize=BIGGER_SIZE)  # fontsize of the figure title
 
 
 class ModelCfg:
+
     def __init__(self, file, branch_ix=0):
         with open(file, "r") as fin:
             d = json.load(fin)["branch_hyperparams"][branch_ix]
@@ -123,14 +124,13 @@ class Trajectory:
         for lix in range(self.depth()):
             axes[0, lix].set_title(f"LAYER {lix + 1}")
             axes[0, lix].plot(
-                self.layer_weight_grad(lix) - self.layer_weight_grad_num(lix)
-            )
+                self.layer_weight_grad(lix) - self.layer_weight_grad_num(lix))
         axes[0, 0].set_ylabel(r"$\Delta \partial P \partial W$")
 
         # biases
         for lix in range(self.depth() - 1):
-            axes[1, lix].plot(self.layer_bias_grad(
-                lix) - self.layer_bias_grad_num(lix))
+            axes[1, lix].plot(
+                self.layer_bias_grad(lix) - self.layer_bias_grad_num(lix))
         axes[1, 0].set_ylabel(r"$\Delta \partial P \partial b$")
 
         axes[1, self.depth() - 1].plot(self.hamiltonian)
@@ -146,17 +146,18 @@ class Trajectory:
             axes[0, lix].set_title(f"LAYER {lix + 1}")
             axes[0, lix].plot(self.layer_weight_grad(lix), label="analytic")
             if num_grads:
-                axes[0, lix].plot(
-                    self.layer_weight_grad_num(lix), ":", label="numerical"
-                )
+                axes[0, lix].plot(self.layer_weight_grad_num(lix),
+                                  ":",
+                                  label="numerical")
         axes[0, 0].set_ylabel(r"$\partial P \partial W$")
 
         # biases
         for lix in range(self.depth() - 1):
             axes[1, lix].plot(self.layer_bias_grad(lix), label="analytic")
             if num_grads:
-                axes[1, lix].plot(self.layer_bias_grad_num(
-                    lix), ":", label="numerical")
+                axes[1, lix].plot(self.layer_bias_grad_num(lix),
+                                  ":",
+                                  label="numerical")
         axes[1, 0].set_ylabel(r"$\partial P \partial b$")
 
         axes[1, self.depth() - 1].plot(self.hamiltonian)
@@ -241,7 +242,7 @@ class Trace:
             pix += prev_width * self.layer_width(i)
             prev_width = self.layer_width(i)
 
-        return self.params[:, pix: pix + prev_width * self.layer_width(lix)]
+        return self.params[:, pix:pix + prev_width * self.layer_width(lix)]
 
     def bias_start_pix(self):
         pix = 0
@@ -256,7 +257,7 @@ class Trace:
         for i in range(lix):
             pix += self.layer_width(i)
 
-        return self.params[:, pix: pix + self.layer_width(lix)]
+        return self.params[:, pix:pix + self.layer_width(lix)]
 
     def layer_weight_precisions(self, lix: int):
         return self.weight_precisions[lix]
@@ -293,17 +294,15 @@ class Data:
     def __from_json(gen, phen):
         x = []
         for bix, branch_data in enumerate(gen["x"]):
-            x.append(np.array(branch_data).reshape(
-                (gen['num_individuals'], gen['num_markers_per_group'][bix]), order='F'))
-        return Data(
-            x,
-            np.array(phen['y']),
-            np.array(gen['means']),
-            np.array(gen['stds']),
-            gen['num_markers_per_group'],
-            gen['num_individuals'],
-            gen['num_groups'],
-            gen['standardized'])
+            x.append(
+                np.array(branch_data).reshape(
+                    (gen['num_individuals'],
+                     gen['num_markers_per_group'][bix]),
+                    order='F'))
+        return Data(x, np.array(phen['y']), np.array(gen['means']),
+                    np.array(gen['stds']), gen['num_markers_per_group'],
+                    gen['num_individuals'], gen['num_groups'],
+                    gen['standardized'])
 
 
 def load_true_params(wdir: str):
@@ -311,13 +310,12 @@ def load_true_params(wdir: str):
         model_params = json.load(fin)
     res = []
     for branch in model_params:
-        res.append(ModelBranchParams(
-            branch["num_params"],
-            branch["num_markers"],
-            branch["layer_widths"],
-            np.array(branch["params"]),
-            [e['data'] for e in branch["precisions"]["weight_precisions"]],
-            branch["precisions"]["bias_precisions"]))
+        res.append(
+            ModelBranchParams(
+                branch["num_params"], branch["num_markers"],
+                branch["layer_widths"], np.array(branch["params"]),
+                [e['data'] for e in branch["precisions"]["weight_precisions"]],
+                branch["precisions"]["bias_precisions"]))
     return res
 
 
@@ -357,8 +355,7 @@ def load_json_traj(wdir: str, branch_ix=0):
                     np.asarray(l["num_ldg"]),
                     np.asarray(l["hamiltonian"]),
                     mcfg,
-                )
-            )
+                ))
             ix += 1
     return res
 
@@ -537,23 +534,19 @@ def plot_perf_r2_genetic_value(wdir: str, burn_in, branch_ix=0):
     fig.suptitle(wdir)
 
     axes[0].plot(trace.error_precision)
-    axes[0].hlines(
-        np.mean(trace.error_precision[burn_in:]),
-        0,
-        len(trace.error_precision),
-        color="r",
-        linestyle="dashed",
-        label="nn posterior mean"
-    )
+    axes[0].hlines(np.mean(trace.error_precision[burn_in:]),
+                   0,
+                   len(trace.error_precision),
+                   color="r",
+                   linestyle="dashed",
+                   label="nn posterior mean")
     if train_phen_stats["env_variance"] > 0:
-        axes[0].hlines(
-            1 / train_phen_stats["env_variance"],
-            0,
-            len(trace.error_precision),
-            color="k",
-            linestyle="dotted",
-            label="true"
-        )
+        axes[0].hlines(1 / train_phen_stats["env_variance"],
+                       0,
+                       len(trace.error_precision),
+                       color="k",
+                       linestyle="dotted",
+                       label="true")
     # axes[0].legend()
     axes[0].set_ylabel(r"$\lambda_e$")
     axes[0].set_yscale("log")
@@ -563,40 +556,46 @@ def plot_perf_r2_genetic_value(wdir: str, burn_in, branch_ix=0):
     r2_test = 1 - \
         (np.array(training_stats["mse_test"]) / test_phen_stats["variance"])
 
-    h2_train = (train_phen_stats["variance"] -
-                train_phen_stats["env_variance"]) / train_phen_stats["variance"]
+    h2_train = (train_phen_stats["variance"] - train_phen_stats["env_variance"]
+                ) / train_phen_stats["variance"]
     h2_test = (test_phen_stats["variance"] -
                test_phen_stats["env_variance"]) / test_phen_stats["variance"]
 
     axes[1].plot(r2_train, label="nn train")
     axes[1].plot(r2_test, label="nn test")
-    axes[1].hlines(h2_train, 0, len(trace.error_precision),
-                   linestyle="dashed", color="#35063e", label="h2 train")
-    axes[1].hlines(h2_test, 0, len(trace.error_precision),
-                   linestyle="dashdot", color="#35063e", label="h2 test")
-    axes[1].hlines(
-        ridge_r2_train,
-        0,
-        len(trace.error_precision),
-        color="gray",
-        linestyle="dashed",
-        label="ridge train"
-    )
-    axes[1].hlines(
-        ridge_r2_test,
-        0,
-        len(trace.error_precision),
-        color="gray",
-        linestyle="dotted",
-        label="ridge test"
-    )
+    axes[1].hlines(h2_train,
+                   0,
+                   len(trace.error_precision),
+                   linestyle="dashed",
+                   color="#35063e",
+                   label="h2 train")
+    axes[1].hlines(h2_test,
+                   0,
+                   len(trace.error_precision),
+                   linestyle="dashdot",
+                   color="#35063e",
+                   label="h2 test")
+    axes[1].hlines(ridge_r2_train,
+                   0,
+                   len(trace.error_precision),
+                   color="gray",
+                   linestyle="dashed",
+                   label="ridge train")
+    axes[1].hlines(ridge_r2_test,
+                   0,
+                   len(trace.error_precision),
+                   color="gray",
+                   linestyle="dotted",
+                   label="ridge test")
     # axes[1].legend()
     axes[1].set_ylim(0.0, 1.0)
     axes[1].set_ylabel(r"$r^2_{\hat{y}y}$")
 
-    exp_r2 = sim.exp_r2_in_indep_sample(
-        num_params, len(g_train), h2_test, "deatwyler")
-    axes[2].axhline(exp_r2, linestyle="dotted", color='red',
+    exp_r2 = sim.exp_r2_in_indep_sample(num_params, len(g_train), h2_test,
+                                        "deatwyler")
+    axes[2].axhline(exp_r2,
+                    linestyle="dotted",
+                    color='red',
                     label=r"expected $r^2_{\hat{y}g}$")
     axes[2].plot(r2g_train)
     axes[2].plot(r2g_test)
@@ -605,6 +604,71 @@ def plot_perf_r2_genetic_value(wdir: str, burn_in, branch_ix=0):
     # axes[2].legend()
 
     plt.figlegend(bbox_to_anchor=(1.04, 0.5), loc="center left")
+
+    plt.tight_layout()
+
+
+def plot_r2_lpd(wdir: str, full_r2_yrange=False, ridge_lm=False):
+    ddir = data_dir(wdir)
+
+    train_phen_stats = load_train_phen_stats(ddir)
+    test_phen_stats = load_test_phen_stats(ddir)
+
+    training_stats = load_json_training_stats(wdir)
+    fig, axes = plt.subplots(2, 1, sharex=True, figsize=(5, 7))
+
+    fig.suptitle(wdir)
+
+    r2_train = 1 - \
+        (np.array(training_stats["mse_train"]) / train_phen_stats["variance"])
+    r2_test = 1 - \
+        (np.array(training_stats["mse_test"]) / test_phen_stats["variance"])
+
+    h2_train = (train_phen_stats["variance"] - train_phen_stats["env_variance"]
+                ) / train_phen_stats["variance"]
+    h2_test = (test_phen_stats["variance"] -
+               test_phen_stats["env_variance"]) / test_phen_stats["variance"]
+
+    axes[0].set_ylabel(r"$R^2$")
+    axes[0].plot(r2_train, label="nn train")
+    axes[0].plot(r2_test, label="nn test")
+    axes[0].hlines(h2_train,
+                   0,
+                   len(r2_train),
+                   linestyle="dashed",
+                   color="#35063e",
+                   label="h2 train")
+    axes[0].hlines(h2_test,
+                   0,
+                   len(r2_train),
+                   linestyle="dashdot",
+                   color="#35063e",
+                   label="h2 test")
+
+    if ridge_lm:
+        train_data = Data.load_train(ddir)
+        test_data = Data.load_test(ddir)
+        ridge_r2_train, ridge_r2_test = r2_ridge(train_data, test_data)
+        axes[0].hlines(ridge_r2_train,
+                       0,
+                       len(r2_train),
+                       color="gray",
+                       linestyle="dashed",
+                       label="ridge train")
+        axes[0].hlines(ridge_r2_test,
+                       0,
+                       len(r2_train),
+                       color="gray",
+                       linestyle="dotted",
+                       label="ridge test")
+    axes[0].legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    # axes[0].legend()
+    if not full_r2_yrange:
+        axes[0].set_ylim(0.0, 1.0)
+
+    axes[1].set_ylabel(r"$\log P(\Theta, \Lambda | D)$")
+    axes[1].plot(np.array(training_stats["lpd"]))
+    axes[1].set_xlabel("ITERATION")
 
     plt.tight_layout()
 
@@ -624,23 +688,19 @@ def plot_perf_r2(wdir: str, burn_in, full_r2_yrange=False, ridge_lm=False):
     # axes[0].set_title("ERROR PRECISION")
     axes[0].set_ylabel("ERROR_PRECISION")
     axes[0].plot(trace.error_precision)
-    axes[0].hlines(
-        np.mean(trace.error_precision[burn_in:]),
-        0,
-        len(trace.error_precision),
-        color="r",
-        linestyle="dashed",
-        label="nn posterior mean"
-    )
+    axes[0].hlines(np.mean(trace.error_precision[burn_in:]),
+                   0,
+                   len(trace.error_precision),
+                   color="r",
+                   linestyle="dashed",
+                   label="nn posterior mean")
     if train_phen_stats["env_variance"] > 0:
-        axes[0].hlines(
-            1 / train_phen_stats["env_variance"],
-            0,
-            len(trace.error_precision),
-            color="k",
-            linestyle="dotted",
-            label="true"
-        )
+        axes[0].hlines(1 / train_phen_stats["env_variance"],
+                       0,
+                       len(trace.error_precision),
+                       color="k",
+                       linestyle="dotted",
+                       label="true")
     axes[0].legend()
     axes[0].set_yscale("log")
 
@@ -649,39 +709,43 @@ def plot_perf_r2(wdir: str, burn_in, full_r2_yrange=False, ridge_lm=False):
     r2_test = 1 - \
         (np.array(training_stats["mse_test"]) / test_phen_stats["variance"])
 
-    h2_train = (train_phen_stats["variance"] -
-                train_phen_stats["env_variance"]) / train_phen_stats["variance"]
+    h2_train = (train_phen_stats["variance"] - train_phen_stats["env_variance"]
+                ) / train_phen_stats["variance"]
     h2_test = (test_phen_stats["variance"] -
                test_phen_stats["env_variance"]) / test_phen_stats["variance"]
 
     axes[1].set_ylabel(r"$R^2$")
     axes[1].plot(r2_train, label="nn train")
     axes[1].plot(r2_test, label="nn test")
-    axes[1].hlines(h2_train, 0, len(trace.error_precision),
-                   linestyle="dashed", color="#35063e", label="h2 train")
-    axes[1].hlines(h2_test, 0, len(trace.error_precision),
-                   linestyle="dashdot", color="#35063e", label="h2 test")
+    axes[1].hlines(h2_train,
+                   0,
+                   len(trace.error_precision),
+                   linestyle="dashed",
+                   color="#35063e",
+                   label="h2 train")
+    axes[1].hlines(h2_test,
+                   0,
+                   len(trace.error_precision),
+                   linestyle="dashdot",
+                   color="#35063e",
+                   label="h2 test")
 
     if ridge_lm:
         train_data = Data.load_train(ddir)
         test_data = Data.load_test(ddir)
         ridge_r2_train, ridge_r2_test = r2_ridge(train_data, test_data)
-        axes[1].hlines(
-            ridge_r2_train,
-            0,
-            len(trace.error_precision),
-            color="gray",
-            linestyle="dashed",
-            label="ridge train"
-        )
-        axes[1].hlines(
-            ridge_r2_test,
-            0,
-            len(trace.error_precision),
-            color="gray",
-            linestyle="dotted",
-            label="ridge test"
-        )
+        axes[1].hlines(ridge_r2_train,
+                       0,
+                       len(trace.error_precision),
+                       color="gray",
+                       linestyle="dashed",
+                       label="ridge train")
+        axes[1].hlines(ridge_r2_test,
+                       0,
+                       len(trace.error_precision),
+                       color="gray",
+                       linestyle="dotted",
+                       label="ridge test")
     axes[1].legend(loc='center left', bbox_to_anchor=(1, 0.5))
     # axes[1].legend()
     if not full_r2_yrange:
@@ -710,45 +774,37 @@ def plot_perf(wdir: str, burn_in):
 
     axes[0].set_title("ERROR PRECISION")
     axes[0].plot(trace.error_precision)
-    axes[0].hlines(
-        np.mean(trace.error_precision[burn_in:]),
-        0,
-        len(trace.error_precision),
-        color="r",
-        linestyle="dashed",
-        label="nn posterior mean"
-    )
+    axes[0].hlines(np.mean(trace.error_precision[burn_in:]),
+                   0,
+                   len(trace.error_precision),
+                   color="r",
+                   linestyle="dashed",
+                   label="nn posterior mean")
     if phen_stats["env_variance"] > 0:
-        axes[0].hlines(
-            1 / phen_stats["env_variance"],
-            0,
-            len(trace.error_precision),
-            color="k",
-            linestyle="dotted",
-            label="true"
-        )
+        axes[0].hlines(1 / phen_stats["env_variance"],
+                       0,
+                       len(trace.error_precision),
+                       color="k",
+                       linestyle="dotted",
+                       label="true")
     axes[0].legend()
     axes[0].set_yscale("log")
 
     axes[1].set_title("MSE")
     axes[1].plot(training_stats["mse_train"], label="nn train")
     axes[1].plot(training_stats["mse_test"], label="nn test")
-    axes[1].hlines(
-        ridge_mse_train,
-        0,
-        len(trace.error_precision),
-        color="gray",
-        linestyle="dashed",
-        label="ridge train"
-    )
-    axes[1].hlines(
-        ridge_mse_test,
-        0,
-        len(trace.error_precision),
-        color="gray",
-        linestyle="dotted",
-        label="ridge test"
-    )
+    axes[1].hlines(ridge_mse_train,
+                   0,
+                   len(trace.error_precision),
+                   color="gray",
+                   linestyle="dashed",
+                   label="ridge train")
+    axes[1].hlines(ridge_mse_test,
+                   0,
+                   len(trace.error_precision),
+                   color="gray",
+                   linestyle="dotted",
+                   label="ridge test")
     axes[1].legend()
     axes[1].set_yscale("log")
 
@@ -815,7 +871,7 @@ def mse_linreg(train_data, test_data):
 
 
 def mse(y_pred, y_true):
-    return ((y_pred - y_true) ** 2).mean()
+    return ((y_pred - y_true)**2).mean()
 
 
 def r2_ridge(train_data, test_data, alpha=1.0):
@@ -830,7 +886,8 @@ def r2_ridge(train_data, test_data, alpha=1.0):
 
 
 def r2(y_pred, y_true):
-    return 1 - np.sum((y_true - y_pred) ** 2) / np.sum((y_true - y_true.mean()) ** 2)
+    return 1 - np.sum((y_true - y_pred)**2) / np.sum(
+        (y_true - y_true.mean())**2)
 
 
 def autocorr(arr):
@@ -866,6 +923,7 @@ def load_lm_true_effects_mb(wdir: str):
         model_params = json.load(fin)
 
     return np.array(model_params['effects']).flatten()
+
 
 # this only works for linear model simulations
 
