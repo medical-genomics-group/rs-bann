@@ -999,6 +999,8 @@ where
         SummaryLayerWidthRule::FractionOfHiddenLayerWidth(model_args.relative_summary_layer_width)
     };
 
+    let model_path = set_replicate_ix(&input_args.outpath, &outdir);
+
     let mcmc_cfg = MCMCCfgBuilder::default()
         .with_hmc_step_size_factor(mcmc_args.step_size)
         .with_hmc_max_hamiltonian_error(mcmc_args.max_hamiltonian_error)
@@ -1006,13 +1008,7 @@ where
         .with_hmc_step_size_mode(mcmc_args.step_size_mode.clone())
         .with_chain_length(mcmc_args.chain_length)
         .with_burn_in(mcmc_args.burn_in)
-        .with_outpath(
-            Path::new(&input_args.outpath)
-                .join(outdir)
-                .into_os_string()
-                .into_string()
-                .unwrap(),
-        )
+        .with_outpath(model_path.into_os_string().into_string().unwrap())
         .with_trace(mcmc_args.trace)
         .with_trajectories(mcmc_args.trajectories)
         .with_num_grad_traj(mcmc_args.num_grad_traj)
