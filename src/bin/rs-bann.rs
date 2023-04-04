@@ -921,6 +921,8 @@ fn load_ungrouped_data(
         )
     });
 
+    debug!("Trying to load test phen at: {:?}", args.p_test);
+
     let test_phen = args
         .p_test
         .as_ref()
@@ -928,7 +930,7 @@ fn load_ungrouped_data(
 
     let test_data = if let (Some(tg), Some(tp)) = (gen_test, test_phen) {
         // just checked that they are Some
-        Some(Data::new(tg, tp.unwrap()))
+        Some(Data::new(tg, tp.expect("Failed to load test phenotypes")))
     } else {
         info!("No complete test data provided, proceeding without");
         None
@@ -1004,7 +1006,13 @@ where
         .with_hmc_step_size_mode(mcmc_args.step_size_mode.clone())
         .with_chain_length(mcmc_args.chain_length)
         .with_burn_in(mcmc_args.burn_in)
-        .with_outpath(outdir)
+        .with_outpath(
+            Path::new(&input_args.outpath)
+                .join(outdir)
+                .into_os_string()
+                .into_string()
+                .unwrap(),
+        )
         .with_trace(mcmc_args.trace)
         .with_trajectories(mcmc_args.trajectories)
         .with_num_grad_traj(mcmc_args.num_grad_traj)
