@@ -297,7 +297,7 @@ impl<B: BranchSampler> Net<B> {
                 self.branch_cfgs[branch_ix] = cfg;
 
                 // compute effect sizes and save
-                if chain_ix >= mcmc_cfg.burn_in {
+                if mcmc_cfg.effect_sizes && chain_ix >= mcmc_cfg.burn_in {
                     self.save_effect_sizes(
                         &branch.effect_sizes(x, y_train),
                         chain_ix,

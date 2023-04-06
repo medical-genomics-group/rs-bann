@@ -11,7 +11,7 @@ pub struct MCMCCfgBuilder {
     pub hmc_integration_length: usize,
     pub hmc_step_size_mode: StepSizeMode,
     pub chain_length: usize,
-    pub burn_in: usize,
+    pub burn_in: Option<usize>,
     pub outpath: String,
     pub trace: bool,
     pub trajectories: bool,
@@ -26,6 +26,7 @@ pub struct MCMCCfgBuilder {
     pub joint_hmc: bool,
     pub fixed_param_precisions: bool,
     pub sampled_output_bias: bool,
+    pub effect_sizes: bool,
 }
 
 impl MCMCCfgBuilder {
@@ -36,7 +37,7 @@ impl MCMCCfgBuilder {
             hmc_integration_length: 100,
             hmc_step_size_mode: StepSizeMode::Izmailov,
             chain_length: 100,
-            burn_in: 0,
+            burn_in: None,
             outpath: "./".to_string(),
             trace: false,
             trajectories: false,
@@ -48,7 +49,13 @@ impl MCMCCfgBuilder {
             joint_hmc: false,
             fixed_param_precisions: false,
             sampled_output_bias: false,
+            effect_sizes: false,
         }
+    }
+
+    pub fn output_effect_sizes(mut self, arg: bool) -> Self {
+        self.effect_sizes = arg;
+        self
     }
 
     pub fn with_hmc_step_size_factor(mut self, arg: f32) -> Self {
@@ -77,7 +84,7 @@ impl MCMCCfgBuilder {
     }
 
     pub fn with_burn_in(mut self, arg: usize) -> Self {
-        self.burn_in = arg;
+        self.burn_in = Some(arg);
         self
     }
 
@@ -135,13 +142,18 @@ impl MCMCCfgBuilder {
         if self.fixed_param_precisions && (self.joint_hmc || self.gradient_descent_joint) {
             panic!("Fixed precisions and joint hmc / gd are mutually exclusive");
         }
+        let burn_in: usize = if let Some(u) = self.burn_in {
+            u
+        } else {
+            self.chain_length - 1
+        };
         MCMCCfg {
             hmc_step_size_factor: self.hmc_step_size_factor,
             hmc_max_hamiltonian_error: self.hmc_max_hamiltonian_error,
             hmc_integration_length: self.hmc_integration_length,
             hmc_step_size_mode: self.hmc_step_size_mode.clone(),
             chain_length: self.chain_length,
-            burn_in: self.burn_in,
+            burn_in,
             outpath: self.outpath.clone(),
             trace: self.trace,
             trajectories: self.trajectories,
@@ -152,6 +164,7 @@ impl MCMCCfgBuilder {
             joint_hmc: self.joint_hmc,
             fixed_param_precisions: self.fixed_param_precisions,
             sampled_output_bias: self.sampled_output_bias,
+            effect_sizes: self.effect_sizes,
         }
     }
 }
@@ -178,6 +191,7 @@ pub struct MCMCCfg {
     pub joint_hmc: bool,
     pub fixed_param_precisions: bool,
     pub sampled_output_bias: bool,
+    pub effect_sizes: bool,
 }
 
 impl Default for MCMCCfg {
@@ -200,6 +214,7 @@ impl Default for MCMCCfg {
             joint_hmc: false,
             fixed_param_precisions: false,
             sampled_output_bias: false,
+            effect_sizes: false,
         }
     }
 }
