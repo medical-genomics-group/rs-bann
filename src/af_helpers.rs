@@ -69,3 +69,8 @@ pub(crate) fn scalar_to_host(a: &Array<f32>) -> f32 {
     a.host(&mut host_data);
     host_data[0]
 }
+
+pub(crate) fn ones_like(a: &Array<f32>) -> Array<f32> {
+    let [d1, d2, d3, d4] = *a.dims().get();
+    arrayfire::constant!(1f32; d1, d2, d3, d4)
+}
