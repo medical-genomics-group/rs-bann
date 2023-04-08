@@ -39,7 +39,7 @@ impl HasActivationFunction for ActivationFunction {
                 let fx = self.h(x);
                 &fx + sigmoid(x) * (1 - &fx)
             }
-            ActivationFunction::Identity => Array::new(&[1.], x.dims()),
+            ActivationFunction::Identity => ones_like(x),
         }
     }
 }
@@ -59,7 +59,25 @@ macro_rules! has_activation_function {
 }
 pub(crate) use has_activation_function;
 
+use crate::af_helpers::ones_like;
+
 pub trait HasActivationFunction {
     fn h(&self, x: &Array<f32>) -> Array<f32>;
     fn dhdx(&self, x: &Array<f32>) -> Array<f32>;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ActivationFunction, HasActivationFunction};
+    use crate::af_helpers::to_host;
+    use arrayfire::{dim4, Array};
+
+    #[test]
+    fn af_sign() {
+        let af = ActivationFunction::Identity;
+        let a = Array::new(&[0f32, 2f32, -2f32], dim4![3, 1, 1, 1]);
+
+        assert_eq!(to_host(&af.h(&a)), vec![0f32, 2f32, -2f32]);
+        assert_eq!(to_host(&af.dhdx(&a)), vec![1f32, 1f32, 1f32]);
+    }
 }
