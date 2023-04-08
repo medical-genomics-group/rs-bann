@@ -8,6 +8,7 @@ pub enum ActivationFunction {
     ReLU,
     LeakyReLU,
     SiLU,
+    Identity,
 }
 
 impl Display for ActivationFunction {
@@ -25,6 +26,7 @@ impl HasActivationFunction for ActivationFunction {
             ActivationFunction::ReLU => x * gt(x, &0f32, false),
             ActivationFunction::LeakyReLU => x * gt(x, &0f32, false) + x * sign(x) * 0.01f32,
             ActivationFunction::SiLU => x * sigmoid(x),
+            ActivationFunction::Identity => 1 * x,
         }
     }
 
@@ -37,6 +39,7 @@ impl HasActivationFunction for ActivationFunction {
                 let fx = self.h(x);
                 &fx + sigmoid(x) * (1 - &fx)
             }
+            ActivationFunction::Identity => Array::new(&[1.], x.dims()),
         }
     }
 }
