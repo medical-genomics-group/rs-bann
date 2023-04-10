@@ -952,8 +952,9 @@ where
     let (train_data, test_data) = load_ungrouped_data(&input_args);
 
     let mut outdir = format!(
-        "{}_d{}_cl{}_il{}_{}_st{}_dpk{}_dps{}_spk{}_sps{}_opk{}_ops{}",
+        "{}_{}_d{}_cl{}_il{}_{}_st{}_dpk{}_dps{}_spk{}_sps{}_opk{}_ops{}",
         model_args.model_type,
+        model_args.activation_function,
         model_args.branch_depth,
         mcmc_args.chain_length,
         mcmc_args.integration_length,
