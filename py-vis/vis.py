@@ -531,7 +531,7 @@ def plot_perf_r2_genetic_value(wdir: str, burn_in, branch_ix=0):
     # r2_e_test = [r2(v, e_test) for v in train_pred.values]
 
     fig, axes = plt.subplots(3, 1, figsize=(6, 6), sharex=True)
-    fig.suptitle(wdir)
+    # fig.suptitle(wdir)
 
     axes[0].plot(trace.error_precision)
     axes[0].hlines(np.mean(trace.error_precision[burn_in:]),
@@ -617,7 +617,7 @@ def plot_r2_lpd(wdir: str, full_r2_yrange=False, ridge_lm=False):
     training_stats = load_json_training_stats(wdir)
     fig, axes = plt.subplots(2, 1, sharex=True, figsize=(7, 5))
 
-    fig.suptitle(wdir)
+    # fig.suptitle(wdir)
 
     r2_train = 1 - \
         (np.array(training_stats["mse_train"]) / train_phen_stats["variance"])
@@ -683,7 +683,7 @@ def plot_perf_r2(wdir: str, burn_in, full_r2_yrange=False, ridge_lm=False):
     trace = load_json_trace(wdir, 0)
     fig, axes = plt.subplots(3, 1, sharex=True, figsize=(7, 7))
 
-    fig.suptitle(wdir)
+    # fig.suptitle(wdir)
 
     # axes[0].set_title("ERROR PRECISION")
     axes[0].set_ylabel("ERROR_PRECISION")
