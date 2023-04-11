@@ -759,10 +759,10 @@ where
     }
 
     if let Some(v) = args.init_param_variance {
-        outdir.push_str(&format!("v_{:?}", v));
+        outdir.push_str(&format!("_v{:?}", v));
     } else if let (Some(k), Some(s)) = (args.init_gamma_shape, args.init_gamma_scale) {
-        outdir.push_str(&format!("k_{:?}", k));
-        outdir.push_str(&format!("s_{:?}", s));
+        outdir.push_str(&format!("_k{:?}", k));
+        outdir.push_str(&format!("_s{:?}", s));
     }
 
     let path = set_replicate_ix(&args.outdir, &outdir);
