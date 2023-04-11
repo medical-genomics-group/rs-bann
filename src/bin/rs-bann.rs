@@ -2,8 +2,8 @@ mod cli;
 
 use clap::Parser;
 use cli::cli::{
-    ActivationArgs, BranchR2Args, Cli, GradientsArgs, GroupByGenesArgs, GroupCenteredArgs,
-    MCMCArgs, PredictArgs, SimulateXYArgs, SimulateYArgs, SubCmd, TrainIOArgs, TrainNewModelArgs,
+    ActivationArgs, BedPhenGroupModelsArgs, Cli, GroupByGenesArgs, GroupCenteredArgs, MCMCArgs,
+    PredictArgs, SimulateXYArgs, SimulateYArgs, SubCmd, TrainIOArgs, TrainNewModelArgs,
     TrainOldModelArgs,
 };
 use log::{debug, info, warn};
@@ -93,6 +93,7 @@ fn main() {
         SubCmd::AvailableBackends => available_backends(),
         SubCmd::GroupByGenes(args) => group_by_genes(args),
         SubCmd::Gradients(args) => gradients(args),
+        SubCmd::PopulationEffectSizes(args) => population_effect_sizes(args),
     }
     exit(exitcode::OK);
 }
@@ -124,7 +125,7 @@ fn available_backends() {
     println!("{:?}", arrayfire::get_available_backends());
 }
 
-fn branch_r2(args: BranchR2Args) {
+fn branch_r2(args: BedPhenGroupModelsArgs) {
     let bed = BedVM::from_file(Path::new(&args.bfile));
     let groups = ExternalGrouping::from_file(Path::new(&args.groups));
     let genotypes = CompressedGenotypes::new(bed, groups);
@@ -222,7 +223,7 @@ fn activations(args: ActivationArgs) {
     }
 }
 
-fn gradients(args: GradientsArgs) {
+fn gradients(args: BedPhenGroupModelsArgs) {
     let bed = BedVM::from_file(Path::new(&args.bfile));
     let groups = ExternalGrouping::from_file(Path::new(&args.groups));
     let genotypes = CompressedGenotypes::new(bed, groups);
@@ -308,6 +309,66 @@ fn predict(args: PredictArgs) {
             .unwrap();
     }
     wtr.flush().expect("Failed to flush csv writer");
+}
+
+fn population_effect_sizes(args: BedPhenGroupModelsArgs) {
+    let bed = BedVM::from_file(Path::new(&args.bfile));
+    let groups = ExternalGrouping::from_file(Path::new(&args.groups));
+    let genotypes = CompressedGenotypes::new(bed, groups);
+    let phenotypes =
+        Phenotypes::from_file(Path::new(&args.phen)).expect("Failed to load phenotype input data");
+    let data = Data::new(genotypes, phenotypes);
+
+    // get model type
+    let args_path = Path::new(&args.model_path)
+        .parent()
+        .unwrap()
+        .join("args.json");
+    let model_type = read_model_type_from_model_args(&args_path);
+
+    let outdir = Path::new(&args.model_path)
+        .parent()
+        .unwrap()
+        .join("population_effect_sizes");
+
+    if !Path::new(&outdir).exists() {
+        std::fs::create_dir_all(&outdir).expect("Could not create output directory!");
+    }
+
+    let mut model_files = read_dir(Path::new(&args.model_path))
+        .expect("Failed to parse model dir")
+        .map(|res| res.map(|e| e.path()))
+        .filter_map(|e| e.ok())
+        .filter(|e| e.is_file())
+        .collect::<Vec<PathBuf>>();
+    model_files.sort();
+
+    for path in model_files {
+        let pes = match model_type {
+            ModelType::RidgeARD => {
+                Net::<RidgeArdBranch>::from_file(&path).population_effect_sizes(&data)
+            }
+            ModelType::LassoARD => {
+                Net::<LassoArdBranch>::from_file(&path).population_effect_sizes(&data)
+            }
+            ModelType::RidgeBase => {
+                Net::<RidgeBaseBranch>::from_file(&path).population_effect_sizes(&data)
+            }
+            ModelType::LassoBase => {
+                Net::<LassoBaseBranch>::from_file(&path).population_effect_sizes(&data)
+            }
+            ModelType::StdNormal => {
+                Net::<StdNormalBranch>::from_file(&path).population_effect_sizes(&data)
+            }
+            ModelType::Linear => unimplemented!("Linear models are currently not supported."),
+        };
+        let outfile = outdir.join(format!(
+            "{}.json",
+            path.file_stem().unwrap().to_str().unwrap()
+        ));
+        to_writer(File::create(outfile).unwrap(), &pes)
+            .expect("Failed to write activations to json");
+    }
 }
 
 fn simulate_y<B>(args: SimulateYArgs)

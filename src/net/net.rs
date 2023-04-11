@@ -516,6 +516,22 @@ impl<B: BranchSampler> Net<B> {
             .collect()
     }
 
+    pub fn population_effect_sizes<T: GroupedGenotypes>(&self, data: &Data<T>) -> Vec<f32> {
+        let n = data.num_individuals() as f32;
+        self.branch_cfgs
+            .iter()
+            .enumerate()
+            .flat_map(|(ix, cfg)| {
+                to_host(
+                    &(arrayfire::sum(
+                        &B::from_cfg(&cfg).effect_sizes(&data.x_branch_af(ix), &data.y_af()),
+                        0,
+                    ) / n),
+                )
+            })
+            .collect()
+    }
+
     pub fn predict<T: GroupedGenotypes>(&self, gen: &T) -> Vec<f32> {
         // I expect X to be column major
         let mut y_hat = Array::new(

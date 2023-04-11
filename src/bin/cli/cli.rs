@@ -48,11 +48,13 @@ pub(crate) enum SubCmd {
     /// Use trained model to predict phenotypes.
     Predict(PredictArgs),
     /// Use trained model to compute r2 values for each model branch.
-    BranchR2(BranchR2Args),
+    BranchR2(BedPhenGroupModelsArgs),
     /// Report node activations in trained model.
     Activations(ActivationArgs),
     /// Report gradient wrt to params in trained model.
-    Gradients(GradientsArgs),
+    Gradients(BedPhenGroupModelsArgs),
+    /// Report population mean of the partial derivative distribution for each marker, for each model
+    PopulationEffectSizes(BedPhenGroupModelsArgs),
     /// Print backends available to ArrayFire.
     AvailableBackends,
 }
@@ -455,29 +457,8 @@ pub(crate) struct ActivationArgs {
 //     }
 // }
 
-/// Use trained model to compute r2 values for each model branch separately.
-/// This returns one r2 for each branch and sampled model in a .models dir
-/// generated in a `rs-bann train-new` run.
 #[derive(Args, Debug, Serialize)]
-pub(crate) struct BranchR2Args {
-    /// Stem of input .bed + .dim or .bed + .bim + .fam files
-    pub bfile: String,
-
-    /// Path to input .phen file.
-    /// Should contain a rs-bann Phenotypes instance.
-    pub phen: String,
-
-    /// Path to .grouping file
-    pub groups: String,
-
-    /// Path to models generated with `train-new` or `train` command
-    #[clap(short, long, default_value = "./models")]
-    pub model_path: String,
-}
-
-/// Use trained models to compute gradient for each model, given some data.
-#[derive(Args, Debug, Serialize)]
-pub(crate) struct GradientsArgs {
+pub(crate) struct BedPhenGroupModelsArgs {
     /// Stem of input .bed + .dim or .bed + .bim + .fam files
     pub bfile: String,
 
