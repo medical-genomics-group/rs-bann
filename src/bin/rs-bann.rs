@@ -733,7 +733,7 @@ fn simulate_xy<B>(args: SimulateXYArgs)
 where
     B: BranchSampler,
 {
-    simple_logger::init_with_level(log::Level::Info).unwrap();
+    simple_logger::init_with_level(log::Level::Debug).unwrap();
 
     if !(args.heritability >= 0. && args.heritability <= 1.) {
         panic!("Heritability must be within [0, 1].");
@@ -849,6 +849,10 @@ where
 
             // TODO: let user set minimal residual variance
             if train_residual_variance < 0.01 || test_residual_variance < 0.01 {
+                debug!(
+                    "Residual variances too small; train: {:?}, test: {:?}",
+                    train_residual_variance, test_residual_variance
+                );
                 continue;
             }
         }
