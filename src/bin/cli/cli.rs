@@ -95,8 +95,8 @@ pub(crate) struct MCMCArgs {
     #[clap(default_value_t = 10., long)]
     pub max_hamiltonian_error: f32,
 
-    /// hmc step size, acts as a modifying factor on random step sizes if enabled
-    #[clap(default_value_t = 0.1, long)]
+    /// hmc step size, acts as a modifying factor on step sizes if enabled
+    #[clap(default_value_t = 1.0, long)]
     pub step_size: f32,
 
     #[clap(default_value_t = 1, long)]

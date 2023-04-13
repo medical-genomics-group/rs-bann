@@ -14,7 +14,7 @@ use crate::net::activation_functions::*;
 use crate::net::gibbs_steps::lasso_multi_param_precision_posterior;
 use crate::net::mcmc_cfg::MCMCCfg;
 use crate::net::params::NetworkPrecisionHyperparameters;
-use arrayfire::{sqrt, Array};
+use arrayfire::Array;
 use rand::prelude::ThreadRng;
 
 pub struct LassoBaseBranch {
@@ -88,7 +88,7 @@ impl BranchSampler for LassoBaseBranch {
 
         for index in 0..self.num_layers() {
             wrt_weights.push(
-                1.0f32
+                mcmc_cfg.hmc_step_size_factor
                     / (4.0f32
                         * &self.precisions().weight_precisions[index]
                         * integration_length as f32),
@@ -97,11 +97,13 @@ impl BranchSampler for LassoBaseBranch {
 
         for index in 0..self.num_layers() - 1 {
             wrt_biases.push(
-                arrayfire::constant(1.0f32, self.layer_biases(index).dims())
-                    * (std::f32::consts::PI
-                        / (2.0f32
-                            * arrayfire::sqrt(&self.precisions().bias_precisions[index])
-                            * integration_length as f32)),
+                arrayfire::constant(
+                    mcmc_cfg.hmc_step_size_factor,
+                    self.layer_biases(index).dims(),
+                ) * (std::f32::consts::PI
+                    / (2.0f32
+                        * arrayfire::sqrt(&self.precisions().bias_precisions[index])
+                        * integration_length as f32)),
             );
         }
 

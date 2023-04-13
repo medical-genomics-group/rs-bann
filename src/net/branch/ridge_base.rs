@@ -86,7 +86,7 @@ impl BranchSampler for RidgeBaseBranch {
 
         for index in 0..self.num_layers() {
             wrt_weights.push(
-                std::f32::consts::PI
+                mcmc_cfg.hmc_step_size_factor * std::f32::consts::PI
                     / (2f32
                         * sqrt(&self.precisions().weight_precisions[index])
                         * integration_length as f32),
@@ -95,11 +95,13 @@ impl BranchSampler for RidgeBaseBranch {
 
         for index in 0..self.num_layers() - 1 {
             wrt_biases.push(
-                arrayfire::constant(1.0f32, self.layer_biases(index).dims())
-                    * (std::f32::consts::PI
-                        / (2.0f32
-                            * arrayfire::sqrt(&self.precisions().bias_precisions[index])
-                            * integration_length as f32)),
+                arrayfire::constant(
+                    mcmc_cfg.hmc_step_size_factor,
+                    self.layer_biases(index).dims(),
+                ) * (std::f32::consts::PI
+                    / (2.0f32
+                        * arrayfire::sqrt(&self.precisions().bias_precisions[index])
+                        * integration_length as f32)),
             );
         }
 

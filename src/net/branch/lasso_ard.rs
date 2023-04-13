@@ -81,18 +81,21 @@ impl BranchSampler for LassoArdBranch {
 
         // ard layers
         for index in 0..self.output_layer_index() {
-            wrt_weights.push(tile(
-                &(1.0f32
-                    / (4.0f32
-                        * &self.precisions().weight_precisions[index]
-                        * integration_length as f32)),
-                dim4!(1, self.layer_widths[index] as u64, 1, 1),
-            ));
+            wrt_weights.push(
+                mcmc_cfg.hmc_step_size_factor
+                    * tile(
+                        &(1.0f32
+                            / (4.0f32
+                                * &self.precisions().weight_precisions[index]
+                                * integration_length as f32)),
+                        dim4!(1, self.layer_widths[index] as u64, 1, 1),
+                    ),
+            );
         }
 
         // output layer is base
         wrt_weights.push(
-            1.0f32
+            mcmc_cfg.hmc_step_size_factor * 1.0f32
                 / (4.0f32
                     * &self.precisions().weight_precisions[self.output_layer_index()]
                     * integration_length as f32),
@@ -100,7 +103,7 @@ impl BranchSampler for LassoArdBranch {
 
         // there is only one bias precision per layer here
         for index in 0..self.output_layer_index() {
-            let step_size = std::f32::consts::PI
+            let step_size = mcmc_cfg.hmc_step_size_factor * std::f32::consts::PI
                 / (2.0f32
                     * arrayfire::sqrt(&self.precisions().bias_precisions[index])
                     * integration_length as f32);
