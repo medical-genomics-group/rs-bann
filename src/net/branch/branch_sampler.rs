@@ -919,8 +919,24 @@ pub trait BranchSampler: HasActivationFunction + BranchStruct {
     ) -> HMCStepResult {
         let mut ldg = self.log_density_gradient(x_train, y_train);
         for _step in 0..(mcmc_cfg.hmc_integration_length) {
-            self.params_mut()
-                .descend_gradient(mcmc_cfg.hmc_step_size_factor, &ldg);
+            // line search
+            let mut step_size = mcmc_cfg.hmc_step_size_factor;
+            let mut prev_rss = self.probe_gradient_step(&ldg, x_train, y_train, step_size);
+            let step_size_factor =
+                if self.probe_gradient_step(&ldg, x_train, y_train, 2.0 * step_size) < prev_rss {
+                    2.0
+                } else {
+                    0.5
+                };
+            step_size *= step_size_factor;
+            let mut curr_rss = self.probe_gradient_step(&ldg, x_train, y_train, step_size);
+            while curr_rss < prev_rss {
+                prev_rss = curr_rss;
+                step_size *= step_size_factor;
+                curr_rss = self.probe_gradient_step(&ldg, x_train, y_train, step_size);
+            }
+            step_size /= step_size_factor;
+            self.params_mut().descend_gradient(step_size, &ldg);
             ldg = self.log_density_gradient(x_train, y_train);
         }
         let y_pred = self.predict(x_train);
@@ -933,6 +949,20 @@ pub trait BranchSampler: HasActivationFunction + BranchStruct {
             y_pred,
             log_density,
         })
+    }
+
+    fn probe_gradient_step(
+        &mut self,
+        ldg: &BranchLogDensityGradient,
+        x_train: &Array<f32>,
+        y_train: &Array<f32>,
+        step_size: f32,
+    ) -> f32 {
+        let init_params = self.params().clone();
+        self.params_mut().descend_gradient(step_size, ldg);
+        let res = self.rss(x_train, y_train);
+        self.set_params(&init_params);
+        res
     }
 
     /// Performs gradient descent step for weights, biases and their precisions
