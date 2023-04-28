@@ -217,7 +217,7 @@ pub(crate) struct SimulateYArgs {
     #[clap(short, long)]
     pub proportion_effective: Option<f32>,
 
-    /// number of effective markers. Takes precedence over proportion_effective
+    /// number of effective markers per branch. Takes precedence over proportion_effective
     #[clap(short, long)]
     pub num_effective: Option<usize>,
 
@@ -286,7 +286,7 @@ pub(crate) struct SimulateXYArgs {
     #[clap(short, long)]
     pub proportion_effective: Option<f32>,
 
-    /// number of effective markers. Takes precedence over proportion_effective
+    /// number of effective markers per branch. Takes precedence over proportion_effective
     #[clap(short, long)]
     pub num_effective: Option<usize>,
 
