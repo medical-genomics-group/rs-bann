@@ -261,9 +261,12 @@ impl<B: BranchSampler> Net<B> {
 
                 // load branch cfg
                 let mut branch = B::from_cfg(cfg);
+
                 if !(mcmc_cfg.gradient_descent_joint || mcmc_cfg.joint_hmc) {
+                    debug!("Updating error precision");
                     branch.sample_error_precision(&residual, &self.hyperparams);
                     if !mcmc_cfg.fixed_param_precisions {
+                        debug!("Updating parameter precisions");
                         branch.sample_param_precisions(&self.hyperparams);
                     }
                 }
@@ -410,8 +413,10 @@ impl<B: BranchSampler> Net<B> {
             cfg.update_global_params(&self.global_params);
 
             if !(mcmc_cfg.gradient_descent_joint || mcmc_cfg.joint_hmc) {
+                debug!("Updating error precision");
                 branch.sample_error_precision(&residual, &self.hyperparams);
                 if !mcmc_cfg.fixed_param_precisions {
+                    debug!("Updating parameter precisions");
                     branch.sample_param_precisions(&self.hyperparams);
                 }
             }
