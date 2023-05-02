@@ -144,8 +144,8 @@ pub(crate) struct MCMCArgs {
     pub gradient_descent_joint: bool,
 
     /// Number of burn-in samples that will be discarded.
-    #[clap(default_value_t = 0, long)]
-    pub burn_in: usize,
+    #[clap(long)]
+    pub burn_in: Option<usize>,
 
     /// Sample parameters and their precisions jointly, instead sampling the precisions in a Gibbs step.
     #[clap(short, long)]

@@ -83,8 +83,8 @@ impl MCMCCfgBuilder {
         self
     }
 
-    pub fn with_burn_in(mut self, arg: usize) -> Self {
-        self.burn_in = Some(arg);
+    pub fn with_burn_in(mut self, arg: Option<usize>) -> Self {
+        self.burn_in = arg;
         self
     }
 
