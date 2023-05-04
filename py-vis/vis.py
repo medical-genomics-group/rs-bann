@@ -608,7 +608,11 @@ def plot_perf_r2_genetic_value(wdir: str, burn_in, branch_ix=0):
     plt.tight_layout()
 
 
-def plot_r2_lpd(wdir: str, full_r2_yrange=False, ridge_lm=False):
+def plot_r2_lpd(wdir: str,
+                full_r2_yrange=False,
+                ridge_lm=False,
+                yscale=None,
+                max_iter=None):
     ddir = data_dir(wdir)
 
     train_phen_stats = load_train_phen_stats(ddir)
@@ -665,10 +669,22 @@ def plot_r2_lpd(wdir: str, full_r2_yrange=False, ridge_lm=False):
     # axes[0].legend()
     if not full_r2_yrange:
         axes[0].set_ylim(0.0, 1.0)
+    if yscale:
+        axes[0].set_yscale(yscale)
+    if max_iter:
+        axes[0].set_xlim(0, max_iter)
+        axes[0].relim()
+        axes[0].autoscale_view()
 
     axes[1].set_ylabel(r"$\log P(\Theta, \Lambda | D)$")
     axes[1].plot(np.array(training_stats["lpd"]))
     axes[1].set_xlabel("ITERATION")
+    if yscale:
+        axes[1].set_yscale(yscale)
+    if max_iter:
+        axes[1].set_xlim(0, max_iter)
+        axes[1].relim()
+        axes[1].autoscale_view()
 
     plt.tight_layout()
 
