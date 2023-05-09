@@ -575,8 +575,8 @@ mod tests {
         ];
 
         let exp_ldg_wrt_b = [
-            Array::new(&[-0.00053271546, -1.0], dim4![2, 1, 1, 1]),
-            Array::new(&[-2.0017552], dim4![1, 1, 1, 1]),
+            Array::new(&[-0.00053271546, -1.2088213e-9], dim4![2, 1, 1, 1]),
+            Array::new(&[-0.0017552058], dim4![1, 1, 1, 1]),
         ];
 
         // correct values

@@ -77,6 +77,20 @@ pub trait BranchSampler: HasActivationFunction + BranchStruct {
         scalar_to_host(&(wrt_w + wrt_b + wrt_e))
     }
 
+    // This should be -U(q), e.g. log P(D | Theta)P(Theta)
+    fn log_density_biases_l2(
+        &self,
+        params: &BranchParams,
+        precisions: &BranchPrecisions,
+        rss: f32,
+    ) -> f32 {
+        let wrt_w = self.log_density_wrt_weights(params, precisions);
+        let wrt_e = self.log_density_wrt_rss(precisions, rss);
+        let wrt_b = self.log_density_wrt_biases_l2(params, precisions);
+
+        scalar_to_host(&(wrt_w + wrt_b + wrt_e))
+    }
+
     fn log_density_wrt_weights(
         &self,
         params: &BranchParams,
@@ -87,8 +101,18 @@ pub trait BranchSampler: HasActivationFunction + BranchStruct {
         -1.0f32 * &precisions.error_precision * (rss / 2.0)
     }
 
-    /// Log density w.r.t. l2 regularized biases
+    /// Log density w.r.t. unregularized biases,
+    /// i.e. with an infinite prior variance.
     fn log_density_wrt_biases(
+        &self,
+        _params: &BranchParams,
+        _precisions: &BranchPrecisions,
+    ) -> Array<f32> {
+        af_scalar(0.0)
+    }
+
+    /// Log density w.r.t. l2 regularized biases
+    fn log_density_wrt_biases_l2(
         &self,
         params: &BranchParams,
         precisions: &BranchPrecisions,
@@ -293,8 +317,21 @@ pub trait BranchSampler: HasActivationFunction + BranchStruct {
         (scalar_to_host(&wrt_output_w), wrt_local)
     }
 
-    /// Gradient w.r.t l2 regularized biases
+    /// Gradient w.r.t. biases without any regularization.
+    /// This corresponds to a prior with infinite variance, 0 precision.
     fn log_density_gradient_wrt_biases(&self) -> Vec<Array<f32>> {
+        let mut ldg_wrt_biases: Vec<Array<f32>> = Vec::with_capacity(self.num_layers() - 1);
+
+        for layer_index in 0..self.output_layer_index() {
+            ldg_wrt_biases
+                .push(-1.0f32 * self.error_precision() * self.layer_d_rss_wrt_biases(layer_index));
+        }
+
+        ldg_wrt_biases
+    }
+
+    /// Gradient w.r.t l2 regularized biases
+    fn log_density_gradient_wrt_biases_l2(&self) -> Vec<Array<f32>> {
         let mut ldg_wrt_biases: Vec<Array<f32>> = Vec::with_capacity(self.num_layers() - 1);
 
         for layer_index in 0..self.output_layer_index() {
@@ -353,13 +390,26 @@ pub trait BranchSampler: HasActivationFunction + BranchStruct {
         }
     }
 
+    fn log_density_gradient_bias_l2(
+        &mut self,
+        x_train: &Array<f32>,
+        y_train: &Array<f32>,
+    ) -> BranchLogDensityGradient {
+        self.backpropagate(x_train, y_train);
+
+        BranchLogDensityGradient {
+            wrt_weights: self.log_density_gradient_wrt_weights(),
+            wrt_biases: self.log_density_gradient_wrt_biases_l2(),
+        }
+    }
+
     fn log_density_gradient_joint(
         &mut self,
         x_train: &Array<f32>,
         y_train: &Array<f32>,
         hyperparams: &NetworkPrecisionHyperparameters,
     ) -> BranchLogDensityGradientJoint {
-        let ldg_wrt_params = self.log_density_gradient(x_train, y_train);
+        let ldg_wrt_params = self.log_density_gradient_bias_l2(x_train, y_train);
 
         BranchLogDensityGradientJoint {
             wrt_weights: ldg_wrt_params.wrt_weights,

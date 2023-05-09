@@ -560,13 +560,13 @@ mod tests {
         );
 
         assert_eq!(
-            scalar_to_host(&branch.log_density_wrt_biases(branch.params(), branch.precisions())),
+            scalar_to_host(&branch.log_density_wrt_biases_l2(branch.params(), branch.precisions())),
             -5.0
         );
 
         assert_eq!(
             branch.log_density(branch.params(), branch.precisions(), rss),
-            -50.24824469
+            -45.24824469
         );
     }
 
@@ -596,8 +596,8 @@ mod tests {
         }
 
         let exp_ldg_wrt_b = [
-            Array::new(&[-0.0010654309, -2.00000000e+00], dim4!(2, 1, 1, 1)),
-            Array::new(&[-4.0035105], dim4!(1, 1, 1, 1)),
+            Array::new(&[-0.0010654309, -2.4176425e-9], dim4!(2, 1, 1, 1)),
+            Array::new(&[-0.0035104116], dim4!(1, 1, 1, 1)),
         ];
 
         for i in 0..(branch.num_layers - 1) {
