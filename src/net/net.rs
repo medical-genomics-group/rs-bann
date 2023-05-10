@@ -221,6 +221,7 @@ impl<B: BranchSampler> Net<B> {
         let mut residual = self.initialize_stats(&train_data.gen, y_train);
         let mut branch_ixs = (0..self.num_branches).collect::<Vec<usize>>();
         let mut report_interval = 1;
+        let mut sample_ixs = (0..train_data.num_individuals()).collect::<Vec<usize>>();
 
         info!(
             "Training net with {:} branches, {:} params",
@@ -248,6 +249,10 @@ impl<B: BranchSampler> Net<B> {
         }
 
         for chain_ix in 1..=mcmc_cfg.chain_length {
+            if mcmc_cfg.mini_batch_size.is_some() {
+                sample_ixs.shuffle(&mut rng);
+            }
+
             // shuffle order in which branches are trained
             branch_ixs.shuffle(&mut rng);
             for &branch_ix in &branch_ixs {

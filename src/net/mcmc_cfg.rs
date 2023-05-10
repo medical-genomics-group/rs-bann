@@ -27,6 +27,7 @@ pub struct MCMCCfgBuilder {
     pub fixed_param_precisions: bool,
     pub sampled_output_bias: bool,
     pub effect_sizes: bool,
+    pub mini_batch_size: Option<usize>,
 }
 
 impl MCMCCfgBuilder {
@@ -50,7 +51,13 @@ impl MCMCCfgBuilder {
             fixed_param_precisions: false,
             sampled_output_bias: false,
             effect_sizes: false,
+            mini_batch_size: None,
         }
+    }
+
+    pub fn mini_batch_size(mut self, arg: Option<usize>) -> Self {
+        self.mini_batch_size = arg;
+        self
     }
 
     pub fn output_effect_sizes(mut self, arg: bool) -> Self {
@@ -165,6 +172,7 @@ impl MCMCCfgBuilder {
             fixed_param_precisions: self.fixed_param_precisions,
             sampled_output_bias: self.sampled_output_bias,
             effect_sizes: self.effect_sizes,
+            mini_batch_size: self.mini_batch_size,
         }
     }
 }
@@ -192,6 +200,7 @@ pub struct MCMCCfg {
     pub fixed_param_precisions: bool,
     pub sampled_output_bias: bool,
     pub effect_sizes: bool,
+    pub mini_batch_size: Option<usize>,
 }
 
 impl Default for MCMCCfg {
@@ -215,6 +224,7 @@ impl Default for MCMCCfg {
             fixed_param_precisions: false,
             sampled_output_bias: false,
             effect_sizes: false,
+            mini_batch_size: None,
         }
     }
 }
